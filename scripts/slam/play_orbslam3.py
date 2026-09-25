@@ -11,6 +11,8 @@ import argparse
 
 from isaaclab.app import AppLauncher
 
+from spot_vslam.managers.ros2_manager import Ros2Manager
+
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Play a checkpoint of an RL agent from RL-Games.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
@@ -169,25 +171,21 @@ def main():
     # note: We simplified the logic in rl-games player.py (:func:`BasePlayer.run()`) function in an
     #   attempt to have complete control over environment stepping. However, this removes other
     #   operations such as masking that is used for multi-agent learning by RL-Games.
-    # 加上這行檢查，確保只有在 cfg 有 ros2 的時候才啟動通訊官
-    from spot_vslam.managers.ros2_manager import Ros2Manager
-    if getattr(env.unwrapped.cfg, "ros2", None) is not None:
-        env.unwrapped.ros2_manager = Ros2Manager(env.unwrapped.cfg.ros2, env.unwrapped)
+
+    env.ros2_manager = Ros2Manager(env.cfg.ros2, env)
+    
+    # slam_sub = OrbSlamSubscriber(env.unwrapped.num_envs, env.unwrapped.device)
     
     while simulation_app.is_running():
         start_time = time.time()
         # run everything in inference mode
         with torch.inference_mode():
             # convert obs to agent format
-            obs_dict = agent.obs_to_torch(obs)
+            obs = agent.obs_to_torch(obs)
             # agent stepping
-            actions = agent.get_action(obs_dict, is_deterministic=agent.is_deterministic)
+            actions = agent.get_action(obs, is_deterministic=agent.is_deterministic)
             # env stepping
             obs, _, dones, _ = env.step(actions)
-
-            # [新增] 發布影像給 ROS 2
-            if hasattr(env.unwrapped, "ros2_manager") and env.unwrapped.ros2_manager is not None:
-                env.unwrapped.ros2_manager.update(dt=dt)
 
             # perform operations for terminated episodes
             if len(dones) > 0:
@@ -195,7 +193,6 @@ def main():
                 if agent.is_rnn and agent.states is not None:
                     for s in agent.states:
                         s[:, dones, :] = 0.0
-
         if args_cli.video:
             timestep += 1
             # exit the play loop after recording one video
@@ -209,7 +206,6 @@ def main():
 
     # close the simulator
     env.close()
-
 
 
 if __name__ == "__main__":

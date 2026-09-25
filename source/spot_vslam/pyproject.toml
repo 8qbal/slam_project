@@ -1,3 +1,28 @@
 [build-system]
-requires = ["setuptools", "wheel", "toml"]
+requires = ["setuptools>=70.0,<82.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "spot_vslam"
+version = "0.2.0"
+description = "Isaac Lab environments for visual SLAM (ORB-SLAM3 + ROS 2) on the Boston Dynamics Spot quadruped."
+license = { text = "BSD-3-Clause" }
+authors = [{ name = "Isaac Lab Project Developers" }]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "isaaclab[isaacsim,rl-games,rsl-rl,sb3]",
+]
+
+# Lets `isaaclab train/play --task Spot-...` discover the tasks without importing them by hand.
+[project.entry-points."isaaclab.tasks"]
+"spot_vslam" = "spot_vslam.tasks"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["spot_vslam", "spot_vslam.*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.toml", "*.usd", "*.yaml", "*.yml", "*.png"]

@@ -69,3 +69,7 @@ tests/
 
 # Docker history
 .isaac-lab-docker-history
+
+# Local virtual env / tooling
+.venv/
+.ruff_cache/

@@ -1,35 +1,28 @@
 [package]
 
 # Semantic Versioning is used: https://semver.org/
-version = "0.1.0"
+version = "0.2.0"
 
 # Description
 category = "isaaclab"
 readme  = "README.md"
 
-title = "Extension Template"
+title = "Spot Visual SLAM"
 author = "Isaac Lab Project Developers"
 maintainer = "Isaac Lab Project Developers"
-description="Extension Template for Isaac Lab"
+description="Visual SLAM (ORB-SLAM3 + ROS 2) environments for the Spot quadruped in Isaac Lab"
 repository = "https://github.com/isaac-sim/IsaacLab.git"
-keywords = ["extension", "template", "isaaclab"]
+keywords = ["isaaclab", "spot", "quadruped", "slam", "orb-slam3", "ros2"]
 
 [dependencies]
 "isaaclab" = {}
 "isaaclab_assets" = {}
-"isaaclab_mimic" = {}
 "isaaclab_rl" = {}
 "isaaclab_tasks" = {}
-# NOTE: Add additional dependencies here
 
 [[python.module]]
 name = "spot_vslam"
 
-[isaaclab_settings]
-# TODO: Uncomment and list any apt dependencies here.
-#       If none, leave it commented out.
-# apt_deps = ["example_package"]
-# TODO: Uncomment and provide path to a ros_ws
-#       with rosdeps to be installed. If none,
-#       leave it commented out.
-# ros_ws = "path/from/extension_root/to/ros_ws"
+[isaac_lab_settings]
+# ROS 2 (rclpy, cv_bridge, tf2_ros, nav2) and ORB-SLAM3 are provided by the system ROS 2 install.
+# apt_deps = []
