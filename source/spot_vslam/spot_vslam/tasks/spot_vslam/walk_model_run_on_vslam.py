@@ -1,13 +1,16 @@
 import math
-from spot_vslam.assets import SPOT_VSLAM_USD_DIR
+from spot_vslam.assets import WAREHOUSE_USD_PATH
 import torch
+
+import spot_vslam.mdp.custom_mdp as custom_mdp
 import numpy as np
 from dataclasses import MISSING
 from typing import List, Sequence
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
-from isaaclab.envs import ViewerCfg, ManagerBasedRLEnvCfg
+from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.visualizers import VisualizerCfg
 from spot_vslam.envs import ManagerBasedRLEnv
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -17,6 +20,7 @@ from isaaclab.managers import RewardTermCfg, RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg, TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, CameraCfg, patterns
+from isaaclab.sensors import MultiMeshRayCasterCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -62,17 +66,15 @@ def get_orb_slam_pose(env: ManagerBasedRLEnv) -> torch.Tensor:
     """智慧切換：訓練時用物理引擎作弊，Play時才讀取真實 SLAM"""
     if env.num_envs > 4:
         # 1. 抓取上帝視角的真實座標與姿態
-        pos = env.scene["robot"].data.root_pos_w.clone()
-        quat = env.scene["robot"].data.root_quat_w.clone()
+        pos = env.scene["robot"].data.root_pos_w.torch.clone()
+        quat = env.scene["robot"].data.root_quat_w.torch.clone()
         
         # 2. 加入微小的高斯雜訊，模擬 SLAM 飄移
         pos += torch.randn_like(pos) * 0.02 
         
         return torch.cat([pos, quat], dim=-1) # Shape: (num_envs, 7)
     else:
-        if hasattr(env, "orb_slam_res"):
-            return env.orb_slam_res["pose"]
-        return torch.zeros((env.num_envs, 7), device=env.device)
+        return custom_mdp.orb_slam_pose7(env)
 
 def get_orb_slam_status(env: ManagerBasedRLEnv) -> torch.Tensor:
     """智慧切換：訓練時假裝 SLAM 狀態永遠完美 (1)"""
@@ -86,8 +88,8 @@ def get_orb_slam_status(env: ManagerBasedRLEnv) -> torch.Tensor:
 def forward_depth_scan(env, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """讓機器人真正「看見」前方的牆壁距離"""
     sensor = env.scene.sensors[sensor_cfg.name]
-    hits_w = sensor.data.ray_hits_w.clone()
-    robot_pos = env.scene["robot"].data.root_pos_w.unsqueeze(1)
+    hits_w = sensor.data.ray_hits_w.torch.clone()
+    robot_pos = env.scene["robot"].data.root_pos_w.torch.unsqueeze(1)
     
     distances = torch.norm(hits_w - robot_pos, dim=-1)
     distances = torch.nan_to_num(distances, nan=5.0, posinf=5.0, neginf=5.0)
@@ -123,7 +125,7 @@ class VisualCoverageManager:
         reset_env_ids = env.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(reset_env_ids) > 0: self.reset_idx(reset_env_ids)
         sensor = env.scene.sensors[sensor_cfg.name]
-        hits = sensor.data.ray_hits_w.clone()
+        hits = sensor.data.ray_hits_w.torch.clone()
         half_size = self.map_size / 2.0
         grid_indices = ((hits[..., :2] + half_size) / self.resolution).long()
         x_idx, y_idx = grid_indices[..., 0], grid_indices[..., 1]
@@ -184,8 +186,8 @@ from .simulate_vslam_env_cfg import SpotActionsCfg, SpotCommandsCfg, SpotTermina
 
 def forward_moving_reward(env) -> torch.Tensor:
     """只有在「走直線」時，前進才有高分！轉彎會沒收前進獎勵"""
-    base_vel = env.scene["robot"].data.root_lin_vel_b
-    yaw_vel = torch.abs(env.scene["robot"].data.root_ang_vel_b[:, 2])
+    base_vel = env.scene["robot"].data.root_lin_vel_b.torch
+    yaw_vel = torch.abs(env.scene["robot"].data.root_ang_vel_b.torch[:, 2])
     
     fwd_vel = torch.clamp(base_vel[:, 0], min=0.0, max=0.5)
     
@@ -197,10 +199,10 @@ def forward_moving_reward(env) -> torch.Tensor:
 
 def stand_still_penalty_no_cmd(env, threshold: float) -> torch.Tensor:
     """怠惰懲罰：嚴格要求必須『往前走』，原地扭動一律視為偷懶！"""
-    base_vel = env.scene["robot"].data.root_lin_vel_b
+    base_vel = env.scene["robot"].data.root_lin_vel_b.torch
     fwd_vel = base_vel[:, 0]
     
-    yaw_vel = torch.abs(env.scene["robot"].data.root_ang_vel_b[:, 2])
+    yaw_vel = torch.abs(env.scene["robot"].data.root_ang_vel_b.torch[:, 2])
     # 拔除 yaw_vel 的漏洞，只要前進速度不達標，直接開罰
     # is_lazy = (fwd_vel < threshold) & (yaw_vel < 0.2)
     is_lazy = (fwd_vel < threshold)
@@ -209,8 +211,8 @@ def stand_still_penalty_no_cmd(env, threshold: float) -> torch.Tensor:
 def close_to_wall_penalty(env, sensor_cfg: SceneEntityCfg, safe_distance: float) -> torch.Tensor:
     """防撞力場：拔除平方，改用直接線性痛覺，一靠近就讓牠痛不欲生"""
     sensor = env.scene.sensors[sensor_cfg.name]
-    hits_w = sensor.data.ray_hits_w.clone()
-    robot_pos = env.scene["robot"].data.root_pos_w.unsqueeze(1)
+    hits_w = sensor.data.ray_hits_w.torch.clone()
+    robot_pos = env.scene["robot"].data.root_pos_w.torch.unsqueeze(1)
     
     distances = torch.norm(hits_w - robot_pos, dim=-1)
     distances = torch.nan_to_num(distances, nan=5.0, posinf=5.0, neginf=5.0)
@@ -232,7 +234,7 @@ def no_fly(env, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     
     # 2. 取得最近一步的接觸力
     # net_forces_w_history: (env, history, bodies, 3) -> 取最後一幀 (env, bodies, 3)
-    current_forces = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, :]
+    current_forces = contact_sensor.data.net_forces_w.torch[:, sensor_cfg.body_ids, :]
     
     # 3. 計算每隻腳的受力大小
     forces_norm = torch.norm(current_forces, dim=-1)
@@ -248,7 +250,7 @@ def no_fly(env, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
 def yaw_rate_penalty(env) -> torch.Tensor:
     """懲罰無意義的打轉，迫使機器人走直線"""
     # 取得狗狗身體的 Z 軸旋轉速度 (Yaw Rate)
-    yaw_vel = env.scene["robot"].data.root_ang_vel_b[:, 2]
+    yaw_vel = env.scene["robot"].data.root_ang_vel_b.torch[:, 2]
     # 轉得越快，懲罰越大
     return torch.abs(yaw_vel)
 
@@ -376,13 +378,13 @@ class SpotRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     terminations: SpotTerminationsCfg = SpotTerminationsCfg()
     events: SpotEventCfg = SpotEventCfg()
 
-    viewer = ViewerCfg(eye=(10.5, 10.5, 0.3), origin_type="world", env_index=0, asset_name="robot")
     
     # 訓練時不需要 ROS2，設為 None 避免報錯
     ros2: Ros2ManagerCfg = None
 
     def __post_init__(self):
         super().__post_init__()
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(10.5, 10.5, 0.3), lookat=(0.0, 0.0, 0.0))
         self.scene.env_spacing = 0.0
         self.decimation = 10
         self.episode_length_s = 20.0
@@ -415,19 +417,22 @@ class SpotRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # 迷宮配置
         self.scene.maze = AssetBaseCfg(
             prim_path="/World/Maze", 
-            spawn=sim_utils.UsdFileCfg(usd_path=f"{SPOT_VSLAM_USD_DIR}/flat_maze.usd"),
+            spawn=sim_utils.UsdFileCfg(usd_path=WAREHOUSE_USD_PATH),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
         )
 
         # 軌道 1: 給 RL 避障用的低解析度 RayCaster (前方)
-        self.scene.camera_frustum = RayCasterCfg(
+        self.scene.camera_frustum = MultiMeshRayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/body",
             offset=RayCasterCfg.OffsetCfg(pos=(0.5, 0.0, 0.0)),
             ray_alignment="yaw", 
             pattern_cfg=patterns.GridPatternCfg(resolution=0.2, size=[4.0, 3.0], direction=(1.0, 0.0, 0.0)),
             max_distance=5.0,
             debug_vis=True,
-            mesh_prim_paths=["/World/Maze/walls"],
+            mesh_prim_paths=[
+                # Simple_Warehouse is many meshes: merge them all into one static ray-cast target
+                MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="/World/Maze", merge_prim_meshes=True, track_mesh_transforms=False)
+            ],
         )
         
         # [移除] 已拔掉底部的 height_scanner RayCaster
@@ -455,6 +460,12 @@ class SpotRoughEnvCfg_Play(SpotRoughEnvCfg):
             height=480,
             width=640,
             data_types=["rgb", "distance_to_image_plane"], 
-            spawn=None,
-            offset=CameraCfg.OffsetCfg(pos=(0.4, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0), convention="ros"),
+            spawn=sim_utils.PinholeCameraCfg(
+                focal_length=10.0,
+                focus_distance=400.0,
+                horizontal_aperture=22.0,
+                clipping_range=(0.1, 10.0),
+            ),
+            # stock spot.usd has no camera prim: spawn one looking forward (same mount as the training cameras)
+            offset=CameraCfg.OffsetCfg(pos=(0.4, 0.0, 0.0), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
         )

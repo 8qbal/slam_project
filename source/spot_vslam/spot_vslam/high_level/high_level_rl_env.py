@@ -12,15 +12,15 @@ import torch
 # 小工具
 # =========================================================
 
-def quat_to_yaw(quat_wxyz: torch.Tensor) -> torch.Tensor:
+def quat_to_yaw(quat_xyzw: torch.Tensor) -> torch.Tensor:
     """
-    quat format: (w, x, y, z)
+    quat format: (x, y, z, w)
     return shape: (N,)
     """
-    w = quat_wxyz[:, 0]
-    x = quat_wxyz[:, 1]
-    y = quat_wxyz[:, 2]
-    z = quat_wxyz[:, 3]
+    x = quat_xyzw[:, 0]
+    y = quat_xyzw[:, 1]
+    z = quat_xyzw[:, 2]
+    w = quat_xyzw[:, 3]
 
     siny_cosp = 2.0 * (w * z + x * y)
     cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
@@ -34,7 +34,7 @@ def get_camera_depth_stats_from_env(env_unwrapped, sensor_name: str = "train_cam
     已 normalize 到大約 [-1, 1]
     """
     sensor = env_unwrapped.scene.sensors[sensor_name]
-    depth = sensor.data.output["distance_to_image_plane"].clone()
+    depth = sensor.data.output["distance_to_image_plane"].torch.clone()
     depth = torch.nan_to_num(depth, nan=5.0, posinf=5.0, neginf=5.0)
     depth = torch.clamp(depth, min=0.0, max=5.0)
     depth = depth.squeeze(-1)  # (N, H, W)
@@ -69,8 +69,8 @@ def get_orb_pose_xyyaw_from_env(env_unwrapped) -> torch.Tensor:
         if pose_xyyaw is not None:
             return pose_xyyaw
 
-    pos_xy = env_unwrapped.scene["robot"].data.root_pos_w[:, :2].clone()
-    quat = env_unwrapped.scene["robot"].data.root_quat_w.clone()
+    pos_xy = env_unwrapped.scene["robot"].data.root_pos_w.torch[:, :2].clone()
+    quat = env_unwrapped.scene["robot"].data.root_quat_w.torch.clone()
     yaw = quat_to_yaw(quat).unsqueeze(-1)
 
     pose = torch.cat([pos_xy, yaw], dim=-1)
@@ -278,13 +278,13 @@ class HighLevelRLEnv(gym.Env):
         if sensor_cfg_body_ids is None:
             return torch.zeros((self.num_envs,), device=self.device)
 
-        current_forces = contact_sensor.data.net_forces_w[:, sensor_cfg_body_ids, :]
+        current_forces = contact_sensor.data.net_forces_w.torch[:, sensor_cfg_body_ids, :]
         forces_norm = torch.norm(current_forces, dim=-1)
         body_contact = torch.any(forces_norm > 1.0, dim=1).float()
         return body_contact
 
     def _compute_reward(self, action_cmd: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, float]]:
-        curr_pos_xy = self.env_unwrapped.scene["robot"].data.root_pos_w[:, :2]
+        curr_pos_xy = self.env_unwrapped.scene["robot"].data.root_pos_w.torch[:, :2]
         delta = curr_pos_xy - self.prev_pos_xy
         progress = torch.norm(delta, dim=1)
 
@@ -329,7 +329,7 @@ class HighLevelRLEnv(gym.Env):
         self._last_low_obs = obs
         self.last_high_action.zero_()
         self.cmd_filter.reset()
-        self.prev_pos_xy = self.env_unwrapped.scene["robot"].data.root_pos_w[:, :2].clone()
+        self.prev_pos_xy = self.env_unwrapped.scene["robot"].data.root_pos_w.torch[:, :2].clone()
         self.hl_step_count = 0
 
         # ===== 新增：reset episode 統計 =====
@@ -390,7 +390,7 @@ class HighLevelRLEnv(gym.Env):
         reward_scalar = float(reward_t.mean().item())
         obs_np = self._get_obs_numpy()
 
-        self.prev_pos_xy = self.env_unwrapped.scene["robot"].data.root_pos_w[:, :2].clone()
+        self.prev_pos_xy = self.env_unwrapped.scene["robot"].data.root_pos_w.torch[:, :2].clone()
 
         terminated = bool(low_level_done_any)
         truncated = bool(self.hl_step_count >= self.cfg.max_episode_hl_steps)

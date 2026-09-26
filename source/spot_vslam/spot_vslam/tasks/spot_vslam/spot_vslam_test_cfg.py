@@ -1,5 +1,5 @@
 from dataclasses import MISSING
-from spot_vslam.assets import SPOT_VSLAM_USD_DIR
+from spot_vslam.assets import WAREHOUSE_USD_PATH
 import math
 import torch
 
@@ -31,7 +31,7 @@ from spot_vslam.assets.spot_with_camera import SPOT_CFG
 
 # --- 計算誤差函式 ---
 def get_slam_camera_error(env):
-    gt_cam_pos = env.scene.sensors["camera"].data.pos_w
+    gt_cam_pos = env.scene.sensors["camera"].data.pos_w.torch
     if hasattr(env, "slam_subscriber_manager") and env.slam_subscriber_manager is not None:
         slam_pos = env.slam_subscriber_manager.pose_buffer[:, 0:3]
     else:
@@ -60,7 +60,7 @@ class SlamTestSceneCfg(InteractiveSceneCfg):
     env_walls = AssetBaseCfg(
         prim_path="/World/EnvWalls",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{SPOT_VSLAM_USD_DIR}/env_walls.usd",
+            usd_path=WAREHOUSE_USD_PATH,
             copy_from_source=True,
             visible=True,
         ),
@@ -76,8 +76,14 @@ class SlamTestSceneCfg(InteractiveSceneCfg):
         height=480,
         width=640,
         data_types=["rgb", "distance_to_image_plane"],
-        spawn=None,
-        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), convention="ros"),
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=10.0,
+            focus_distance=400.0,
+            horizontal_aperture=22.0,
+            clipping_range=(0.1, 10.0),
+        ),
+        # stock spot.usd has no camera prim: spawn one looking forward (same mount as the training cameras)
+        offset=CameraCfg.OffsetCfg(pos=(0.4, 0.0, 0.0), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
     )
 
     # 5. 燈光
@@ -139,14 +145,7 @@ class SlamTestObservationsCfg:
         slam_tracking_state = ObsTerm(func=custom_mdp.get_slam_tracking_state)
         slam_local_pc_count = ObsTerm(func=custom_mdp.get_slam_local_pc_count)
         slam_pos_error_m = ObsTerm(func=get_slam_camera_error)
-        base_yaw_deg = ObsTerm(
-            func=lambda env: torch.rad2deg(torch.atan2(
-                2.0 * (env.scene["robot"].data.root_quat_w[:, 0] * env.scene["robot"].data.root_quat_w[:, 3] +
-                       env.scene["robot"].data.root_quat_w[:, 1] * env.scene["robot"].data.root_quat_w[:, 2]),
-                1.0 - 2.0 * (env.scene["robot"].data.root_quat_w[:, 2]**2 + env.scene["robot"].data.root_quat_w[:, 3]**2)
-            )),
-            scale=1.0
-        )
+        base_yaw_deg = ObsTerm(func=custom_mdp.base_yaw_deg)
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = False # 保持字典結構，方便讀取
@@ -184,6 +183,11 @@ class SlamTestActionsCfg:
     )
 
 @configclass
+class SlamTestRewardsCfg:
+    """No rewards: this env is only used to test ORB-SLAM3."""
+
+
+@configclass
 class SlamTestTerminationsCfg:
     time_out = DoneTerm(func=time_out, time_out=True)
 
@@ -201,9 +205,9 @@ class SpotSlamTestEnvCfg(ManagerBasedRLEnvCfg):
     
     terminations: SlamTestTerminationsCfg = SlamTestTerminationsCfg()
 
-    events = None
+    # Isaac Lab 3.0 managers crash on a None cfg: keep the default (empty) events and use an empty rewards cfg
     curriculum = None
-    rewards = None
+    rewards: SlamTestRewardsCfg = SlamTestRewardsCfg()
 
     ros2: Ros2ManagerCfg = Ros2ManagerCfg(
         camera_name="camera",
@@ -222,6 +226,5 @@ class SpotSlamTestEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
-        self.sim.disable_contact_processing = True
         if self.scene.camera is not None:
             self.scene.camera.update_period = self.decimation * self.sim.dt

@@ -1,3 +1,4 @@
+import argparse
 import torch
 import os
 import sys
@@ -120,7 +121,7 @@ def main():
         # ---------------------------------------------------
         if i % 10 == 0: # 每 10 步記錄一次
             # 1. 真值 (Ground Truth)
-            gt_pos = base_env.scene["robot"].data.root_pos_w[0, :3].cpu().numpy()
+            gt_pos = base_env.scene["robot"].data.root_pos_w.torch[0, :3].cpu().numpy()
             
             # 2. SLAM 估測值 (從 Manager 讀取)
             # 注意：這裡假設您的 slam_sub_mgr 有儲存最新的 slam_pose

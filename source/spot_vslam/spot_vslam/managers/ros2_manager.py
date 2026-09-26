@@ -7,7 +7,6 @@ from typing import Sequence
 import numpy as np
 import rclpy
 import torch
-from cv_bridge import CvBridge
 from geometry_msgs.msg import PoseStamped, TransformStamped
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import Image, CameraInfo
@@ -16,6 +15,24 @@ from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
 
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sensors import Camera
+
+
+def numpy_to_imgmsg(array: np.ndarray, encoding: str) -> Image:
+    """Build a ``sensor_msgs/Image`` from a HxW or HxWxC array.
+
+    Replaces ``cv_bridge.CvBridge.cv2_to_imgmsg``: the ROS 2 Jazzy ``cv_bridge`` binary is built
+    against NumPy 1.x and segfaults under the NumPy 2.x that Isaac Sim / Isaac Lab 3.0 require.
+    """
+    if array.ndim == 3 and array.shape[-1] == 1:
+        array = array[..., 0]
+    array = np.ascontiguousarray(array)
+    msg = Image()
+    msg.height, msg.width = array.shape[:2]
+    msg.encoding = encoding
+    msg.is_bigendian = int(array.dtype.byteorder == ">")
+    msg.step = array.strides[0]
+    msg.data = array.tobytes()
+    return msg
 
 
 @dataclass
@@ -38,7 +55,6 @@ class Ros2Manager:
         if not rclpy.ok():
             rclpy.init()
         self.node = rclpy.create_node("isaaclab_ros2_manager")
-        self.bridge = CvBridge()
 
         # 發布節流：目標 30 FPS
         self.base_start_time = time.time()
@@ -141,11 +157,11 @@ class Ros2Manager:
             t.transform.translation.y = float(cam_offset.pos[1])
             t.transform.translation.z = float(cam_offset.pos[2])
 
-            # Isaac Lab quaternion order: (w, x, y, z)
-            t.transform.rotation.w = float(cam_offset.rot[0])
-            t.transform.rotation.x = float(cam_offset.rot[1])
-            t.transform.rotation.y = float(cam_offset.rot[2])
-            t.transform.rotation.z = float(cam_offset.rot[3])
+            # Isaac Lab quaternion order: (x, y, z, w)
+            t.transform.rotation.x = float(cam_offset.rot[0])
+            t.transform.rotation.y = float(cam_offset.rot[1])
+            t.transform.rotation.z = float(cam_offset.rot[2])
+            t.transform.rotation.w = float(cam_offset.rot[3])
 
             static_transforms.append(t)
 
@@ -280,14 +296,14 @@ class Ros2Manager:
         stamp = current_time.to_msg()
 
         try:
-            rgb_tensors = self.camera.data.output["rgb"]
+            rgb_tensors = self.camera.data.output["rgb"].torch
             depth_tensors = None
             available_keys = self.camera.data.output.keys()
 
             if "distance_to_image_plane" in available_keys:
-                depth_tensors = self.camera.data.output["distance_to_image_plane"]
+                depth_tensors = self.camera.data.output["distance_to_image_plane"].torch
             elif "depth" in available_keys:
-                depth_tensors = self.camera.data.output["depth"]
+                depth_tensors = self.camera.data.output["depth"].torch
 
             if rgb_tensors is None:
                 rclpy.spin_once(self.node, timeout_sec=0.0)
@@ -318,8 +334,8 @@ class Ros2Manager:
 
     def _publish_odom_tf(self, odom_frames, base_frames, stamp):
         robot = self.env.scene["robot"]
-        root_pos = robot.data.root_pos_w
-        root_quat = robot.data.root_quat_w
+        root_pos = robot.data.root_pos_w.torch
+        root_quat = robot.data.root_quat_w.torch
 
         transforms = []
         for i in range(self.num_envs):
@@ -332,11 +348,11 @@ class Ros2Manager:
             t.transform.translation.y = float(root_pos[i, 1])
             t.transform.translation.z = float(root_pos[i, 2])
 
-            # Isaac Lab quat order: (w, x, y, z)
-            t.transform.rotation.w = float(root_quat[i, 0])
-            t.transform.rotation.x = float(root_quat[i, 1])
-            t.transform.rotation.y = float(root_quat[i, 2])
-            t.transform.rotation.z = float(root_quat[i, 3])
+            # Isaac Lab quat order: (x, y, z, w)
+            t.transform.rotation.x = float(root_quat[i, 0])
+            t.transform.rotation.y = float(root_quat[i, 1])
+            t.transform.rotation.z = float(root_quat[i, 2])
+            t.transform.rotation.w = float(root_quat[i, 3])
 
             transforms.append(t)
 
@@ -352,7 +368,7 @@ class Ros2Manager:
             if rgb_np.shape[-1] == 4:
                 rgb_np = rgb_np[..., :3]
 
-            rgb_msg = self.bridge.cv2_to_imgmsg(rgb_np, encoding="rgb8")
+            rgb_msg = numpy_to_imgmsg(rgb_np.astype(np.uint8), encoding="rgb8")
             rgb_msg.header.stamp = stamp
             rgb_msg.header.frame_id = frame_ids[i]
             self.rgb_pubs[i].publish(rgb_msg)
@@ -380,14 +396,14 @@ class Ros2Manager:
             # Depth
             if depth_tensors is not None:
                 depth_np = depth_tensors[i].cpu().numpy().astype(np.float32)
-                depth_msg = self.bridge.cv2_to_imgmsg(depth_np, encoding="32FC1")
+                depth_msg = numpy_to_imgmsg(depth_np, encoding="32FC1")
                 depth_msg.header.stamp = stamp
                 depth_msg.header.frame_id = frame_ids[i]
                 self.depth_pubs[i].publish(depth_msg)
                 self.depth_info_pubs[i].publish(cam_info)
 
     def _compute_intrinsics(self):
-        raw_intrinsics = self.camera.data.intrinsic_matrices
+        raw_intrinsics = self.camera.data.intrinsic_matrices.torch
         if hasattr(raw_intrinsics, "cpu"):
             self.intrinsic_matrices = raw_intrinsics.cpu().numpy()
         else:

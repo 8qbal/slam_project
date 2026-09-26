@@ -106,8 +106,8 @@ def generate_spiral_waypoints(lengths):
 
 # [新增] 輔助函式：從四元數計算 Yaw
 def get_yaw_from_quat(quat):
-    # Isaac Lab quat order is [w, x, y, z]
-    w, x, y, z = quat[0], quat[1], quat[2], quat[3]
+    # Isaac Lab quat order is [x, y, z, w]
+    x, y, z, w = quat[0], quat[1], quat[2], quat[3]
     yaw = math.atan2(2 * (w * z + x * y), 1 - 2 * (y**2 + z**2))
     return yaw
 
@@ -178,7 +178,7 @@ def main():
     spin_end_step = 0
 
     # [關鍵修正] 計算相機的起始位置 (Offset 0.4)
-    start_base_gt = robot.data.root_pos_w[0, :3].clone().cpu().numpy()
+    start_base_gt = robot.data.root_pos_w.torch[0, :3].clone().cpu().numpy()
     
     # 假設起始 Yaw 為 0，相機在 Robot 前方 0.4m
     start_cam_gt_x = start_base_gt[0] + Cfg.CAMERA_OFFSET_X 
@@ -203,10 +203,10 @@ def main():
         # 2. 強制寫入模擬器
         cy = math.cos(sim_yaw_rad * 0.5)
         sy = math.sin(sim_yaw_rad * 0.5)
-        sim_quat = torch.tensor([[cy, 0.0, 0.0, sy]], device=base_env.device)
+        sim_quat = torch.tensor([[0.0, 0.0, sy, cy]], device=base_env.device)
         
-        robot.write_root_pose_to_sim(torch.cat([sim_pos, sim_quat], dim=-1))
-        robot.write_root_velocity_to_sim(torch.zeros((1, 6), device=base_env.device))
+        robot.write_root_pose_to_sim_index(root_pose=torch.cat([sim_pos, sim_quat], dim=-1))
+        robot.write_root_velocity_to_sim_index(root_velocity=torch.zeros((1, 6), device=base_env.device))
         
         # 3. 推進模擬器
         rl_env.step(zero_actions) 
@@ -224,8 +224,8 @@ def main():
         # 6. 記錄 (修正座標系)
         if start_slam is not None and total_steps % Cfg.LOG_INTERVAL == 0:
             # A. 取得機器人當前狀態
-            curr_base = robot.data.root_pos_w[0, :3].cpu().numpy()
-            curr_quat = robot.data.root_quat_w[0].cpu().numpy()
+            curr_base = robot.data.root_pos_w.torch[0, :3].cpu().numpy()
+            curr_quat = robot.data.root_quat_w.torch[0].cpu().numpy()
             curr_yaw = get_yaw_from_quat(curr_quat) # 使用真實角度
 
             # B. 計算 GT 相機絕對位置 (Base + Rotation * Offset)
@@ -302,8 +302,8 @@ def main():
             # 4. 記錄 (同樣使用修正後的座標系)
             if start_slam is not None and total_steps % Cfg.LOG_INTERVAL == 0:
                 # GT Cam
-                curr_base = robot.data.root_pos_w[0, :3].cpu().numpy()
-                curr_quat = robot.data.root_quat_w[0].cpu().numpy()
+                curr_base = robot.data.root_pos_w.torch[0, :3].cpu().numpy()
+                curr_quat = robot.data.root_quat_w.torch[0].cpu().numpy()
                 curr_yaw = get_yaw_from_quat(curr_quat)
 
                 curr_cam_x = curr_base[0] + Cfg.CAMERA_OFFSET_X * math.cos(curr_yaw)

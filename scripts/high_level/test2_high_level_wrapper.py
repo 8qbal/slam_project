@@ -103,7 +103,7 @@ def get_camera_depth_stats_from_env(env_unwrapped, sensor_name: str = "train_cam
     全部已 normalize 到大致 [-1, 1]
     """
     sensor = env_unwrapped.scene.sensors[sensor_name]
-    depth = sensor.data.output["distance_to_image_plane"].clone()
+    depth = sensor.data.output["distance_to_image_plane"].torch.clone()
     depth = torch.nan_to_num(depth, nan=5.0, posinf=5.0, neginf=5.0)
     depth = torch.clamp(depth, min=0.0, max=5.0)
     depth = depth.squeeze(-1)  # (N, H, W)

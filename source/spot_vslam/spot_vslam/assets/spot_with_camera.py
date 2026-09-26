@@ -12,7 +12,7 @@ The following configuration parameters are available:
 """
 
 import isaaclab.sim as sim_utils
-from . import SPOT_VSLAM_USD_DIR
+from . import SPOT_USD_PATH
 from isaaclab.actuators import DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -134,7 +134,7 @@ and the output torque (N*m). It is used to interpolate the output torque based o
 
 SPOT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{SPOT_VSLAM_USD_DIR}/spot_with_camera.usd",
+        usd_path=SPOT_USD_PATH,
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -163,7 +163,7 @@ SPOT_CFG = ArticulationCfg(
     actuators={
         "spot_hip": DelayedPDActuatorCfg(
             joint_names_expr=[".*_h[xy]"],
-            effort_limit=45.0,
+            actuator_effort_limit=45.0,
             stiffness=60.0,
             damping=1.5,
             min_delay=0,  # physics time steps (min: 2.0*0=0.0ms)
@@ -172,7 +172,7 @@ SPOT_CFG = ArticulationCfg(
         "spot_knee": RemotizedPDActuatorCfg(
             joint_names_expr=[".*_kn"],
             joint_parameter_lookup=joint_parameter_lookup,
-            effort_limit=None,  # torque limits are handled based experimental data (`RemotizedPDActuatorCfg.data`)
+            actuator_effort_limit=None,  # torque limits are handled based experimental data (`RemotizedPDActuatorCfg.data`)
             stiffness=60.0,
             damping=1.5,
             min_delay=0,  # physics time steps (min: 2.0*0=0.0ms)

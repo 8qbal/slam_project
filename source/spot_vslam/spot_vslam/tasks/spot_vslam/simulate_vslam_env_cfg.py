@@ -1,5 +1,5 @@
 from isaaclab.utils.configclass import configclass
-from spot_vslam.assets import SPOT_VSLAM_USD_DIR
+from spot_vslam.assets import WAREHOUSE_USD_PATH
 
 from spot_vslam.tasks.spot_vslam.velocity_spot_env_cfg import LocomotionVelocityRoughEnvCfg
 # from .cfg.velocity_spot_env_cfg import LocomotionVelocityRoughEnvCfg
@@ -20,7 +20,7 @@ from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
-from isaaclab.envs import ViewerCfg
+from isaaclab.visualizers import VisualizerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -32,6 +32,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
+from isaaclab.sensors import MultiMeshRayCasterCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -108,7 +109,7 @@ class VisualCoverageManager:
         # 3. 取得 RayCaster 擊中點
         sensor: RayCaster = env.scene.sensors[sensor_cfg.name]
         # ray_hits_w: [num_envs, num_rays, 3]
-        hits = sensor.data.ray_hits_w.clone()
+        hits = sensor.data.ray_hits_w.torch.clone()
         
         # 4. 座標轉換 (World -> Grid)
         # 假設機器人出生點附近的區域是地圖範圍
@@ -228,10 +229,10 @@ def forward_depth_scan(env, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     sensor = env.scene.sensors[sensor_cfg.name]
     
     # 取得射線擊中點的世界座標 [num_envs, num_rays, 3]
-    hits_w = sensor.data.ray_hits_w.clone()
+    hits_w = sensor.data.ray_hits_w.torch.clone()
     
     # 取得機器人身體的位置 [num_envs, 1, 3]
-    robot_pos = env.scene["robot"].data.root_pos_w.unsqueeze(1)
+    robot_pos = env.scene["robot"].data.root_pos_w.torch.unsqueeze(1)
     # ====================================================================
     # print("env count:", hits_w.shape[0])
     # print("hit count per env:", torch.isfinite(hits_w[...,0]).sum(dim=1))
@@ -387,7 +388,7 @@ def no_fly(env, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     
     # 2. 取得最近一步的接觸力
     # net_forces_w_history: (env, history, bodies, 3) -> 取最後一幀 (env, bodies, 3)
-    current_forces = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, :]
+    current_forces = contact_sensor.data.net_forces_w.torch[:, sensor_cfg.body_ids, :]
     
     # 3. 計算每隻腳的受力大小
     forces_norm = torch.norm(current_forces, dim=-1)
@@ -410,7 +411,7 @@ def stand_still_penalty(env, command_name: str, threshold: float) -> torch.Tenso
     cmd_lin_vel_xy = commands[:, :2] # 取前兩個維度 (vx, vy)
     
     # 2. 取得實際速度 (Root Velocity)
-    root_vel_w = env.scene["robot"].data.root_lin_vel_w
+    root_vel_w = env.scene["robot"].data.root_lin_vel_w.torch
     root_vel_xy = root_vel_w[:, :2]
 
     # 3. 計算大小
@@ -428,11 +429,11 @@ def stand_still_penalty(env, command_name: str, threshold: float) -> torch.Tenso
 
 def forward_moving_reward(env) -> torch.Tensor:
     """引擎進化：獎勵往前走，『也獎勵原地轉向探路』"""
-    base_vel = env.scene["robot"].data.root_lin_vel_b
+    base_vel = env.scene["robot"].data.root_lin_vel_b.torch
     fwd_vel = torch.clamp(base_vel[:, 0], min=0.0)
     
     # 取得原地轉向 (Yaw) 的速度
-    yaw_vel = torch.abs(env.scene["robot"].data.root_ang_vel_b[:, 2])
+    yaw_vel = torch.abs(env.scene["robot"].data.root_ang_vel_b.torch[:, 2])
     
     # 往前走給 1 倍分，原地轉向找路給 0.5 倍分
     # return fwd_vel + 0.01 * yaw_vel
@@ -440,10 +441,10 @@ def forward_moving_reward(env) -> torch.Tensor:
 
 def stand_still_penalty_no_cmd(env, threshold: float) -> torch.Tensor:
     """怠惰懲罰：嚴格要求必須『往前走』，原地扭動一律視為偷懶！"""
-    base_vel = env.scene["robot"].data.root_lin_vel_b
+    base_vel = env.scene["robot"].data.root_lin_vel_b.torch
     fwd_vel = base_vel[:, 0]
     
-    yaw_vel = torch.abs(env.scene["robot"].data.root_ang_vel_b[:, 2])
+    yaw_vel = torch.abs(env.scene["robot"].data.root_ang_vel_b.torch[:, 2])
     # 拔除 yaw_vel 的漏洞，只要前進速度不達標，直接開罰
     # is_lazy = (fwd_vel < threshold) & (yaw_vel < 0.2)
     is_lazy = (fwd_vel < threshold)
@@ -454,9 +455,9 @@ def close_to_wall_penalty(env, sensor_cfg: SceneEntityCfg, safe_distance: float)
     sensor = env.scene.sensors[sensor_cfg.name]
     
     # 取得射線擊中點的世界座標
-    hits_w = sensor.data.ray_hits_w.clone()
+    hits_w = sensor.data.ray_hits_w.torch.clone()
     # 取得機器人位置
-    robot_pos = env.scene["robot"].data.root_pos_w.unsqueeze(1)
+    robot_pos = env.scene["robot"].data.root_pos_w.torch.unsqueeze(1)
     
     # 計算每條射線打到障礙物的距離
     distances = torch.norm(hits_w - robot_pos, dim=-1)
@@ -608,12 +609,11 @@ class SpotRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     terminations: SpotTerminationsCfg = SpotTerminationsCfg()
     events: SpotEventCfg = SpotEventCfg()
 
-    # Viewer
-    viewer = ViewerCfg(eye=(10.5, 10.5, 0.3), origin_type="world", env_index=0, asset_name="robot")
 
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(10.5, 10.5, 0.3), lookat=(0.0, 0.0, 0.0))
         self.scene.env_spacing = 0.0
         # general settings
         self.decimation = 10  # 50 Hz
@@ -656,11 +656,11 @@ class SpotRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
             prim_path="/World/Maze", 
             spawn=sim_utils.UsdFileCfg(
                 # [⚠️重要] 請務必把這裡改成你的 USD 檔案的絕對路徑！
-                usd_path=f"{SPOT_VSLAM_USD_DIR}/flat_maze.usd", 
+                usd_path=WAREHOUSE_USD_PATH, 
             ),
             init_state=AssetBaseCfg.InitialStateCfg(
                 pos=(0.0, 0.0, 0.0), # 如果迷宮沒對齊，可以在這裡調整 XYZ 偏移量
-                rot=(1.0, 0.0, 0.0, 0.0),
+                rot=(0.0, 0.0, 0.0, 1.0),
             ),
         )
 
@@ -677,7 +677,7 @@ class SpotRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         )
 
         # [修正] 模擬相機 (使用朝前的 GridPattern 繞過 Pinhole Bug)
-        self.scene.camera_frustum = RayCasterCfg(
+        self.scene.camera_frustum = MultiMeshRayCasterCfg(
             prim_path="{ENV_REGEX_NS}/Robot/body",
             offset=RayCasterCfg.OffsetCfg(pos=(0.5, 0.0, 0.0)), # 裝在狗頭上
             ray_alignment="yaw", 
@@ -689,7 +689,10 @@ class SpotRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
             ),
             max_distance=5.0, # 視線最遠看 5 米
             debug_vis=False,   # 建議開啟，你會看到機器人前面推著一堵紅色的射線牆
-            mesh_prim_paths=["/World/Maze/walls"],
+            mesh_prim_paths=[
+                # Simple_Warehouse is many meshes: merge them all into one static ray-cast target
+                MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="/World/Maze", merge_prim_meshes=True, track_mesh_transforms=False)
+            ],
         )
 
 

@@ -104,17 +104,17 @@ class OrbGtComparator:
         return (angle + np.pi) % (2.0 * np.pi) - np.pi
 
     @staticmethod
-    def quat_wxyz_to_yaw(quat_wxyz: np.ndarray) -> float:
-        w, x, y, z = quat_wxyz
+    def quat_xyzw_to_yaw(quat_xyzw: np.ndarray) -> float:
+        x, y, z, w = quat_xyzw
         siny_cosp = 2.0 * (w * z + x * y)
         cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
         return np.arctan2(siny_cosp, cosy_cosp)
 
     def get_gt_xyyaw(self, env_unwrapped) -> np.ndarray:
         # 取得機器人本體位置並計算 Yaw 角
-        pos = env_unwrapped.scene["robot"].data.root_pos_w[0].detach().cpu().numpy()
-        quat = env_unwrapped.scene["robot"].data.root_quat_w[0].detach().cpu().numpy()
-        yaw = self.quat_wxyz_to_yaw(quat)
+        pos = env_unwrapped.scene["robot"].data.root_pos_w.torch[0].detach().cpu().numpy()
+        quat = env_unwrapped.scene["robot"].data.root_quat_w.torch[0].detach().cpu().numpy()
+        yaw = self.quat_xyzw_to_yaw(quat)
         
         # 座標轉換：將 GT 從「機器人中心」推到「相機中心」(前方 0.4m)
         cam_x = pos[0] + 0.4 * np.cos(yaw)
@@ -545,7 +545,7 @@ def main():
     episode_collisions = 0
     collision_cooldown = 0
 
-    device = low_env.unwrapped.scene["robot"].data.root_pos_w.device
+    device = low_env.unwrapped.scene["robot"].data.root_pos_w.torch.device
     target_pos = torch.tensor(
         [args_cli.target_x, args_cli.target_y, 0.0],
         device=device
@@ -598,7 +598,7 @@ def main():
             # collision detection
             # =========================
             robot = low_env.unwrapped.scene["robot"]
-            acc = robot.data.body_acc_w[0, 0, :2]
+            acc = robot.data.body_acc_w.torch[0, 0, :2]
             force = torch.norm(acc).item()
 
             if force > 10.0 and collision_cooldown <= 0:
@@ -611,7 +611,7 @@ def main():
             # =========================
             # respawn / teleport detection
             # =========================
-            current_pos = robot.data.root_pos_w[0][:2].detach().cpu()
+            current_pos = robot.data.root_pos_w.torch[0][:2].detach().cpu()
 
             if prev_pos is not None:
                 jump_dist = torch.norm(current_pos - prev_pos).item()
@@ -632,7 +632,7 @@ def main():
             # =========================
             # success detection
             # =========================
-            pos = robot.data.root_pos_w[0][:2]
+            pos = robot.data.root_pos_w.torch[0][:2]
             dist = torch.norm(pos - target_pos[:2]).item()
 
             if (not is_success) and dist < args_cli.success_radius:

@@ -70,19 +70,19 @@ class OrbGtComparator:
         return (angle + np.pi) % (2.0 * np.pi) - np.pi
 
     @staticmethod
-    def quat_wxyz_to_yaw(quat_wxyz: np.ndarray) -> float:
-        w, x, y, z = quat_wxyz
+    def quat_xyzw_to_yaw(quat_xyzw: np.ndarray) -> float:
+        x, y, z, w = quat_xyzw
         siny_cosp = 2.0 * (w * z + x * y)
         cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
         return np.arctan2(siny_cosp, cosy_cosp)
 
     def get_gt_xyyaw(self, env_unwrapped) -> np.ndarray:
             # 1. 取得機器人本體 (Base) 的世界位置與四元數
-            pos = env_unwrapped.scene["robot"].data.root_pos_w[0].detach().cpu().numpy()
-            quat = env_unwrapped.scene["robot"].data.root_quat_w[0].detach().cpu().numpy()
+            pos = env_unwrapped.scene["robot"].data.root_pos_w.torch[0].detach().cpu().numpy()
+            quat = env_unwrapped.scene["robot"].data.root_quat_w.torch[0].detach().cpu().numpy()
             
             # 2. 計算機器人本體的 Yaw 角 (朝向)
-            yaw = self.quat_wxyz_to_yaw(quat)
+            yaw = self.quat_xyzw_to_yaw(quat)
             
             # 3. 座標轉換：將 GT 基準點從「機器人中心」平移到「相機中心」
             # 相機在機器人本體座標系的 X 軸前方 0.4 公尺處

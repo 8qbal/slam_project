@@ -101,15 +101,15 @@ def build_manual_high_level_command(num_envs, device, t):
 # -------------------------------------------------
 # ORB helper
 # -------------------------------------------------
-def quat_to_yaw(quat_wxyz: torch.Tensor) -> torch.Tensor:
+def quat_to_yaw(quat_xyzw: torch.Tensor) -> torch.Tensor:
     """
-    quat format: (w, x, y, z)
+    quat format: (x, y, z, w)
     return shape: (N,)
     """
-    w = quat_wxyz[:, 0]
-    x = quat_wxyz[:, 1]
-    y = quat_wxyz[:, 2]
-    z = quat_wxyz[:, 3]
+    x = quat_xyzw[:, 0]
+    y = quat_xyzw[:, 1]
+    z = quat_xyzw[:, 2]
+    w = quat_xyzw[:, 3]
 
     siny_cosp = 2.0 * (w * z + x * y)
     cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
@@ -121,8 +121,8 @@ def get_orb_pose_xyyaw_from_env(env_unwrapped):
     第一版先用 GT + 小噪聲假裝 ORB-SLAM3
     回傳 shape = (N, 3): [x, y, yaw]
     """
-    pos_xy = env_unwrapped.scene["robot"].data.root_pos_w[:, :2].clone()
-    quat = env_unwrapped.scene["robot"].data.root_quat_w.clone()
+    pos_xy = env_unwrapped.scene["robot"].data.root_pos_w.torch[:, :2].clone()
+    quat = env_unwrapped.scene["robot"].data.root_quat_w.torch.clone()
     yaw = quat_to_yaw(quat).unsqueeze(-1)
 
     pose = torch.cat([pos_xy, yaw], dim=-1)
@@ -153,7 +153,7 @@ def get_camera_depth_stats_from_env(env_unwrapped, sensor_name: str = "train_cam
     已 normalize 到大約 [-1, 1]
     """
     sensor = env_unwrapped.scene.sensors[sensor_name]
-    depth = sensor.data.output["distance_to_image_plane"].clone()
+    depth = sensor.data.output["distance_to_image_plane"].torch.clone()
     depth = torch.nan_to_num(depth, nan=5.0, posinf=5.0, neginf=5.0)
     depth = torch.clamp(depth, min=0.0, max=5.0)
     depth = depth.squeeze(-1)  # (N, H, W)

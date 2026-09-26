@@ -107,24 +107,16 @@ class DenseMapManager:
             [2 * (x * z - y * w),     2 * (y * z + x * w),     1 - 2 * (x * x + y * y)],
         ], dtype=np.float64)
 
-    @staticmethod
-    def _quat_wxyz_to_rot(q: np.ndarray) -> np.ndarray:
-        w, x, y, z = q
-        return np.array([
-            [1 - 2 * (y * y + z * z), 2 * (x * y - z * w),     2 * (x * z + y * w)],
-            [2 * (x * y + z * w),     1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
-            [2 * (x * z - y * w),     2 * (y * z + x * w),     1 - 2 * (x * x + y * y)],
-        ], dtype=np.float64)
 
     def _get_gt_camera_pose_world(self) -> np.ndarray:
         """
         [GT 模式] 使用機器人完美的真實 3D 姿態與相機外參進行建圖
         """
         env = self.env_unwrapped
-        robot_pos = env.scene["robot"].data.root_pos_w[0].detach().cpu().numpy()
-        robot_quat_wxyz = env.scene["robot"].data.root_quat_w[0].detach().cpu().numpy()
+        robot_pos = env.scene["robot"].data.root_pos_w.torch[0].detach().cpu().numpy()
+        robot_quat_xyzw = env.scene["robot"].data.root_quat_w.torch[0].detach().cpu().numpy()
 
-        R_wr = self._quat_wxyz_to_rot(robot_quat_wxyz)
+        R_wr = self._quat_xyzw_to_rot(robot_quat_xyzw)
         T_wr = np.eye(4, dtype=np.float64)
         T_wr[:3, :3] = R_wr
         T_wr[:3, 3] = robot_pos
@@ -202,8 +194,8 @@ class DenseMapManager:
 
     def _extract_rgbd(self):
         sensor = self.env_unwrapped.scene.sensors[self.cfg.camera_name]
-        rgb = sensor.data.output["rgb"][0].detach().cpu().numpy()
-        depth = sensor.data.output["distance_to_image_plane"][0].detach().cpu().numpy()
+        rgb = sensor.data.output["rgb"].torch[0].detach().cpu().numpy()
+        depth = sensor.data.output["distance_to_image_plane"].torch[0].detach().cpu().numpy()
 
         if depth.ndim == 3:
             depth = depth[..., 0]

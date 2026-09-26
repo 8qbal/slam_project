@@ -19,7 +19,7 @@ from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
-from isaaclab.envs import ViewerCfg
+from isaaclab.visualizers import VisualizerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -233,7 +233,7 @@ def no_fly(env, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     
     # 2. 取得最近一步的接觸力
     # net_forces_w_history: (env, history, bodies, 3) -> 取最後一幀 (env, bodies, 3)
-    current_forces = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, :]
+    current_forces = contact_sensor.data.net_forces_w.torch[:, sensor_cfg.body_ids, :]
     
     # 3. 計算每隻腳的受力大小
     forces_norm = torch.norm(current_forces, dim=-1)
@@ -355,12 +355,11 @@ class SpotRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     terminations: SpotTerminationsCfg = SpotTerminationsCfg()
     events: SpotEventCfg = SpotEventCfg()
 
-    # Viewer
-    viewer = ViewerCfg(eye=(10.5, 10.5, 0.3), origin_type="world", env_index=0, asset_name="robot")
 
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(10.5, 10.5, 0.3), lookat=(0.0, 0.0, 0.0))
 
         # general settings
         self.decimation = 10  # 50 Hz

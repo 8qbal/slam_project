@@ -39,8 +39,10 @@ source/spot_vslam/
    uv sync
    ```
 
-3. Copy the USD files (robot + maps) into `source/spot_vslam/spot_vslam/assets/usd/`, or export
-   `SPOT_VSLAM_USD_DIR=/path/to/usd`. They are git-ignored; see `assets/usd/README.md` for the list.
+3. Assets come from the local Isaac Sim asset pack (`ISAACSIM_ASSET_ROOT`, e.g.
+   `~/isaacsim_assets/Assets/Isaac/6.0`): the stock `Robots/BostonDynamics/spot/spot.usd` (cameras are
+   spawned by `CameraCfg` in the env configs) and `Environments/Simple_Warehouse/warehouse.usd` as the arena.
+   See `SPOT_USD_PATH` / `WAREHOUSE_USD_PATH` in `spot_vslam/assets/__init__.py`.
 4. Source ROS 2 before running anything that uses the ROS 2 / SLAM managers:
 
    ```bash

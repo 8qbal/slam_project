@@ -72,7 +72,7 @@ def main():
     base_env.slam_subscriber_manager = slam_sub_mgr
 
     robot = base_env.scene["robot"]
-    stand_joint_pos = robot.data.default_joint_pos.clone()
+    stand_joint_pos = robot.data.default_joint_pos.torch.clone()
 
     base_env.reset()
     if hasattr(ros2_mgr, "reset"): ros2_mgr.reset(env_ids=range(base_env.num_envs))
@@ -101,11 +101,12 @@ def main():
         
         cy = math.cos(sim_yaw_rad * 0.5)
         sy = math.sin(sim_yaw_rad * 0.5)
-        sim_quat = torch.tensor([[cy, 0.0, 0.0, sy]], device=base_env.device)
+        sim_quat = torch.tensor([[0.0, 0.0, sy, cy]], device=base_env.device)
         
-        robot.write_root_pose_to_sim(torch.cat([sim_pos, sim_quat], dim=-1))
-        robot.write_root_velocity_to_sim(torch.zeros((1, 6), device=base_env.device))
-        robot.write_joint_state_to_sim(position=stand_joint_pos, velocity=torch.zeros_like(stand_joint_pos))
+        robot.write_root_pose_to_sim_index(root_pose=torch.cat([sim_pos, sim_quat], dim=-1))
+        robot.write_root_velocity_to_sim_index(root_velocity=torch.zeros((1, 6), device=base_env.device))
+        robot.write_joint_position_to_sim_index(position=stand_joint_pos)
+        robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(stand_joint_pos))
         
         smart_step(base_env, stand_joint_pos)
         slam_sub_mgr.update(dt)
@@ -123,8 +124,8 @@ def main():
     # 歸零準備正式測試
     sim_pos[0, 0] = 0.0
     sim_pos[0, 1] = 0.0
-    robot.write_root_pose_to_sim(torch.cat([sim_pos, sim_quat], dim=-1))
-    robot.write_root_velocity_to_sim(torch.zeros((1, 6), device=base_env.device))
+    robot.write_root_pose_to_sim_index(root_pose=torch.cat([sim_pos, sim_quat], dim=-1))
+    robot.write_root_velocity_to_sim_index(root_velocity=torch.zeros((1, 6), device=base_env.device))
     for _ in range(10): smart_step(base_env, stand_joint_pos)
 
     # ==================================================================================
@@ -134,7 +135,7 @@ def main():
     print(f"計畫路徑: {SPIRAL_LENGTHS} (公尺)")
     
     # 紀錄起始基準點
-    start_base_gt = robot.data.root_pos_w[0, :3].clone().cpu().numpy()
+    start_base_gt = robot.data.root_pos_w.torch[0, :3].clone().cpu().numpy()
     start_yaw_gt = 0.0 
     
     start_cam_gt_x = start_base_gt[0] + CAMERA_OFFSET_X * math.cos(start_yaw_gt)
@@ -171,10 +172,11 @@ def main():
             # 寫入模擬器
             cy = math.cos(sim_yaw_rad * 0.5)
             sy = math.sin(sim_yaw_rad * 0.5)
-            sim_quat = torch.tensor([[cy, 0.0, 0.0, sy]], device=base_env.device)
-            robot.write_root_pose_to_sim(torch.cat([sim_pos, sim_quat], dim=-1))
-            robot.write_root_velocity_to_sim(torch.zeros((1, 6), device=base_env.device))
-            robot.write_joint_state_to_sim(position=stand_joint_pos, velocity=torch.zeros_like(stand_joint_pos))
+            sim_quat = torch.tensor([[0.0, 0.0, sy, cy]], device=base_env.device)
+            robot.write_root_pose_to_sim_index(root_pose=torch.cat([sim_pos, sim_quat], dim=-1))
+            robot.write_root_velocity_to_sim_index(root_velocity=torch.zeros((1, 6), device=base_env.device))
+            robot.write_joint_position_to_sim_index(position=stand_joint_pos)
+            robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(stand_joint_pos))
             
             # 更新 ROS/SLAM
             smart_step(base_env, stand_joint_pos)
@@ -182,7 +184,7 @@ def main():
             
             # 記錄數據 (每 5 步)
             if total_steps % 5 == 0:
-                curr_base_gt = robot.data.root_pos_w[0, :3].cpu().numpy()
+                curr_base_gt = robot.data.root_pos_w.torch[0, :3].cpu().numpy()
                 curr_cam_gt_x = curr_base_gt[0] + CAMERA_OFFSET_X * math.cos(sim_yaw_rad)
                 curr_cam_gt_y = curr_base_gt[1] + CAMERA_OFFSET_X * math.sin(sim_yaw_rad)
                 curr_slam = slam_sub_mgr.pose_buffer[0].cpu().numpy()
@@ -216,17 +218,18 @@ def main():
                 # 寫入模擬器
                 cy = math.cos(sim_yaw_rad * 0.5)
                 sy = math.sin(sim_yaw_rad * 0.5)
-                sim_quat = torch.tensor([[cy, 0.0, 0.0, sy]], device=base_env.device)
-                robot.write_root_pose_to_sim(torch.cat([sim_pos, sim_quat], dim=-1))
-                robot.write_root_velocity_to_sim(torch.zeros((1, 6), device=base_env.device))
-                robot.write_joint_state_to_sim(position=stand_joint_pos, velocity=torch.zeros_like(stand_joint_pos))
+                sim_quat = torch.tensor([[0.0, 0.0, sy, cy]], device=base_env.device)
+                robot.write_root_pose_to_sim_index(root_pose=torch.cat([sim_pos, sim_quat], dim=-1))
+                robot.write_root_velocity_to_sim_index(root_velocity=torch.zeros((1, 6), device=base_env.device))
+                robot.write_joint_position_to_sim_index(position=stand_joint_pos)
+                robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(stand_joint_pos))
                 
                 smart_step(base_env, stand_joint_pos)
                 slam_sub_mgr.update(dt)
                 
                 # 轉彎時也要記錄數據 (觀察漂移)
                 if total_steps % 5 == 0:
-                    curr_base_gt = robot.data.root_pos_w[0, :3].cpu().numpy()
+                    curr_base_gt = robot.data.root_pos_w.torch[0, :3].cpu().numpy()
                     curr_cam_gt_x = curr_base_gt[0] + CAMERA_OFFSET_X * math.cos(sim_yaw_rad)
                     curr_cam_gt_y = curr_base_gt[1] + CAMERA_OFFSET_X * math.sin(sim_yaw_rad)
                     curr_slam = slam_sub_mgr.pose_buffer[0].cpu().numpy()

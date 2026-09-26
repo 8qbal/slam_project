@@ -46,7 +46,7 @@ class VisualCoverageManager:
         # 3. 取得 RayCaster 擊中點
         sensor: RayCaster = env.scene.sensors[sensor_cfg.name]
         # ray_hits_w: [num_envs, num_rays, 3]
-        hits = sensor.data.ray_hits_w.clone()
+        hits = sensor.data.ray_hits_w.torch.clone()
         
         # 4. 座標轉換 (World -> Grid)
         # 假設機器人出生點附近的區域是地圖範圍

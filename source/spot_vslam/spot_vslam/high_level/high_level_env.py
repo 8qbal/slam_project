@@ -13,12 +13,12 @@ from spot_vslam.envs import ManagerBasedRLEnv
 # 小工具
 # ==========================================================
 
-def quat_to_yaw(quat_wxyz: torch.Tensor) -> torch.Tensor:
-    """quat format: (w, x, y, z)"""
-    w = quat_wxyz[:, 0]
-    x = quat_wxyz[:, 1]
-    y = quat_wxyz[:, 2]
-    z = quat_wxyz[:, 3]
+def quat_to_yaw(quat_xyzw: torch.Tensor) -> torch.Tensor:
+    """quat format: (x, y, z, w)"""
+    x = quat_xyzw[:, 0]
+    y = quat_xyzw[:, 1]
+    z = quat_xyzw[:, 2]
+    w = quat_xyzw[:, 3]
     siny_cosp = 2.0 * (w * z + x * y)
     cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
     return torch.atan2(siny_cosp, cosy_cosp)
@@ -30,8 +30,8 @@ def get_pseudo_orb_pose_xyyaw(env: ManagerBasedRLEnv, pos_noise=0.01, yaw_noise=
     先用 GT + noise 假裝 ORB-SLAM3 輸出
     shape = (N, 3) => [x, y, yaw]
     """
-    pos_xy = env.scene["robot"].data.root_pos_w[:, :2].clone()
-    quat = env.scene["robot"].data.root_quat_w.clone()
+    pos_xy = env.scene["robot"].data.root_pos_w.torch[:, :2].clone()
+    quat = env.scene["robot"].data.root_quat_w.torch.clone()
     yaw = quat_to_yaw(quat).unsqueeze(-1)
 
     pose = torch.cat([pos_xy, yaw], dim=-1)
@@ -56,7 +56,7 @@ def get_camera_depth_stats(env: ManagerBasedRLEnv, sensor_name: str = "train_cam
     output shape = (N, 5)
     """
     sensor = env.scene.sensors[sensor_name]
-    depth = sensor.data.output["distance_to_image_plane"].clone()
+    depth = sensor.data.output["distance_to_image_plane"].torch.clone()
     depth = torch.nan_to_num(depth, nan=5.0, posinf=5.0, neginf=5.0)
     depth = torch.clamp(depth, min=0.0, max=5.0)
     depth = depth.squeeze(-1)  # (N, H, W)
@@ -209,7 +209,7 @@ class HighLevelSpotEnv:
         orb_status = get_pseudo_orb_status(self.env)            # (N, 1)
         depth_stats = get_camera_depth_stats(self.env)          # (N, 5)
 
-        curr_xy = self.env.scene["robot"].data.root_pos_w[:, :2]
+        curr_xy = self.env.scene["robot"].data.root_pos_w.torch[:, :2]
         delta_xy = curr_xy - start_pos_xy                       # (N, 2)
 
         obs = torch.cat(
@@ -229,7 +229,7 @@ class HighLevelSpotEnv:
         start_pos_xy: torch.Tensor,
         orb_status: torch.Tensor,
     ) -> torch.Tensor:
-        curr_xy = self.env.scene["robot"].data.root_pos_w[:, :2]
+        curr_xy = self.env.scene["robot"].data.root_pos_w.torch[:, :2]
         delta_xy = curr_xy - start_pos_xy
         progress = torch.norm(delta_xy, dim=1)
 
@@ -246,7 +246,7 @@ class HighLevelSpotEnv:
         # body contact penalty
         contact_sensor = self.env.scene.sensors["contact_forces"]
         body_ids = SceneEntityCfg("contact_forces", body_names=["body"]).body_ids
-        current_forces = contact_sensor.data.net_forces_w[:, body_ids, :]
+        current_forces = contact_sensor.data.net_forces_w.torch[:, body_ids, :]
         forces_norm = torch.norm(current_forces, dim=-1)
         body_contact = torch.any(forces_norm > 1.0, dim=1).float()
         body_contact_penalty = body_contact * 1.0
@@ -270,7 +270,7 @@ class HighLevelSpotEnv:
 
         self.cmd_buffer.reset()
         self.last_high_action.zero_()
-        self.prev_pos_xy = self.env.scene["robot"].data.root_pos_w[:, :2].clone()
+        self.prev_pos_xy = self.env.scene["robot"].data.root_pos_w.torch[:, :2].clone()
 
         obs = self._get_high_level_obs(self.prev_pos_xy)
         return obs, info
@@ -283,7 +283,7 @@ class HighLevelSpotEnv:
         self.last_high_action = high_action.clone()
         self.cmd_buffer.set_from_action(high_action)
 
-        start_pos_xy = self.env.scene["robot"].data.root_pos_w[:, :2].clone()
+        start_pos_xy = self.env.scene["robot"].data.root_pos_w.torch[:, :2].clone()
 
         done_any = torch.zeros((self.num_envs,), dtype=torch.bool, device=self.device)
         info_out: Dict[str, Any] = {}

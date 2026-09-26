@@ -1,6 +1,8 @@
 import math
-from spot_vslam.assets import SPOT_VSLAM_USD_DIR
+from spot_vslam.assets import SPOT_VSLAM_USD_DIR, WAREHOUSE_USD_PATH
 import torch
+
+import spot_vslam.mdp.custom_mdp as custom_mdp
 import torch.nn.functional as F
 import numpy as np
 from dataclasses import MISSING
@@ -8,7 +10,8 @@ from typing import List, Sequence
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
-from isaaclab.envs import ViewerCfg, ManagerBasedRLEnvCfg
+from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.visualizers import VisualizerCfg
 from spot_vslam.envs import ManagerBasedRLEnv
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -83,14 +86,12 @@ class SpotCommandsCfg:
 def get_orb_slam_pose(env: ManagerBasedRLEnv) -> torch.Tensor:
     """訓練時用 GT + 小噪聲假裝 SLAM；Play 時讀真實 SLAM。"""
     if env.num_envs > 4:
-        pos = env.scene["robot"].data.root_pos_w.clone()
-        quat = env.scene["robot"].data.root_quat_w.clone()
+        pos = env.scene["robot"].data.root_pos_w.torch.clone()
+        quat = env.scene["robot"].data.root_quat_w.torch.clone()
         pos += torch.randn_like(pos) * 0.01
         return torch.cat([pos, quat], dim=-1)
     else:
-        if hasattr(env, "orb_slam_res"):
-            return env.orb_slam_res["pose"]
-        return torch.zeros((env.num_envs, 7), device=env.device)
+        return custom_mdp.orb_slam_pose7(env)
 
 def get_orb_slam_status(env: ManagerBasedRLEnv) -> torch.Tensor:
     if env.num_envs > 4:
@@ -103,7 +104,7 @@ def get_orb_slam_status(env: ManagerBasedRLEnv) -> torch.Tensor:
 def _get_clean_depth(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """回傳乾淨的深度圖，shape = (N, H, W)"""
     sensor = env.scene.sensors[sensor_cfg.name]
-    depth = sensor.data.output["distance_to_image_plane"].clone()
+    depth = sensor.data.output["distance_to_image_plane"].torch.clone()
     depth = torch.nan_to_num(depth, nan=5.0, posinf=5.0, neginf=5.0)
     depth = torch.clamp(depth, min=0.0, max=5.0)
     depth = depth.squeeze(-1)  # (N, H, W)
@@ -153,10 +154,10 @@ def slow_down_near_obstacle_penalty(
 
     obstacle_violation = torch.clamp(safe_distance - near_dist, min=0.0)
 
-    vx = torch.clamp(env.scene["robot"].data.root_lin_vel_b[:, 0], min=0.0)
+    vx = torch.clamp(env.scene["robot"].data.root_lin_vel_b.torch[:, 0], min=0.0)
 
     # 用 projected gravity 判斷身體是否傾斜太大
-    gravity = env.scene["robot"].data.projected_gravity_b
+    gravity = env.scene["robot"].data.projected_gravity_b.torch
     body_tilt = torch.norm(gravity[:, :2], dim=1)
 
     stable_mask = (body_tilt < max_body_tilt).float()
@@ -172,9 +173,9 @@ def target_forward_speed_reward(env: ManagerBasedRLEnv, target_speed: float, sig
     鼓勵『接近目標前進速度』，而不是越快越好。
     這會比直接獎勵 vx 更穩，不容易暴衝。
     """
-    vx = env.scene["robot"].data.root_lin_vel_b[:, 0]
-    yaw_rate = torch.abs(env.scene["robot"].data.root_ang_vel_b[:, 2])
-    base_height = env.scene["robot"].data.root_pos_w[:, 2]
+    vx = env.scene["robot"].data.root_lin_vel_b.torch[:, 0]
+    yaw_rate = torch.abs(env.scene["robot"].data.root_ang_vel_b.torch[:, 2])
+    base_height = env.scene["robot"].data.root_pos_w.torch[:, 2]
 
     speed_reward = torch.exp(-torch.square(vx - target_speed) / sigma)
     yaw_factor = torch.exp(-2.0 * yaw_rate)
@@ -213,20 +214,20 @@ def open_space_seeker_reward(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg)
     front = depth[:, 20:50, 25:55]
     front_mean = front.mean(dim=(1, 2)) / 5.0
 
-    fwd_vel = torch.clamp(env.scene["robot"].data.root_lin_vel_b[:, 0], min=0.0)
+    fwd_vel = torch.clamp(env.scene["robot"].data.root_lin_vel_b.torch[:, 0], min=0.0)
     return fwd_vel * front_mean
 
 def no_fly(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """四隻腳都沒有接觸力時懲罰。"""
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    current_forces = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, :]
+    current_forces = contact_sensor.data.net_forces_w.torch[:, sensor_cfg.body_ids, :]
     forces_norm = torch.norm(current_forces, dim=-1)
     is_air = forces_norm < 1.0
     all_legs_in_air = torch.all(is_air, dim=1)
     return all_legs_in_air.float()
 
 def yaw_rate_penalty(env: ManagerBasedRLEnv) -> torch.Tensor:
-    yaw_vel = env.scene["robot"].data.root_ang_vel_b[:, 2]
+    yaw_vel = env.scene["robot"].data.root_ang_vel_b.torch[:, 2]
     return torch.abs(yaw_vel)
 
 def stand_still_penalty_no_cmd(env: ManagerBasedRLEnv, threshold: float, max_curriculum_steps: int) -> torch.Tensor:
@@ -234,7 +235,7 @@ def stand_still_penalty_no_cmd(env: ManagerBasedRLEnv, threshold: float, max_cur
     沒有明確 command 時的怠惰懲罰。
     讓前期先別罰太重，後期再慢慢增加。
     """
-    fwd_vel = env.scene["robot"].data.root_lin_vel_b[:, 0]
+    fwd_vel = env.scene["robot"].data.root_lin_vel_b.torch[:, 0]
     shortfall = torch.clamp(threshold - fwd_vel, min=0.0)
     penalty_ratio = shortfall / threshold
     progress = min(env.common_step_counter / max_curriculum_steps, 1.0)
@@ -245,8 +246,8 @@ def forward_progress_reward(env: ManagerBasedRLEnv) -> torch.Tensor:
     很小的前進鼓勵，避免完全不動。
     但上限壓低，不讓它把這條當成爆衝來源。
     """
-    vx = env.scene["robot"].data.root_lin_vel_b[:, 0]
-    yaw_rate = torch.abs(env.scene["robot"].data.root_ang_vel_b[:, 2])
+    vx = env.scene["robot"].data.root_lin_vel_b.torch[:, 0]
+    yaw_rate = torch.abs(env.scene["robot"].data.root_ang_vel_b.torch[:, 2])
 
     forward = torch.clamp(vx, min=0.0, max=0.35)
     straight_factor = torch.exp(-2.5 * yaw_rate)
@@ -254,28 +255,28 @@ def forward_progress_reward(env: ManagerBasedRLEnv) -> torch.Tensor:
 
 def body_height_reward(env: ManagerBasedRLEnv, target_height: float, sigma: float = 0.03) -> torch.Tensor:
     """鼓勵 body 維持在合理高度，避免一直蹲坐。"""
-    base_height = env.scene["robot"].data.root_pos_w[:, 2]
+    base_height = env.scene["robot"].data.root_pos_w.torch[:, 2]
     return torch.exp(-torch.square(base_height - target_height) / sigma)
 
 def body_contact_penalty(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, threshold: float = 1.0) -> torch.Tensor:
     """只要 body 碰地就懲罰。"""
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    current_forces = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, :]
+    current_forces = contact_sensor.data.net_forces_w.torch[:, sensor_cfg.body_ids, :]
     forces_norm = torch.norm(current_forces, dim=-1)
     is_contact = forces_norm > threshold
     return torch.any(is_contact, dim=1).float()
 
 def forward_speed_reward(env: ManagerBasedRLEnv) -> torch.Tensor:
-    vx = env.scene["robot"].data.root_lin_vel_b[:, 0]
+    vx = env.scene["robot"].data.root_lin_vel_b.torch[:, 0]
     return torch.clamp(vx, min=0.0)
 
 def exploration_reward(env):
-    pos = env.scene["robot"].data.root_pos_w[:, :2]
+    pos = env.scene["robot"].data.root_pos_w.torch[:, :2]
     return torch.norm(pos, dim=1)
 
 def stand_body_height_reward(env: ManagerBasedRLEnv, target_height: float, speed_threshold: float) -> torch.Tensor:
-    base_height = env.scene["robot"].data.root_pos_w[:, 2]
-    speed = torch.norm(env.scene["robot"].data.root_lin_vel_b[:, :2], dim=1)
+    base_height = env.scene["robot"].data.root_pos_w.torch[:, 2]
+    speed = torch.norm(env.scene["robot"].data.root_lin_vel_b.torch[:, :2], dim=1)
 
     height_reward = torch.exp(-torch.square(base_height - target_height) / 0.02)
     stand_mask = (speed < speed_threshold).float()
@@ -476,11 +477,11 @@ class SpotRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     terminations: SpotTerminationsCfg = SpotTerminationsCfg()
     events: SpotEventCfg = SpotEventCfg()
 
-    viewer = ViewerCfg(eye=(10.5, 10.5, 0.3), origin_type="world", env_index=0, asset_name="robot")
     ros2: Ros2ManagerCfg = None
 
     def __post_init__(self):
         super().__post_init__()
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(10.5, 10.5, 0.3), lookat=(0.0, 0.0, 0.0))
 
         self.scene.env_spacing = 0.0
         self.decimation = 20
@@ -609,7 +610,7 @@ class SpotRoughEnvCfg_Play(SpotRoughEnvCfg):
         self.scene.maze = AssetBaseCfg(
             prim_path="/World/Maze",
             spawn=sim_utils.UsdFileCfg(
-                usd_path=f"{SPOT_VSLAM_USD_DIR}/flat_maze.usd"
+                usd_path=WAREHOUSE_USD_PATH
             ),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
         )
@@ -633,7 +634,6 @@ class SpotHighLevelTrainEnvCfg(SpotRoughEnvCfg):
     terminations: SpotTerminationsCfg = SpotTerminationsCfg()
     events: SpotEventCfg = SpotEventCfg()
 
-    viewer = ViewerCfg(eye=(10.5, 10.5, 0.3), origin_type="world", env_index=0, asset_name="robot")
     ros2: Ros2ManagerCfg = Ros2ManagerCfg(camera_name="tilted_camera", topic_prefix="/spot")
 
     # 明確控制 SLAM 模式
@@ -641,6 +641,7 @@ class SpotHighLevelTrainEnvCfg(SpotRoughEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(10.5, 10.5, 0.3), lookat=(0.0, 0.0, 0.0))
 
         # 保持跟 low-level locomotion checkpoint 一致
         self.scene.env_spacing = 0.0
@@ -676,7 +677,7 @@ class SpotHighLevelTrainEnvCfg(SpotRoughEnvCfg):
         self.scene.maze = AssetBaseCfg(
             prim_path="/World/Maze",
             spawn=sim_utils.UsdFileCfg(
-                usd_path=f"{SPOT_VSLAM_USD_DIR}/flat_maze.usd"
+                usd_path=WAREHOUSE_USD_PATH
             ),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
         )

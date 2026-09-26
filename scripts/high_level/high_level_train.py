@@ -1,4 +1,4 @@
-from spot_vslam.assets import SPOT_VSLAM_USD_DIR
+from spot_vslam.assets import WAREHOUSE_USD_PATH
 
 
 
@@ -22,7 +22,7 @@ class SpotRoughEnvCfg_HighLevelTrain(SpotRoughEnvCfg):
         self.scene.maze = AssetBaseCfg(
             prim_path="/World/Maze",
             spawn=sim_utils.UsdFileCfg(
-                usd_path=f"{SPOT_VSLAM_USD_DIR}/flat_maze.usd"
+                usd_path=WAREHOUSE_USD_PATH
             ),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
         )

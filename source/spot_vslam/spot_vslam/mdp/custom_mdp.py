@@ -32,7 +32,7 @@ def exploration_reward(env, grid_resolution: float = 0.5, map_range: float = 20.
         
     # 2. 取得機器人位置 (x, y)
     # root_pos_w: [num_envs, 3]
-    pos = env.scene["robot"].data.root_pos_w[:, :2] 
+    pos = env.scene["robot"].data.root_pos_w.torch[:, :2] 
     
     # 3. 轉換為 Grid 座標 (將 -10m~10m 映射到 0~40 格)
     # map_range/2 是偏移量，讓 (0,0) 在地圖中心
@@ -68,3 +68,44 @@ def exploration_reward(env, grid_resolution: float = 0.5, map_range: float = 20.
         VISITED_MAPS[valid_indices[new_visit_mask], x_idx[new_visit_mask], y_idx[new_visit_mask]] = True
         
     return rewards
+
+def get_slam_tracking_state(env) -> torch.Tensor:
+    """ORB-SLAM3 tracking state per env, shape (num_envs, 1). Zeros until the SLAM subscriber is loaded."""
+    manager = getattr(env, "slam_subscriber_manager", None)
+    if manager is None:
+        return torch.zeros((env.num_envs, 1), device=env.device)
+    return manager.state_buffer.float().unsqueeze(-1)
+
+
+def get_slam_local_pc_count(env) -> torch.Tensor:
+    """Number of points in the ORB-SLAM3 local point cloud per env, shape (num_envs, 1)."""
+    manager = getattr(env, "slam_subscriber_manager", None)
+    if manager is None:
+        return torch.zeros((env.num_envs, 1), device=env.device)
+    return manager.local_pc_count.float().unsqueeze(-1)
+
+
+def base_yaw_deg(env) -> torch.Tensor:
+    """Robot base yaw in degrees, shape (num_envs, 1). Isaac Lab 3.0 quaternions are (x, y, z, w)."""
+    q = env.scene["robot"].data.root_quat_w.torch
+    x, y, z, w = q[:, 0], q[:, 1], q[:, 2], q[:, 3]
+    yaw = torch.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+    return torch.rad2deg(yaw).unsqueeze(-1)
+
+
+def orb_slam_pose7(env) -> torch.Tensor:
+    """Real ORB-SLAM3 pose as (x, y, z, qx, qy, qz, qw), shape (num_envs, 7).
+
+    ``Ros2Manager`` only publishes ``orb_slam_res["pose_xyyaw"]``. SLAM gives the planar pose, so z is taken
+    from the simulator and the orientation is the yaw-only quaternion (Isaac Lab 3.0 order: x, y, z, w).
+    """
+    res = getattr(env, "orb_slam_res", None)
+    if res is None or "pose_xyyaw" not in res:
+        pose = torch.zeros((env.num_envs, 7), device=env.device)
+        pose[:, 6] = 1.0
+        return pose
+    xyyaw = res["pose_xyyaw"]
+    z = env.scene["robot"].data.root_pos_w.torch[:, 2:3]
+    half_yaw = 0.5 * xyyaw[:, 2:3]
+    zeros = torch.zeros_like(half_yaw)
+    return torch.cat([xyyaw[:, 0:2], z, zeros, zeros, torch.sin(half_yaw), torch.cos(half_yaw)], dim=-1)
