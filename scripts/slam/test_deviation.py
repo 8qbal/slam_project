@@ -8,6 +8,12 @@ from isaaclab.app import AppLauncher
 
 # --- 1. 啟動器 ---
 parser = argparse.ArgumentParser(description="VSLAM Accuracy Test")
+parser.add_argument(
+    "--checkpoint",
+    type=str,
+    default=os.environ.get("SPOT_VSLAM_LOW_LEVEL_CKPT"),
+    help="Low-level rsl_rl walking policy (.pt). Defaults to $SPOT_VSLAM_LOW_LEVEL_CKPT.",
+)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 app_launcher = AppLauncher(args_cli)
@@ -28,7 +34,10 @@ from spot_vslam.managers.orb_slam_subscriber_manager import OrbSlamSubscriberMan
 # ==========================================
 # 設定區
 # ==========================================
-MODEL_PATH = "/home/bernie/Isaac_lab/IsaacLab/logs/rsl_rl/spot_flat/2025-12-21_21-29-57/model_750.pt"
+MODEL_PATH = args_cli.checkpoint
+if not MODEL_PATH or not os.path.isfile(MODEL_PATH):
+    print(f"[ERROR] Low-level checkpoint not found: {MODEL_PATH!r}. Pass --checkpoint or set SPOT_VSLAM_LOW_LEVEL_CKPT.")
+    sys.exit(1)
 TEST_DURATION_SEC = 20.0  # 測試總秒數
 CMD_VEL_X = 0.4           # 前進速度 (m/s)
 CMD_YAW   = 0.0           # 轉向速度 (rad/s)

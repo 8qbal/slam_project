@@ -1,9 +1,11 @@
 # source/spot_vslam/spot_vslam/my_project/envs/spiral_config.py
 
+import os
+
 class SpiralTestConfig:
     # --- 模型路徑 ---
-    # 請務必確認此路徑正確指向您的 .pt 檔案
-    MODEL_PATH = "/home/bernie/Isaac_lab/IsaacLab/logs/rsl_rl/spot_flat/2025-12-21_21-29-57/model_750.pt"
+    # 低階走路策略 (.pt)：由環境變數 SPOT_VSLAM_LOW_LEVEL_CKPT 或腳本的 --checkpoint 指定
+    MODEL_PATH = os.environ.get("SPOT_VSLAM_LOW_LEVEL_CKPT", "")
     
     # --- 模擬器設定 ---
     ENABLE_RATE_LIMIT = True

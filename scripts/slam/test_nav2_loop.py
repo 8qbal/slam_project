@@ -9,6 +9,12 @@ from isaaclab.app import AppLauncher
 # 1. 設定參數
 parser = argparse.ArgumentParser(description="Hybrid VSLAM Test")
 parser.add_argument("--task", type=str, default="Spot-test-hybrid")
+parser.add_argument(
+    "--checkpoint",
+    type=str,
+    default=os.environ.get("SPOT_VSLAM_LOW_LEVEL_CKPT"),
+    help="Low-level rsl_rl walking policy (.pt). Defaults to $SPOT_VSLAM_LOW_LEVEL_CKPT.",
+)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -38,6 +44,11 @@ try:
     from spot_vslam.envs.spiral_config import SpiralTestConfig as Cfg
 except ImportError:
     print("[ERROR] 找不到 spiral_config.py")
+    sys.exit(1)
+if args_cli.checkpoint:
+    Cfg.MODEL_PATH = args_cli.checkpoint
+if not Cfg.MODEL_PATH or not os.path.isfile(Cfg.MODEL_PATH):
+    print(f"[ERROR] Low-level checkpoint not found: {Cfg.MODEL_PATH!r}. Pass --checkpoint or set SPOT_VSLAM_LOW_LEVEL_CKPT.")
     sys.exit(1)
 
 # --- 標準 Wrapper ---

@@ -1,8 +1,8 @@
 from pxr import Usd, UsdGeom, UsdLux, Gf
-from spot_vslam.assets import SPOT_VSLAM_USD_DIR
+from spot_vslam.assets import SPOT_USD_PATH, SPOT_VSLAM_USD_DIR
 
 # 開啟原始 USD 檔案
-stage = Usd.Stage.Open(f"{SPOT_VSLAM_USD_DIR}/spot.usd")
+stage = Usd.Stage.Open(SPOT_USD_PATH)
 
 # -----------------------
 # 1️⃣ 新增 DiskLight
