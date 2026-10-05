@@ -293,6 +293,9 @@ class DenseMapManager:
             o3d.io.write_point_cloud(pcd_path, pcd)
 
     def close(self):
+        # export whatever was integrated since the last periodic export (short runs never reach export_every_n_frames)
+        if self.frame_count > 0 and self.frame_count % self.cfg.export_every_n_frames != 0:
+            self.export()
         if self.vis is not None:
             self.vis.destroy_window()
             self.vis = None

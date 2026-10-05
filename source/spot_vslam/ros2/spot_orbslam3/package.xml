@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>spot_orbslam3</name>
+  <version>0.1.0</version>
+  <description>ROS 2 RGB-D wrapper for ORB-SLAM3 that speaks the /spot{i}/orbslam/* topic contract used by spot_vslam.</description>
+  <maintainer email="mecaratech@gmail.com">tkuai</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>message_filters</depend>
+  <depend>libopencv-dev</depend>
+  <depend>eigen</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
