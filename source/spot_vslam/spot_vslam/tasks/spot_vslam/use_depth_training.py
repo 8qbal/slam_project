@@ -1,5 +1,5 @@
 import math
-from spot_vslam.assets import SPOT_VSLAM_USD_DIR
+from spot_vslam.assets import SPOT_VSLAM_USD_DIR, WAREHOUSE_USD_PATH
 import torch
 
 import spot_vslam.mdp.custom_mdp as custom_mdp
@@ -651,8 +651,9 @@ class SpotHighLevelTrainEnvCfg(SpotRoughEnvCfg):
         self.scene.robot = SPOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         # self.scene.robot.init_state.pos = (0.0, 0.0, 0.53)
 
-        #first room
-        self.scene.robot.init_state.pos = (-9.0, -10.0, 0.6)
+        #first room (the room USD was lost in the Isaac Lab 3.0 migration; here the robot spawns on the terrain
+        # border and falls over, so the corridor spawn below is active instead)
+        # self.scene.robot.init_state.pos = (-9.0, -10.0, 0.6)
         # -9, -10 ->  -4,15.5 radius 1.0
 
         # warehouse
@@ -660,7 +661,7 @@ class SpotHighLevelTrainEnvCfg(SpotRoughEnvCfg):
         # -22, 3.5- > 7.0, 0.0 radius 2.0
 
         # corrider
-        # self.scene.robot.init_state.pos = (0.0, 0.0, 0.6)
+        self.scene.robot.init_state.pos = (0.0, 0.0, 0.6)
         # 0, 0 -> 15 0.5
 
 
@@ -701,7 +702,9 @@ class SpotHighLevelTrainEnvCfg(SpotRoughEnvCfg):
             update_period=0.04,  # 25 Hz
             height=48,
             width=64,
-            data_types=["distance_to_image_plane"],
+            # "rgb" is not used by the policy: in Isaac Lab 3.0 a depth-only camera in the scene makes every
+            # camera's RGB output black, including tilted_camera which feeds ORB-SLAM3.
+            data_types=["rgb", "distance_to_image_plane"],
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=10.0,
                 focus_distance=400.0,
@@ -777,3 +780,48 @@ class SpotHighLevelTrainEnvCfg_Play(SpotHighLevelTrainEnvCfg):
                 convention="ros",
             ),
         )
+
+
+# ==========================================================
+# High-level play/eval in the warehouse (paper Map B)
+# ==========================================================
+@configclass
+class SpotHighLevelTrainEnvCfg_PlayWarehouse(SpotHighLevelTrainEnvCfg_Play):
+    """Same as the high-level play cfg (same observation layout), plus the Simple_Warehouse arena.
+
+    The 5x5 terrain generator is replaced by a single flat 40x40 m tile so the env origin is (0, 0): with the 5x5
+    grid the single env sits at a tile origin (-8, -16), which together with the spawn offset lands outside the
+    warehouse (x -12..12, y -18..20.8). See PLAN.md step 2. (terrain_type="plane" would need
+    IsaacLab/Environments/Grid/default_ground_plane.usda, which is not in the local asset pack.)
+    """
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+
+        self.scene.terrain = TerrainImporterCfg(
+            prim_path="/World/ground",
+            terrain_type="generator",
+            terrain_generator=terrain_gen.TerrainGeneratorCfg(
+                size=(40.0, 40.0),
+                border_width=0.0,
+                num_rows=1,
+                num_cols=1,
+                use_cache=False,
+                sub_terrains={"flat": terrain_gen.MeshPlaneTerrainCfg(proportion=1.0)},
+            ),
+            max_init_terrain_level=0,
+            collision_group=-1,
+            physics_material=sim_utils.RigidBodyMaterialCfg(
+                friction_combine_mode="multiply",
+                restitution_combine_mode="multiply",
+                static_friction=1.0,
+                dynamic_friction=1.0,
+            ),
+            debug_vis=False,
+        )
+        self.scene.maze = AssetBaseCfg(
+            prim_path="/World/Maze",
+            spawn=sim_utils.UsdFileCfg(usd_path=WAREHOUSE_USD_PATH),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
+        )
+        self.scene.robot.init_state.pos = (0.0, 0.0, 0.6)

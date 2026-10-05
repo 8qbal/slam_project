@@ -12,14 +12,22 @@ parser.add_argument("--low_level_checkpoint", type=str, required=True, help="Pat
 parser.add_argument("--high_level_checkpoint", type=str, required=True, help="Path to high-level SB3 .zip checkpoint")
 parser.add_argument("--num_envs", type=int, default=1, help="Use 1 for visualization")
 parser.add_argument("--steps", type=int, default=5000, help="Number of play steps")
-parser.add_argument("--deterministic", action="store_true", help="Use deterministic high-level policy")
+parser.add_argument("--seed", type=int, default=None, help="Env seed (use a different one per trial)")
+parser.add_argument("--deterministic_policy", action="store_true", help="Use deterministic high-level policy")
 parser.add_argument("--enable_dense_mapping", action="store_true", help="Enable Open3D TSDF dense mapping")
 parser.add_argument("--dense_export_every", type=int, default=1000, help="Export mesh/pcd every N frames")
 parser.add_argument("--dense_export_dir", type=str, default="./dense_map_output", help="Dense map export directory")
 parser.add_argument("--dense_live_vis", action="store_true", help="Live visualize TSDF map")
 parser.add_argument("--dense_vis_mesh", action="store_true", help="Visualize mesh instead of point cloud")
+parser.add_argument(
+    "--dense_pose_source",
+    choices=["orb", "gt"],
+    default="orb",
+    help="Camera pose for TSDF integration: ORB-SLAM3 estimate (integrates only tracked frames) or simulator GT",
+)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
+args_cli.enable_cameras = True
 
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -58,9 +66,17 @@ class OrbGtComparator:
 
     Shared origin:
     - the first timestep when ORB tracking becomes valid.
+
+    Both trajectories are expressed in the body frame at that moment (translation rotated by -yaw0), because the
+    ORB-SLAM3 node publishes poses relative to its first tracked camera pose (yaw 0), while GT yaw is in the world
+    frame and is randomized on reset.
     """
 
     def __init__(self):
+        self.reset()
+
+    def reset(self):
+        """Forget the shared origin; call when the episode resets (the robot is teleported)."""
         self.initialized = False
         self.orb_origin_xyyaw = None
         self.gt_origin_xyyaw = None
@@ -68,6 +84,12 @@ class OrbGtComparator:
     @staticmethod
     def wrap_to_pi(angle: float) -> float:
         return (angle + np.pi) % (2.0 * np.pi) - np.pi
+
+    @classmethod
+    def to_origin_frame(cls, xyyaw: np.ndarray, origin_xyyaw: np.ndarray) -> np.ndarray:
+        dx, dy = xyyaw[:2] - origin_xyyaw[:2]
+        c, s = np.cos(origin_xyyaw[2]), np.sin(origin_xyyaw[2])
+        return np.array([c * dx + s * dy, -s * dx + c * dy, cls.wrap_to_pi(xyyaw[2] - origin_xyyaw[2])])
 
     @staticmethod
     def quat_xyzw_to_yaw(quat_xyzw: np.ndarray) -> float:
@@ -142,11 +164,8 @@ class OrbGtComparator:
         orb_now = pose_xyyaw[0].detach().cpu().numpy().astype(np.float64)
         gt_now = self.get_gt_xyyaw(env_unwrapped)
 
-        orb_rel = orb_now - self.orb_origin_xyyaw
-        gt_rel = gt_now - self.gt_origin_xyyaw
-
-        orb_rel[2] = self.wrap_to_pi(orb_rel[2])
-        gt_rel[2] = self.wrap_to_pi(gt_rel[2])
+        orb_rel = self.to_origin_frame(orb_now, self.orb_origin_xyyaw)
+        gt_rel = self.to_origin_frame(gt_now, self.gt_origin_xyyaw)
 
         err = orb_rel - gt_rel
         err[2] = self.wrap_to_pi(err[2])
@@ -165,6 +184,8 @@ def build_low_level():
         device="cuda:0",
         num_envs=args_cli.num_envs,
     )
+    if args_cli.seed is not None:
+        env_cfg.seed = args_cli.seed
 
     agent_cfg = load_cfg_from_registry(args_cli.low_level_task, "rl_games_cfg_entry_point")
 
@@ -221,7 +242,7 @@ def save_error_plots(
 ):
     os.makedirs(out_dir, exist_ok=True)
 
-    if len(pos_errors) == 0:
+    if len(pos_errors) == 0 or np.all(np.isnan(pos_errors)):
         print("[WARN] No valid ORB tracking data. Plots were not generated.")
         return
 
@@ -264,10 +285,11 @@ def save_error_plots(
     plt.close()
 
     print("[INFO] Saved evaluation plots to:", out_dir, f"(suffix='{suffix}')")
-    print(f"[EVAL] Mean position error: {np.mean(pos_errors):.3f} m")
-    print(f"[EVAL] Max position error:  {np.max(pos_errors):.3f} m")
-    print(f"[EVAL] Mean yaw error:      {np.mean(yaw_errors):.2f} deg")
-    print(f"[EVAL] Max yaw error:       {np.max(yaw_errors):.2f} deg")
+    # NaN entries separate episodes (see the reset handling in main)
+    print(f"[EVAL] Mean position error: {np.nanmean(pos_errors):.3f} m")
+    print(f"[EVAL] Max position error:  {np.nanmax(pos_errors):.3f} m")
+    print(f"[EVAL] Mean |yaw error|:    {np.nanmean(np.abs(yaw_errors)):.2f} deg")
+    print(f"[EVAL] Max |yaw error|:     {np.nanmax(np.abs(yaw_errors)):.2f} deg")
 
 
 
@@ -343,7 +365,7 @@ def main():
         vx_max=0.5,
         wz_min=-0.25,
         wz_max=0.25,
-        max_episode_hl_steps=400,
+        max_episode_hl_steps=3000,  # paper Table 9: evaluation timeout of 3000 steps (400 is the training value)
     )
 
     vec_env = HighLevelIsaacVecEnv(low_env, low_agent, hl_cfg)
@@ -359,6 +381,7 @@ def main():
     gt_traj_y = []
 
     plot_dir = os.path.join(args_cli.dense_export_dir, "eval_plots")
+    os.makedirs(plot_dir, exist_ok=True)
     autosave_every = 2050
 
     dense_map_manager = None
@@ -381,7 +404,7 @@ def main():
                 cy=120.0,
                 cam_offset_pos=(0.4, 0.0, 0.0),
                 cam_offset_quat_xyzw=(0.5, -0.5, 0.5, -0.5),
-                pose_source="orb",   # change to "gt" if you want to verify TSDF first
+                pose_source=args_cli.dense_pose_source,
                 debug_pose=True,
                 enable_live_vis=args_cli.dense_live_vis,
                 vis_update_every_n_frames=10,
@@ -420,7 +443,7 @@ def main():
 
     try:
         for step in range(args_cli.steps):
-            action, _ = model.predict(obs, deterministic=args_cli.deterministic)
+            action, _ = model.predict(obs, deterministic=args_cli.deterministic_policy)
             obs, rewards, dones, infos = vec_env.step(action)
 
             # ----------------------------------------------------
@@ -533,6 +556,10 @@ def main():
             )
 
             if np.any(dones):
+                # the robot is teleported on reset: restart the ORB/GT alignment and break the plotted lines
+                orb_gt_comparator.reset()
+                for log in (timesteps, pos_errors, yaw_errors, orb_traj_x, orb_traj_y, gt_traj_x, gt_traj_y):
+                    log.append(np.nan)
                 print(f"[INFO] Episode ended at step {step}, continuing after reset inside VecEnv.")
 
     except KeyboardInterrupt:
@@ -570,7 +597,9 @@ def main():
         suffix="final",
     )
 
-    if dense_map_manager is not None: dense_map_manager.close()
+    if dense_map_manager is not None:
+        print(f"[INFO] TSDF integrated frames: {dense_map_manager.frame_count} (pose_source={args_cli.dense_pose_source})")
+        dense_map_manager.close()
 
     vec_env.close()
     simulation_app.close()

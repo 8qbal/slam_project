@@ -11,6 +11,7 @@ parser.add_argument("--num_envs", type=int, default=4)
 parser.add_argument("--low_level_task", type=str, required=True, help="Low-level locomotion task for rl-games cfg")
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
+args_cli.enable_cameras = True
 
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app

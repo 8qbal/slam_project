@@ -156,6 +156,17 @@ gym.register(
     },
 )
 
+# High-level play/eval in the Simple_Warehouse arena (paper Map B)
+gym.register(
+    id="Spot-Vslam-high-level-Warehouse-Play-v0",
+    entry_point="spot_vslam.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.use_depth_training:SpotHighLevelTrainEnvCfg_PlayWarehouse",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:vslam_cfg.yaml",
+    },
+)
+
 # Other Testing
 gym.register(
     id="Spot-test180-v0",

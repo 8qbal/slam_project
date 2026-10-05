@@ -6,10 +6,10 @@ Isaac Lab environments for running visual SLAM (ORB-SLAM3 over ROS 2, with Nav2)
 
 ```
 scripts/
-  rl_games/        train.py, play.py (rl_games with the ROS 2 manager attached)
+  low_level/       train.py, play.py (low-level locomotion + Vslam tasks, rl_games; play.py attaches ROS 2)
   slam/            ORB-SLAM3 / Nav2 test loops (test_vslam.py, test_rotate_180.py, test_nav2_loop.py, ...)
   orb_aware/       rule-based ORB-aware navigation
-  high_level/      high-level navigation policy training / evaluation
+  high_level/      high-level navigation policy (SB3 PPO on a frozen low-level policy): train / evaluate
   tools/           USD helpers (add_light_to_spot_usd.py)
 source/spot_vslam/
   pyproject.toml   package metadata + `isaaclab.tasks` entry point
@@ -70,8 +70,8 @@ isaaclab train --rl_library rl_games --task Spot-Vslam-v0
 isaaclab play  --rl_library rl_games --task Spot-Vslam-Play-v0 --checkpoint latest
 
 # Project scripts (ROS 2 manager attached during play)
-python scripts/rl_games/train.py --task Spot-Vslam-v0
-python scripts/rl_games/play.py  --task Spot-Vslam-Play-v0 --checkpoint /path/to/model.pth
+python scripts/low_level/train.py --task Spot-Vslam-v0
+python scripts/low_level/play.py  --task Spot-Vslam-Play-v0 --checkpoint /path/to/model.pth
 python scripts/slam/test_vslam.py
 
 # Nav2
