@@ -32,12 +32,18 @@ parser.add_argument(
     help="When no checkpoint provided, use the last saved model. Otherwise use the best saved model.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
+parser.add_argument(
+    "--cameras",
+    action="store_true",
+    default=False,
+    help="Enable RTX camera rendering (required by tasks with camera sensors, e.g. Spot-Vslam-Depth-*).",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
-# always enable cameras to record video
-if args_cli.video:
+# cameras must be enabled at app launch; always needed to record video
+if args_cli.video or args_cli.cameras:
     args_cli.enable_cameras = True
 
 # launch omniverse app
