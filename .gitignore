@@ -73,3 +73,5 @@ tests/
 # Local virtual env / tooling
 .venv/
 .ruff_cache/
+
+checkpoints_high_level/
