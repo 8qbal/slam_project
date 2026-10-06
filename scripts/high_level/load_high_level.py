@@ -25,6 +25,23 @@ parser.add_argument(
     default="orb",
     help="Camera pose for TSDF integration: ORB-SLAM3 estimate (integrates only tracked frames) or simulator GT",
 )
+parser.add_argument(
+    "--paper",
+    action="store_true",
+    help="Paper policy (9-dim goal obs) on a Spot-Paper-high-level-Map*-Play-v0 task; the goal is the map's goal",
+)
+parser.add_argument(
+    "--navigation_test",
+    action="store_true",
+    help="With --paper: one run from the map start to the goal (or 3000 steps), appended to --results_csv, "
+    "then Table 9 is printed. Without it the policy keeps running for --steps (Tables 7-8).",
+)
+parser.add_argument(
+    "--results_csv", type=str, default="./navigation_results.csv", help="--navigation_test: one row per run is appended"
+)
+parser.add_argument(
+    "--no_ros2", action="store_true", help="Don't start ROS 2 (no images published, no SLAM): the 'RL only' setup"
+)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 args_cli.enable_cameras = True
@@ -53,6 +70,9 @@ from spot_vslam.high_level.high_level_vec_env import (
     HighLevelEnvCfg,
     HighLevelIsaacVecEnv,
 )
+
+from spot_vslam.high_level.paper_vec_env import PaperHighLevelEnvCfg, PaperHighLevelIsaacVecEnv
+from spot_vslam.tasks.spot_vslam.paper_cfg import PAPER_MAPS
 
 from spot_vslam.managers.dense_map_manager import (
     DenseMapManager,
@@ -222,7 +242,7 @@ def build_low_level():
     agent.restore(resume_path)
     agent.reset()
 
-    if getattr(env.unwrapped.cfg, "ros2", None) is not None:
+    if getattr(env.unwrapped.cfg, "ros2", None) is not None and not args_cli.no_ros2:
         env.unwrapped.ros2_manager = Ros2Manager(env.unwrapped.cfg.ros2, env.unwrapped)
 
     print("[INFO] low-level num_envs =", env.unwrapped.num_envs)
@@ -355,20 +375,71 @@ def save_performance_plots(csv_path, out_dir, suffix="", show_plot=False):
     # plt.close(fig) # 務必關閉，否則記憶體會爆掉
 
 
+class CollisionCounter:
+    """Counts collisions for Table 9: a collision starts when the body or a leg touches something (> 1 N)."""
+
+    def __init__(self, env_unwrapped):
+        self.sensor = env_unwrapped.scene.sensors["contact_forces"]
+        self.body_ids, _ = self.sensor.find_bodies(["body", ".*leg"])
+        self.in_contact = False
+        self.count = 0
+
+    def update(self):
+        forces = self.sensor.data.net_forces_w_history.torch[0, :, self.body_ids]  # (history, bodies, 3)
+        touching = bool((forces.norm(dim=-1) > 1.0).any())
+        if touching and not self.in_contact:
+            self.count += 1
+        self.in_contact = touching
+
+
+def record_navigation_run(map_name: str, success: bool, steps: int, time_s: float, collisions: int, pos_err: float):
+    """Append one run to --results_csv, then print the navigation results (paper Table 9, mean +- std per map)."""
+    row = {"map": map_name, "seed": args_cli.seed, "success": int(success), "steps": steps, "time_s": round(time_s, 2),
+           "collisions": collisions, "mean_pos_err_m": round(pos_err, 3)}
+    print("[NAV-TEST] run:", row)
+    df = pd.DataFrame([row])
+    df.to_csv(args_cli.results_csv, mode="a", header=not os.path.isfile(args_cli.results_csv), index=False)
+
+    df = pd.read_csv(args_cli.results_csv)
+    print(f"[NAV-TEST] Navigation test over {len(df)} runs in {args_cli.results_csv} (failed runs count as 3000 steps):")
+    print(f"[NAV-TEST] {'Map':<4} {'Runs':>4} {'Success %':>10} {'Collisions':>14} {'Steps':>18} {'Time (s)':>16}")
+    for m, g in df.groupby("map"):
+        ok = g[g.success == 1]
+        t = f"{ok.time_s.mean():.2f} ± {ok.time_s.std(ddof=1):.2f}" if len(ok) else "—"
+        print(
+            f"[NAV-TEST] {m:<4} {len(g):>4} {100 * g.success.mean():>10.0f} "
+            f"{g.collisions.mean():>6.2f} ± {g.collisions.std(ddof=1):<5.2f} "
+            f"{g.steps.mean():>8.2f} ± {g.steps.std(ddof=1):<7.2f} {t:>16}"
+        )
+
+
 def main():
+    if args_cli.navigation_test and not args_cli.paper:
+        raise ValueError("--navigation_test needs --paper")
     low_env, low_agent = build_low_level()
 
-    hl_cfg = HighLevelEnvCfg(
-        hl_decimation=2,
-        cmd_smoothing_alpha=0.25,
-        vx_min=0.0,
-        vx_max=0.5,
-        wz_min=-0.25,
-        wz_max=0.25,
-        max_episode_hl_steps=3000,  # paper Table 9: evaluation timeout of 3000 steps (400 is the training value)
-    )
-
-    vec_env = HighLevelIsaacVecEnv(low_env, low_agent, hl_cfg)
+    if args_cli.paper:
+        map_name = getattr(low_env.unwrapped.cfg, "paper_map", None)
+        if map_name is None:
+            raise ValueError("--paper needs a Spot-Paper-high-level-Map*-Play-v0 task")
+        paper_map = PAPER_MAPS[map_name]
+        hl_cfg = PaperHighLevelEnvCfg(
+            goal_w=paper_map.goal, goal_radius=paper_map.goal_radius, max_episode_hl_steps=3000  # Table 9 timeout
+        )
+        vec_env = PaperHighLevelIsaacVecEnv(low_env, low_agent, hl_cfg)
+        collisions = CollisionCounter(low_env.unwrapped)
+        print(f"[INFO] Paper map {map_name}: start {paper_map.start} -> goal {paper_map.goal} (r={paper_map.goal_radius} m)")
+    else:
+        hl_cfg = HighLevelEnvCfg(
+            hl_decimation=2,
+            cmd_smoothing_alpha=0.25,
+            vx_min=0.0,
+            vx_max=0.5,
+            wz_min=-0.25,
+            wz_max=0.25,
+            max_episode_hl_steps=3000,  # paper Table 9: evaluation timeout of 3000 steps (400 is the training value)
+        )
+        vec_env = HighLevelIsaacVecEnv(low_env, low_agent, hl_cfg)
     orb_gt_comparator = OrbGtComparator()
 
     # Error logs
@@ -426,6 +497,8 @@ def main():
     model = PPO.load(high_level_ckpt, env=vec_env, device="cpu")
 
     obs = vec_env.reset()
+    run_start_time = time.time()
+    run_result = None
     print("[INFO] Start rollout")
     print("[INFO] num_envs =", vec_env.num_envs)
 
@@ -478,6 +551,19 @@ def main():
 
             if dense_map_manager is not None:
                 dense_map_manager.update()
+
+            if args_cli.navigation_test:
+                collisions.update()
+                if dones[0]:
+                    success = bool(infos[0].get("is_success", False))
+                    run_result = dict(
+                        success=success,
+                        steps=step + 1 if success else 3000,
+                        time_s=time.time() - run_start_time,
+                        collisions=collisions.count,
+                    )
+                    print(f"[NAV-TEST] {'SUCCESS' if success else 'FAIL'} at step {step + 1}, {collisions.count} collisions")
+                    break
 
             orb_gt_info = orb_gt_comparator.compute_relative_error(low_env.unwrapped)
             if orb_gt_info is not None:
@@ -566,6 +652,13 @@ def main():
         print("\n[INFO] Ctrl+C detected. Stopping rollout safely...")
 
     print("[INFO] Finished rollout")
+
+    if args_cli.navigation_test:
+        if run_result is None:  # stopped early (Ctrl+C or --steps < 3000): not a complete run
+            print("[NAV-TEST] Run did not finish (no goal, no timeout); nothing recorded.")
+        else:
+            pos_err = float(np.nanmean(pos_errors)) if np.any(np.isfinite(pos_errors)) else float("nan")
+            record_navigation_run(map_name, pos_err=pos_err, **run_result)
 
     # ----------------------------------------------------
     # [新增] 4. 迴圈結束後，將收集到的數據存成 CSV

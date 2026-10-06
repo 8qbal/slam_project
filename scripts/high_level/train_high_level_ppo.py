@@ -9,6 +9,12 @@ parser.add_argument("--task", type=str, required=True, help="High-level env task
 parser.add_argument("--checkpoint", type=str, default=None)
 parser.add_argument("--num_envs", type=int, default=4)
 parser.add_argument("--low_level_task", type=str, required=True, help="Low-level locomotion task for rl-games cfg")
+parser.add_argument("--total_timesteps", type=int, default=500_000, help="Table 6: 500,000")
+parser.add_argument(
+    "--paper",
+    action="store_true",
+    help="Paper high-level policy (Tables 5-6): 9-dim goal observation, goal reward, [256, 128] ELU MLP",
+)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 args_cli.enable_cameras = True
@@ -17,6 +23,7 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 import gymnasium as gym
+import torch.nn as nn
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecMonitor
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback, CallbackList
@@ -37,6 +44,8 @@ from spot_vslam.high_level.high_level_vec_env import (
     HighLevelEnvCfg,
     HighLevelIsaacVecEnv,
 )
+from spot_vslam.high_level.paper_vec_env import PaperHighLevelEnvCfg, PaperHighLevelIsaacVecEnv
+from spot_vslam.tasks.spot_vslam.paper_cfg import PAPER_MAPS
 
 
 class HighLevelTensorboardCallback(BaseCallback):
@@ -69,6 +78,9 @@ class HighLevelTensorboardCallback(BaseCallback):
             "reward_stuck_term",
             "reward_body_contact_term",
             "reward_turn_term",
+            "dist_to_goal",
+            "goal_reached",
+            "fell",
         ]
 
         for key in extra_keys:
@@ -135,17 +147,27 @@ def build_low_level():
 def main():
     low_env, low_agent = build_low_level()
 
-    hl_cfg = HighLevelEnvCfg(
-        hl_decimation=2,
-        cmd_smoothing_alpha=0.25,
-        vx_min=0.0,
-        vx_max=1.0,
-        wz_min=-0.4,
-        wz_max=0.4,
-        max_episode_hl_steps=400,
-    )
-
-    vec_env = HighLevelIsaacVecEnv(low_env, low_agent, hl_cfg)
+    if args_cli.paper:
+        paper_map = PAPER_MAPS[low_env.unwrapped.cfg.paper_map]
+        hl_cfg = PaperHighLevelEnvCfg(goal_w=paper_map.goal, goal_radius=paper_map.goal_radius, use_orb_pose=False)
+        print(f"[INFO] Paper map {low_env.unwrapped.cfg.paper_map}: start {paper_map.start} -> goal {paper_map.goal}")
+        vec_env = PaperHighLevelIsaacVecEnv(low_env, low_agent, hl_cfg)
+        # Sec. 5.2: same MLP type as the low-level policy (ELU, orthogonal init) with hidden layers [256, 128]
+        policy_kwargs = dict(net_arch=dict(pi=[256, 128], vf=[256, 128]), activation_fn=nn.ELU)
+        out_suffix = "_paper"
+    else:
+        hl_cfg = HighLevelEnvCfg(
+            hl_decimation=2,
+            cmd_smoothing_alpha=0.25,
+            vx_min=0.0,
+            vx_max=1.0,
+            wz_min=-0.4,
+            wz_max=0.4,
+            max_episode_hl_steps=400,
+        )
+        vec_env = HighLevelIsaacVecEnv(low_env, low_agent, hl_cfg)
+        policy_kwargs = None
+        out_suffix = ""
     vec_env = VecMonitor(vec_env)
 
     print("Observation space:", vec_env.observation_space)
@@ -165,16 +187,18 @@ def main():
         clip_range=0.2,
         ent_coef=0.01,
         vf_coef=0.5,
+        policy_kwargs=policy_kwargs,
         verbose=1,
-        tensorboard_log="./tensorboard_high_level/",
+        tensorboard_log=f"./tensorboard_high_level{out_suffix}/",
     )
 
-    os.makedirs("./checkpoints_high_level", exist_ok=True)
+    ckpt_dir = f"./checkpoints_high_level{out_suffix}"
+    os.makedirs(ckpt_dir, exist_ok=True)
 
     tensorboard_callback = HighLevelTensorboardCallback()
     checkpoint_callback = CheckpointCallback(
         save_freq=4_000,
-        save_path="./checkpoints_high_level",
+        save_path=ckpt_dir,
         name_prefix="high_level_policy",
         save_replay_buffer=False,
         save_vecnormalize=False,
@@ -183,12 +207,12 @@ def main():
     callback = CallbackList([tensorboard_callback, checkpoint_callback])
 
     model.learn(
-        total_timesteps=500_000,
+        total_timesteps=args_cli.total_timesteps,
         callback=callback,
         log_interval=1,
     )
 
-    model.save("high_level_policy")
+    model.save(os.path.join(ckpt_dir, "high_level_policy"))
     print("Training finished")
 
     vec_env.close()

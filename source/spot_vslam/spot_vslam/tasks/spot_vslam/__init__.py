@@ -156,7 +156,7 @@ gym.register(
     },
 )
 
-# High-level play/eval in the Simple_Warehouse arena (paper Map B)
+# High-level play/eval (rl_vslam_v0) in Simple_Warehouse/warehouse.usd = paper Map A, spawn (0, 0)
 gym.register(
     id="Spot-Vslam-high-level-Warehouse-Play-v0",
     entry_point="spot_vslam.envs:ManagerBasedRLEnv",
@@ -164,6 +164,68 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.use_depth_training:SpotHighLevelTrainEnvCfg_PlayWarehouse",
         "rl_games_cfg_entry_point": f"{agents.__name__}:vslam_cfg.yaml",
+    },
+)
+
+# Paper policies (references/main.pdf Sec. 5): 353-dim low-level obs, goal-conditioned high level. See paper_cfg.py.
+gym.register(
+    id="Spot-Paper-v0",
+    entry_point="spot_vslam.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.paper_cfg:SpotPaperEnvCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_paper_ppo_cfg.yaml",
+    },
+)
+
+gym.register(
+    id="Spot-Paper-Play-v0",
+    entry_point="spot_vslam.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.paper_cfg:SpotPaperEnvCfg_Play",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_paper_ppo_cfg.yaml",
+    },
+)
+
+# High-level paper tasks: one per paper map (A = Room, B = Warehouse), fixed start and goal (paper_cfg.PAPER_MAPS)
+gym.register(
+    id="Spot-Paper-high-level-MapA-v0",
+    entry_point="spot_vslam.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.paper_cfg:SpotPaperHighLevelEnvCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_paper_ppo_cfg.yaml",
+    },
+)
+
+gym.register(
+    id="Spot-Paper-high-level-MapA-Play-v0",
+    entry_point="spot_vslam.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.paper_cfg:SpotPaperHighLevelEnvCfg_Play",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_paper_ppo_cfg.yaml",
+    },
+)
+
+gym.register(
+    id="Spot-Paper-high-level-MapB-v0",
+    entry_point="spot_vslam.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.paper_cfg:SpotPaperHighLevelEnvCfg_MapB",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_paper_ppo_cfg.yaml",
+    },
+)
+
+gym.register(
+    id="Spot-Paper-high-level-MapB-Play-v0",
+    entry_point="spot_vslam.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.paper_cfg:SpotPaperHighLevelEnvCfg_MapB_Play",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_paper_ppo_cfg.yaml",
     },
 )
 

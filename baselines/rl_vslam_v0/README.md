@@ -7,6 +7,8 @@ under "Known limitations", so later changes can be compared against it.
 - **Code:** git tag `baseline/rl-vslam-v0`. No file under `source/` or `scripts/` changed between the trials
   (2026-10-04) and this tag.
 - **Task:** `Spot-Vslam-high-level-Warehouse-Play-v0` (`SpotHighLevelTrainEnvCfg_PlayWarehouse`).
+- **Map:** the arena is `Simple_Warehouse/warehouse.usd`, which is the paper's **Map A ("Room")**, not Map B. The
+  original code uses `warehouse_multiple_shelves.usd` for Map B. "Warehouse" in these results means Map A.
 
 ## Contents
 

@@ -44,6 +44,15 @@ parser.add_argument(
     const=True,
     help="if toggled, this experiment will be tracked with Weights and Biases",
 )
+parser.add_argument(
+    "--quiet_rewards", action="store_true", default=False, help="Don't print the mean reward / episode length each epoch."
+)
+parser.add_argument(
+    "--reward_terms_every",
+    type=int,
+    default=50,
+    help="Print the per-term reward and termination breakdown every N epochs (0 = never).",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -65,6 +74,7 @@ import gymnasium as gym
 import math
 import os
 import random
+import torch
 from datetime import datetime
 
 from rl_games.common import env_configurations, vecenv
@@ -88,6 +98,34 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
 import spot_vslam.tasks  # noqa: F401
+
+
+class VerboseIsaacAlgoObserver(IsaacAlgoObserver):
+    """IsaacAlgoObserver that also prints the training rewards to the console (they otherwise only go to TensorBoard)."""
+
+    def __init__(self, terms_every: int):
+        super().__init__()
+        self.terms_every = terms_every
+
+    def after_print_stats(self, frame, epoch_num, total_time):
+        algo = self.algo
+        if algo.game_rewards.current_size > 0:
+            print(
+                f"[epoch {epoch_num}/{algo.max_epochs}] reward {float(algo.game_rewards.get_mean().mean()):.2f}"
+                f" | episode length {float(algo.game_lengths.get_mean()):.1f} steps"
+                f" | frames {frame} | {total_time / 60:.1f} min"
+            )
+        if self.terms_every > 0 and epoch_num % self.terms_every == 0 and self.ep_infos:
+            # mean over the episodes that ended since the last print; the super() call below clears ep_infos
+            means = {}
+            for key in self.ep_infos[0]:
+                vals = [torch.as_tensor(ep[key], dtype=torch.float32).flatten().mean() for ep in self.ep_infos]
+                means[key] = torch.stack(vals).mean().item()
+            for group in ("Episode_Reward/", "Episode_Termination/"):
+                terms = {k[len(group) :]: v for k, v in means.items() if k.startswith(group)}
+                if terms:
+                    print(f"    {group[:-1]}: " + ", ".join(f"{k} {v:.3f}" for k, v in terms.items()))
+        super().after_print_stats(frame, epoch_num, total_time)
 
 
 @hydra_task_config(args_cli.task, "rl_games_cfg_entry_point")
@@ -174,7 +212,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # set number of actors into agent config
     agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
     # create runner from rl-games
-    runner = Runner(IsaacAlgoObserver())
+    observer = IsaacAlgoObserver() if args_cli.quiet_rewards else VerboseIsaacAlgoObserver(args_cli.reward_terms_every)
+    runner = Runner(observer)
     runner.load(agent_cfg)
 
     # reset the agent and env

@@ -783,11 +783,11 @@ class SpotHighLevelTrainEnvCfg_Play(SpotHighLevelTrainEnvCfg):
 
 
 # ==========================================================
-# High-level play/eval in the warehouse (paper Map B)
+# High-level play/eval in Simple_Warehouse/warehouse.usd (paper Map A "Room")
 # ==========================================================
 @configclass
 class SpotHighLevelTrainEnvCfg_PlayWarehouse(SpotHighLevelTrainEnvCfg_Play):
-    """Same as the high-level play cfg (same observation layout), plus the Simple_Warehouse arena.
+    """Same as the high-level play cfg (same observation layout), plus the Simple_Warehouse arena (paper Map A).
 
     The 5x5 terrain generator is replaced by a single flat 40x40 m tile so the env origin is (0, 0): with the 5x5
     grid the single env sits at a tile origin (-8, -16), which together with the spawn offset lands outside the
