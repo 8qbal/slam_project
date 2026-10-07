@@ -19,8 +19,8 @@ import torch
 from isaaclab.envs import ManagerBasedRLEnv as BaseManagerBasedRLEnv
 from isaaclab.envs import ManagerBasedRLEnvCfg
 
-from spot_vslam.managers.orb_slam_subscriber_manager import OrbSlamSubscriberManager
-from spot_vslam.managers.ros2_manager import Ros2Manager
+from spot_vslam.slam.orb_slam_subscriber import OrbSlamSubscriberManager
+from spot_vslam.slam.ros2_manager import Ros2Manager
 
 
 class ManagerBasedRLEnv(BaseManagerBasedRLEnv):

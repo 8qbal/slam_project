@@ -9,12 +9,17 @@
 
 | Paper | Value | Code |
 | --- | --- | --- |
-| Low-level sim dt / decimation / control rate (Table 1) | 0.002 s / 20 / 25 Hz | `tasks/spot_vslam/use_depth_training.py` |
-| Low-level obs (Table 2) | 353-dim, depth 15×20 + 5 depth stats | `tasks/spot_vslam/*_cfg.py`, `mdp/` |
-| Low-level MLP (Table 4) | [512, 256, 128], ELU | `tasks/spot_vslam/agents/*.yaml` |
-| High-level PPO (Table 6) | lr 3e-4, n_steps 256, batch 128, 4 epochs, 500k steps | `scripts/high_level/train_high_level_ppo.py` |
-| High-level action | vx ∈ [0, 1] m/s, ωz ∈ [−0.4, 0.4] rad/s, EMA α = 0.25, HL decimation 2 | `high_level/high_level_vec_env.py` (`HighLevelEnvCfg`) |
-| Max episode length | 400 HL steps | same |
+| Low-level sim dt / decimation / control rate (Table 1) | 0.002 s / 20 / 25 Hz | `tasks/locomotion/locomotion_env_cfg.py` |
+| Low-level obs (Table 2) | 353-dim, depth 15×20 + 5 depth stats | `tasks/locomotion/locomotion_env_cfg.py`, `tasks/locomotion/mdp/observations.py` |
+| Low-level reward (Eqs. 2-6, Table 3) | | `tasks/locomotion/config/spot/paper_env_cfg.py`, `tasks/locomotion/mdp/rewards.py` |
+| Low-level MLP (Table 4) | [512, 256, 128], ELU | `tasks/locomotion/config/spot/agents/rl_games_paper_ppo_cfg.yaml` |
+| High-level obs (Table 5) | 9-dim: pose, goal, base velocity | `tasks/navigation/config/spot/navigation_env_cfg.py` (`Spot-Nav-*`); SB3 version `legacy/high_level/paper_vec_env.py` |
+| High-level PPO (Table 6) | lr 3e-4, n_steps 256, batch 128, 4 epochs, 500k steps | `tasks/navigation/config/spot/agents/rl_games_ppo_cfg.yaml`; SB3 version `scripts/high_level/train_high_level_ppo.py` |
+| High-level action | vx ∈ [0, 1] m/s, ωz ∈ [−0.4, 0.4] rad/s, EMA α = 0.25, HL decimation 2 | `tasks/navigation/mdp/actions.py` (`LowLevelPolicyActionCfg`) |
+| Max episode length | 400 HL steps | `tasks/navigation/config/spot/navigation_env_cfg.py` |
+| Maps A / B (start, goal) | | `assets/maps.py` (`PAPER_MAPS`) |
+
+Paths are under `source/spot_vslam/spot_vslam/`. The notes below describe the rl_vslam_v0 baseline code.
 
 The paper and the code don't fully agree:
 

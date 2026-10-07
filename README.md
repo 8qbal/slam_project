@@ -1,90 +1,56 @@
 # Spot Visual SLAM (Isaac Lab 3.0)
 
-Isaac Lab environments for running visual SLAM (ORB-SLAM3 over ROS 2, with Nav2) on the Boston Dynamics Spot quadruped.
+Isaac Lab environments for visual SLAM (ORB-SLAM3 over ROS 2) with hierarchical RL navigation on the Boston Dynamics
+Spot quadruped. Reproduces and extends `references/main.pdf`.
 
 ## Layout
 
 ```
 docs/              ROADMAP.md (what to fix / build next), SYSTEM.md (diagram, policy inputs/outputs)
 scripts/           see scripts/README.md for how to train and run the policies
-  low_level/       train.py, play.py (low-level locomotion + Vslam tasks, rl_games; play.py attaches ROS 2)
-  high_level/      high-level navigation policy (SB3 PPO on a frozen low-level policy): train / play
-  slam/            ORB-SLAM3 / Nav2 test loops (test_vslam.py, test_rotate_180.py, test_nav2_loop.py)
-  tools/           paper tables (Tables 7-9), GIF, USD helpers
+  rl_games/        train.py, play.py: any task (low level or navigation)
+  high_level/      SB3 high-level training / play (rl_vslam_v0 and the current paper high level)
+  slam/            ORB-SLAM3 / Nav2 test loops
+  tools/           paper tables (Tables 7-9), GIF
   legacy/          old scripts, not part of the pipeline
 baselines/         frozen policy snapshots + results (rl_vslam_v0)
 references/        the paper (main.pdf) and paper-vs-code notes
 output/            (git-ignored) run outputs: checkpoints/, tensorboard/, dense_map/, test results
 source/spot_vslam/
-  pyproject.toml   package metadata + `isaaclab.tasks` entry point
-  config/          Isaac Sim extension manifest
-  launch/          ROS 2 launch file for Nav2
+  launch/          ROS 2 launch file + params for Nav2
+  ros2/            orbslam3_rgbd_node (ORB-SLAM3 RGB-D wrapper, C++)
   spot_vslam/
-    assets/        Spot-with-camera ArticulationCfg, textures, usd/ (USD files, git-ignored)
-    envs/          ManagerBasedRLEnv with the ROS 2 / ORB-SLAM3 managers
-    managers/      Ros2Manager, OrbSlamSubscriberManager, DenseMapManager, ROS 2 terms
-    mdp/           custom rewards / observations
-    high_level/    high-level policy wrappers (vec env, RL env)
-    tasks/spot_vslam/
-      __init__.py  gym.register(...) for every task below
-      agents/      rl_games configs
-      params/      nav2_params.yaml
-      *_cfg.py     env configs
+    assets/        USD paths, Spot config, paper maps (PAPER_MAPS)
+    envs/          ManagerBasedRLEnv with optional ROS 2 / ORB-SLAM3 managers
+    slam/          Ros2Manager, OrbSlamSubscriberManager, DenseMapManager (TSDF)
+    tasks/         Isaac Lab task layout: <task>/<task>_env_cfg.py, <task>/mdp/, <task>/config/spot/
+      locomotion/  low-level policy: walk at a commanded velocity, seeing depth ahead
+      navigation/  high-level policy: reach the map goal by commanding the frozen low level
+      slam_test/   SLAM test env for scripts/slam
+    legacy/        SB3 high-level wrappers, kept so existing high-level checkpoints still run
 ```
 
 ## Installation
 
-1. Install Isaac Lab 3.0 (this machine: `~/IsaacLab`, venv at `~/IsaacLab/.venv`).
-2. Install this package into that environment:
-
-   ```bash
-   ~/IsaacLab/isaaclab.sh -p -m pip install -e source/spot_vslam
-   # or, with uv from this directory:
-   uv sync
-   ```
-
-3. Assets come from the local Isaac Sim asset pack (`ISAACSIM_ASSET_ROOT`, e.g.
-   `~/isaacsim_assets/Assets/Isaac/6.0`): the stock `Robots/BostonDynamics/spot/spot.usd` (cameras are
-   spawned by `CameraCfg` in the env configs) and `Environments/Simple_Warehouse/warehouse.usd` as the arena.
-   See `SPOT_USD_PATH` / `WAREHOUSE_USD_PATH` in `spot_vslam/assets/__init__.py`.
-4. Source ROS 2 before running anything that uses the ROS 2 / SLAM managers:
-
-   ```bash
-   source /opt/ros/jazzy/setup.bash
-   ```
+1. Install Isaac Lab 3.0 (this machine: `~/IsaacLab`).
+2. Install this package into that environment: `uv sync` (or `~/IsaacLab/isaaclab.sh -p -m pip install -e source/spot_vslam`).
+3. Assets come from the local Isaac Sim asset pack (`ISAACSIM_ASSET_ROOT`, e.g. `~/isaacsim_assets/Assets/Isaac/6.0`).
+4. Source ROS 2 before running anything that uses ROS 2 / SLAM: `source /opt/ros/jazzy/setup.bash`.
 
 ## Tasks
 
-| Task ID | Config |
-| --- | --- |
-| `Spot-v0` / `Spot-Play-v0` | `rough_env_cfg_v0_rough` (low-level locomotion) |
-| `Spot-Vslam-v0` / `-Play-v0` | `simulate_vslam_env_cfg` |
-| `Spot-Vslam-Deploy-v0` / `-Play-v0` | `walk_model_run_on_vslam` |
-| `Spot-Vslam-Depth-v0` / `-Play-v0` | `use_depth_training` |
-| `Spot-Vslam-Depth-2-v0` / `-Play-v0` | `use_depth_training_2` |
-| `Spot-Vslam-Depth-3-v0` / `-Play-v0` | `vslam_training` |
-| `Spot-Vslam-high-level-v0` / `-Play-v0` | `use_depth_training` (high-level) |
-| `Spot-test180-v0`, `Isaac-Velocity-Rough-Spot-v0` | `spot_vslam_test_cfg` |
+| Task ID | What | Config |
+| --- | --- | --- |
+| `Spot-Paper-v0` / `-Play-v0` | paper low level (353-dim obs) | `locomotion/config/spot/paper_env_cfg.py` |
+| `Spot-Nav-Map{A,B}-v0` | paper high level, manager-based (GT pose, condition A) | `navigation/config/spot/navigation_env_cfg.py` |
+| `Spot-Nav-Map{A,B}-Play-v0` | evaluate with the ORB-SLAM3 pose | same |
+| `Spot-Nav-Map{A,B}-GT-Play-v0` | evaluate with the GT pose, no ROS 2 | same |
+| `Spot-Paper-high-level-Map{A,B}-v0` / `-Play-v0` | low-level env under the SB3 high-level wrapper | `locomotion/config/spot/paper_env_cfg.py` |
+| `Spot-Vslam-Depth-v0` / `-Play-v0` | rl_vslam_v0 low level (245-dim obs) | `locomotion/config/spot/baseline_v0_env_cfg.py` |
+| `Spot-Vslam-high-level-v0` / `-Play-v0` / `-Warehouse-Play-v0` | rl_vslam_v0 SB3 high level | same |
+| `Spot-test180-v0` | SLAM test env | `slam_test/slam_test_env_cfg.py` |
 
-## Running
-
-How to train and play the paper policies: [`scripts/README.md`](scripts/README.md).
-
-```bash
-# Isaac Lab 3.0 unified entry points (tasks are discovered through the package entry point)
-isaaclab train --rl_library rl_games --task Spot-Vslam-v0
-isaaclab play  --rl_library rl_games --task Spot-Vslam-Play-v0 --checkpoint latest
-
-# Project scripts (ROS 2 manager attached during play)
-python scripts/low_level/train.py --task Spot-Vslam-v0
-python scripts/low_level/play.py  --task Spot-Vslam-Play-v0 --checkpoint /path/to/model.pth
-python scripts/slam/test_vslam.py
-
-# Nav2
-ros2 launch source/spot_vslam/launch/start_nav2_slam.launch.py
-```
-
-Use `~/IsaacLab/isaaclab.sh -p` instead of `python` if the Isaac Lab venv is not active.
+How to run them: [`scripts/README.md`](scripts/README.md).
 
 ## Development
 

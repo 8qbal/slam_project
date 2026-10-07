@@ -1,5 +1,6 @@
 import argparse
 import os
+
 import numpy as np
 
 from isaaclab.app import AppLauncher
@@ -24,28 +25,28 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym
 import torch.nn as nn
-from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import VecMonitor
-from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback, CallbackList
-
 from rl_games.common import env_configurations, vecenv
 from rl_games.common.player import BasePlayer
 from rl_games.torch_runner import Runner
+from stable_baselines3 import PPO
+from stable_baselines3.common.callbacks import BaseCallback, CallbackList, CheckpointCallback
+from stable_baselines3.common.vec_env import VecMonitor
 
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
+
 from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
-from isaaclab_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
 
 import isaaclab_tasks  # noqa: F401
-import spot_vslam.tasks  # noqa: F401
+from isaaclab_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
 
-from spot_vslam.managers.ros2_manager import Ros2Manager
-from spot_vslam.high_level.high_level_vec_env import (
+import spot_vslam.tasks  # noqa: F401
+from spot_vslam.assets import PAPER_MAPS
+from spot_vslam.legacy.high_level.high_level_vec_env import (
     HighLevelEnvCfg,
     HighLevelIsaacVecEnv,
 )
-from spot_vslam.high_level.paper_vec_env import PaperHighLevelEnvCfg, PaperHighLevelIsaacVecEnv
-from spot_vslam.tasks.spot_vslam.paper_cfg import PAPER_MAPS
+from spot_vslam.legacy.high_level.paper_vec_env import PaperHighLevelEnvCfg, PaperHighLevelIsaacVecEnv
+from spot_vslam.slam.ros2_manager import Ros2Manager
 
 
 class HighLevelTensorboardCallback(BaseCallback):

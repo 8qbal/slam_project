@@ -1,0 +1,75 @@
+# High-level PPO, paper Table 6: lr 3e-4, n_steps 256 x 4 envs (= 1024 per update), batch 128, 4 epochs, gamma 0.99,
+# GAE 0.95, clip 0.2, entropy 0.01, value coef 0.5, 500k steps, [256, 128] ELU. The paper used Stable-Baselines3 PPO;
+# this is the closest rl_games setup: 16 envs x horizon 64 = 1024 per update, 490 epochs ~ 500k steps, no
+# observation/value normalization (SB3 default), constant learning rate, initial action std 1 (log std 0).
+params:
+  seed: 42
+
+  env:
+    clip_actions: 1.0
+
+  algo:
+    name: a2c_continuous
+
+  model:
+    name: continuous_a2c_logstd
+
+  network:
+    name: actor_critic
+    separate: False
+    space:
+      continuous:
+        mu_activation: None
+        sigma_activation: None
+        mu_init:
+          name: default
+        sigma_init:
+          name: const_initializer
+          val: 0
+        fixed_sigma: True
+    mlp:
+      units: [256, 128]
+      activation: elu
+      d2rl: False
+      initializer:
+        name: default
+      regularizer:
+        name: None
+
+  load_checkpoint: False
+  load_path: ''
+
+  config:
+    name: spot_navigation_ppo
+    env_name: rlgpu
+    device: 'cuda:0'
+    device_name: 'cuda:0'
+    multi_gpu: False
+    ppo: True
+    mixed_precision: False
+    normalize_input: False
+    normalize_value: False
+    value_bootstrap: True
+    num_actors: -1  # set from num_envs
+    reward_shaper:
+      scale_value: 1.0
+    normalize_advantage: True
+    gamma: 0.99
+    tau: 0.95
+    learning_rate: 3e-4
+    lr_schedule: None
+    score_to_win: 20000
+    max_epochs: 490
+    save_best_after: 20
+    save_frequency: 20
+    grad_norm: 0.5
+    entropy_coef: 0.01
+    truncate_grads: True
+    e_clip: 0.2
+    horizon_length: 64
+    minibatch_size: 128
+    mini_epochs: 4
+    critic_coef: 0.5
+    clip_value: False
+    seq_length: 4
+    bounds_loss_coef: 0.0

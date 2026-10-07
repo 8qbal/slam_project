@@ -11,14 +11,23 @@ fixed unless that is what is being tested.
 ## 1. Fixes before any experiment
 
 - [ ] Paper baseline reaches the goal. The paper policies fail every Table 9 run so far (0/10 on Map A,
-      `output/paper_tables/navigation/navigation_results.csv`). Find out why (high-level reward, training map, play
-      ranges, start/goal) and get a working baseline.
+      `output/paper_tables/navigation/navigation_results.csv`). Found so far (2026-10-07):
+  - [ ] **The paper low-level policy doesn't walk.** `logs/rl_games/spot_paper_ppo/2026-10-05_16-01-15` with a fixed
+        command vx = 1 m/s in `Spot-Paper-Play-v0` moves ~0.25 m in 5 s (both through rl_games' player and the new
+        batched loader). The rl_vslam_v0 low level walks at ~0.9 m/s in the same test. Retrain / fix the paper reward
+        before training any high level on it (ties in with the hopping-gait item in section 6).
+  - [ ] **Frequent falls at the map start.** With a zero command on Map A, ~1 in 5 low-level episodes per env ends in
+        body/leg contact within 100 low-level steps (old SB3 path and new nav env alike). Check the spawn height,
+        the random start velocity/yaw (`reset_base`), and walls next to the start.
 - [ ] ORB-SLAM3 reset: `orbslam3_rgbd_node` keeps `have_origin_`/`origin_` after `slam_->Reset()` or a new map, and
       `Ros2Manager.reset()` has `publish_orb_reset` commented out. Poses jump after an episode reset.
 - [ ] Spawn outside the warehouse in terrain-generator envs (5×5 tiles × 8 m vs. warehouse x −12..12,
       y −18..20.8). Shrink the spawn area; don't scale the warehouse.
 - [ ] "RL only" runs still attach `Ros2Manager` and publish images (`rl_vslam_v0`, known limitation 4).
 - [ ] Declare open3d 0.19.0, pandas and psutil in `pyproject.toml` (open3d 0.20 breaks TSDF).
+- [x] `Spot-test180-v0` failed on a missing `default_ground_plane.usda`: now a generated flat floor.
+- [x] The low-level SB3 wrapper left Isaac Lab's velocity command generator running, so ~5 % of the time
+      (`rel_standing_envs`) the low level got a zero command. The manager-based `Spot-Nav-*` doesn't have this.
 
 ## 2. Measure the current system (E0)
 
@@ -55,16 +64,16 @@ fixed unless that is what is being tested.
 
 ## 5. High level as an Isaac Lab manager-based env
 
-Isaac Lab 3.0 has the pattern in `isaaclab_tasks/contrib/navigation/`: the high level is a normal
-`ManagerBasedRLEnv`, and the frozen low-level policy runs inside an action term (`PreTrainedPolicyAction`). This would
-replace our SB3 wrappers (`high_level_vec_env.py`, `paper_vec_env.py`) and make A/B/C plain config changes.
+Done (2026-10-07): `tasks/navigation/`, tasks `Spot-Nav-Map{A,B}-v0` / `-Play-v0` / `-GT-Play-v0`, following Isaac
+Lab's `isaaclab_tasks/contrib/navigation/`. The frozen low level runs inside an action term.
 
-- [ ] Export the rl_games low-level policy to TorchScript, or write an action term that loads the `.pth`.
-- [ ] Feed our 353-dim low-level observation (with depth) through `low_level_observations`.
-- [ ] Goal as a command term, SLAM pose and quality signals as observation terms.
-- [ ] Choose the trainer (rl_games / rsl_rl) and write down how it differs from the paper's SB3 PPO (Table 6).
+- [x] Action term that loads the rl_games `.pth` directly (`LowLevelPolicyAction`, no TorchScript export).
+- [x] 353-dim low-level observation (with depth) through `low_level_observations`.
+- [x] Goal as a command term (start-frame goal), pose as an observation term with `pose_source="gt" | "slam"`.
+- [x] Trainer: rl_games, Table 6 mapped in `agents/rl_games_ppo_cfg.yaml` (16 envs x 64 steps = SB3's 4 x 256).
+- [x] SB3 wrappers kept in `legacy/high_level/` so `rl_vslam_v0` and the current paper high level still run.
+- [ ] Tracking-quality observation terms (condition C).
 - [ ] Many envs with SLAM in the loop need one tracker per env (easier with in-process cuVSLAM).
-- [ ] Keep the SB3 wrappers so `rl_vslam_v0` and the current paper policy still run.
 
 ## 6. Separate studies (E3)
 
@@ -77,15 +86,19 @@ replace our SB3 wrappers (`high_level_vec_env.py`, `paper_vec_env.py`) and make 
 
 ## Engineering backlog
 
-- [ ] One shared base config. The task configs repeat `SpotRewardsCfg`, `SpotObservationsCfg`,
-      `COBBLESTONE_ROAD_CFG` (7 files), `SpotTerminationsCfg` (6), `get_orb_slam_pose`/`get_orb_slam_status` (4),
-      `SpotEventCfg`/`SpotActionsCfg` (3). Move them into `tasks/spot_vslam/base_cfg.py` and `mdp/`. Every task id
-      must keep the same obs/action shapes (check with `load_cfg_from_registry` and a short headless run).
-- [ ] Arena as a parameter (`warehouse` / `none` / USD path) instead of hard-coded `/World/Maze`; the
-      `camera_frustum` ray casters must follow the arena prim.
+- [x] One shared base config (2026-10-07): `tasks/locomotion/locomotion_env_cfg.py` + `config/spot/{paper,baseline_v0}_env_cfg.py`.
+      Every kept task's resolved config (terms, order, weights, cameras, timing) was checked identical before/after,
+      except intended changes: unused cfg fields removed, paper Play/HL low-level envs now use the paper reward
+      (not used with a frozen policy), `Spot-Vslam-Depth-Play-v0` depth camera also renders RGB (else the SLAM
+      camera is black), v0 Play tasks use the v0 training yaml (same network). Dropped task ids: `Spot-v0`,
+      `Spot-Vslam-v0`, `-Deploy-`, `-Depth-2-`, `-Depth-3-`, `Isaac-Velocity-Rough-Spot-v0` (still in tag
+      `baseline/rl-vslam-v0`).
+- [ ] Arena as a parameter (`warehouse` / `none` / USD path) instead of hard-coded `/World/Maze`.
 - [ ] Lighting: dome light 3000 + warehouse lights over-expose the camera; may hurt SLAM features.
 - [ ] Physics presets (PhysX / Newton) via Isaac Lab 3.0 `PresetCfg`. Verify RTX camera, ray casters, contact
       sensors and ROS 2 under Newton before claiming support.
 - [ ] ROS 2 topic prefixes and frame names are hard-coded in 13 places; keep them only in `Ros2ManagerCfg`.
 - [ ] `scripts/slam/test_nav2_loop.py` defaults to the unregistered task `Spot-test-hybrid`.
-- [ ] `scripts/tools/add_light_to_spot_usd.py` writes to `SPOT_VSLAM_USD_DIR` outputs of lost USDs.
+- [x] `add_light_to_spot_usd.py` (wrote next to the lost USDs) moved to `scripts/legacy/`.
+- [ ] Low-level scenes keep a height scanner nothing reads (from Isaac Lab's velocity config); remove it with the
+      next low-level retrain (it doesn't change the observation).

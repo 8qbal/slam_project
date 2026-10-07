@@ -1,4 +1,5 @@
 """Play the trained high-level PPO on top of the frozen low-level policy and record a chase-cam GIF."""
+
 import argparse
 import os
 
@@ -22,19 +23,21 @@ import gymnasium as gym
 import imageio.v2 as imageio
 import numpy as np
 from PIL import Image, ImageDraw
+from rl_games.common import env_configurations, vecenv
+from rl_games.torch_runner import Runner
 from stable_baselines3 import PPO
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import CameraCfg
+
 from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
-from isaaclab_tasks.utils import load_cfg_from_registry, parse_env_cfg
-from rl_games.common import env_configurations, vecenv
-from rl_games.torch_runner import Runner
 
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.utils import load_cfg_from_registry, parse_env_cfg
+
 import spot_vslam.tasks  # noqa: F401
-from spot_vslam.managers.ros2_manager import Ros2Manager
-from spot_vslam.high_level.high_level_vec_env import HighLevelEnvCfg, HighLevelIsaacVecEnv
+from spot_vslam.legacy.high_level.high_level_vec_env import HighLevelEnvCfg, HighLevelIsaacVecEnv
+from spot_vslam.slam.ros2_manager import Ros2Manager
 
 env_cfg = parse_env_cfg(args_cli.task, device="cuda:0", num_envs=1)
 if args_cli.spawn is not None:
@@ -75,8 +78,15 @@ if getattr(env.unwrapped.cfg, "ros2", None) is not None:
     env.unwrapped.ros2_manager = Ros2Manager(env.unwrapped.cfg.ros2, env.unwrapped)
 
 # same high-level cfg as scripts/high_level/train_high_level_ppo.py
-hl_cfg = HighLevelEnvCfg(hl_decimation=2, cmd_smoothing_alpha=0.25, vx_min=0.0, vx_max=float(os.environ.get("VX_MAX", 1.0)),
-                         wz_min=-float(os.environ.get("WZ_MAX", 0.4)), wz_max=float(os.environ.get("WZ_MAX", 0.4)), max_episode_hl_steps=400)
+hl_cfg = HighLevelEnvCfg(
+    hl_decimation=2,
+    cmd_smoothing_alpha=0.25,
+    vx_min=0.0,
+    vx_max=float(os.environ.get("VX_MAX", 1.0)),
+    wz_min=-float(os.environ.get("WZ_MAX", 0.4)),
+    wz_max=float(os.environ.get("WZ_MAX", 0.4)),
+    max_episode_hl_steps=400,
+)
 vec_env = HighLevelIsaacVecEnv(env, agent, hl_cfg)
 model = PPO.load(args_cli.high_level_checkpoint, env=vec_env, device="cpu")
 
@@ -85,8 +95,13 @@ cam = env.unwrapped.scene.sensors["chase_cam"]
 obs = vec_env.reset()
 u = env.unwrapped
 print("[DIAG] env_origins:", u.scene.env_origins.cpu().numpy().tolist(), flush=True)
-print("[DIAG] terrain cfg size/rows/cols:", u.scene.terrain.cfg.terrain_generator.size if u.scene.terrain.cfg.terrain_generator else None,
-      getattr(u.scene.terrain.cfg.terrain_generator, "num_rows", None), getattr(u.scene.terrain.cfg.terrain_generator, "num_cols", None), flush=True)
+print(
+    "[DIAG] terrain cfg size/rows/cols:",
+    u.scene.terrain.cfg.terrain_generator.size if u.scene.terrain.cfg.terrain_generator else None,
+    getattr(u.scene.terrain.cfg.terrain_generator, "num_rows", None),
+    getattr(u.scene.terrain.cfg.terrain_generator, "num_cols", None),
+    flush=True,
+)
 print("[DIAG] root pos after reset:", robot.data.root_pos_w.torch[0].cpu().numpy().tolist(), flush=True)
 print("[DIAG] termination terms:", u.termination_manager.active_terms, flush=True)
 frames, traj, ep_ret, contacts = [], [], 0.0, 0
@@ -102,7 +117,10 @@ for step in range(args_cli.steps):
     if step < 3:
         for nm in ["chase_cam", "tilted_camera"]:
             t = u.scene.sensors[nm].data.output["rgb"].torch
-            print(f"[DIAG] {nm} rgb dtype={t.dtype} shape={tuple(t.shape)} min={t.min().item()} max={t.max().item()} mean={t.float().mean().item():.3f}", flush=True)
+            print(
+                f"[DIAG] {nm} rgb dtype={t.dtype} shape={tuple(t.shape)} min={t.min().item()} max={t.max().item()} mean={t.float().mean().item():.3f}",
+                flush=True,
+            )
     rgb = cam.data.output["rgb"].torch[0, ..., :3].cpu().numpy().astype(np.uint8)
     img = Image.fromarray(rgb)
     ImageDraw.Draw(img).text(
@@ -112,8 +130,11 @@ for step in range(args_cli.steps):
     )
     frames.append(np.asarray(img))
     if step % 25 == 0:
-        print(f"[PLAY] step={step} pos=({pos[0]:+.2f},{pos[1]:+.2f}) cmd_vx={info[0]['cmd_vx']:.2f} "
-              f"cmd_wz={info[0]['cmd_wz']:+.2f} ret={ep_ret:.2f}", flush=True)
+        print(
+            f"[PLAY] step={step} pos=({pos[0]:+.2f},{pos[1]:+.2f}) cmd_vx={info[0]['cmd_vx']:.2f} "
+            f"cmd_wz={info[0]['cmd_wz']:+.2f} ret={ep_ret:.2f}",
+            flush=True,
+        )
     fired = [n for n in u.termination_manager.active_terms if bool(u.termination_manager.get_term(n)[0])]
     if args_cli.steps <= 60:
         print(f"[DIAG] step={step} pos={pos.round(2).tolist()} fired={fired}", flush=True)
@@ -123,8 +144,10 @@ for step in range(args_cli.steps):
 
 traj = np.array(traj)
 dist = np.linalg.norm(np.diff(traj, axis=0), axis=1).sum()
-print(f"[RESULT] steps={len(frames)} return={ep_ret:.2f} path_len={dist:.2f}m "
-      f"start={traj[0]} end={traj[-1]} net_disp={np.linalg.norm(traj[-1] - traj[0]):.2f}m body_contact_steps={contacts}")
+print(
+    f"[RESULT] steps={len(frames)} return={ep_ret:.2f} path_len={dist:.2f}m "
+    f"start={traj[0]} end={traj[-1]} net_disp={np.linalg.norm(traj[-1] - traj[0]):.2f}m body_contact_steps={contacts}"
+)
 os.makedirs(os.path.dirname(args_cli.out), exist_ok=True)
 np.save(args_cli.out.replace(".gif", "_traj.npy"), traj)
 imageio.mimsave(args_cli.out, frames[::2], duration=0.16, loop=0)  # every 2nd HL step, real-time speed

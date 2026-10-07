@@ -16,7 +16,7 @@ parser.add_argument("--seed", type=int, default=None, help="Env seed (use a diff
 parser.add_argument("--deterministic_policy", action="store_true", help="Use deterministic high-level policy")
 parser.add_argument("--enable_dense_mapping", action="store_true", help="Enable Open3D TSDF dense mapping")
 parser.add_argument("--dense_export_every", type=int, default=1000, help="Export mesh/pcd every N frames")
-parser.add_argument("--dense_export_dir", type=str, default="./dense_map_output", help="Dense map export directory")
+parser.add_argument("--dense_export_dir", type=str, default="./output/dense_map", help="Dense map export directory")
 parser.add_argument("--dense_live_vis", action="store_true", help="Live visualize TSDF map")
 parser.add_argument("--dense_vis_mesh", action="store_true", help="Visualize mesh instead of point cloud")
 parser.add_argument(
@@ -65,16 +65,16 @@ from isaaclab_tasks.utils import load_cfg_from_registry, parse_env_cfg
 import isaaclab_tasks  # noqa: F401
 import spot_vslam.tasks  # noqa: F401
 
-from spot_vslam.managers.ros2_manager import Ros2Manager
-from spot_vslam.high_level.high_level_vec_env import (
+from spot_vslam.slam.ros2_manager import Ros2Manager
+from spot_vslam.legacy.high_level.high_level_vec_env import (
     HighLevelEnvCfg,
     HighLevelIsaacVecEnv,
 )
 
-from spot_vslam.high_level.paper_vec_env import PaperHighLevelEnvCfg, PaperHighLevelIsaacVecEnv
-from spot_vslam.tasks.spot_vslam.paper_cfg import PAPER_MAPS
+from spot_vslam.legacy.high_level.paper_vec_env import PaperHighLevelEnvCfg, PaperHighLevelIsaacVecEnv
+from spot_vslam.assets import PAPER_MAPS
 
-from spot_vslam.managers.dense_map_manager import (
+from spot_vslam.slam.dense_map import (
     DenseMapManager,
     DenseMapManagerCfg,
 )

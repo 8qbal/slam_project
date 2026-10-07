@@ -1,6 +1,7 @@
 # System overview
 
-How the parts connect, and what each policy reads and outputs. Paper: `references/main.pdf`.
+How the parts connect, and what each policy reads and outputs. Paper: `references/main.pdf`. Code paths are under
+`source/spot_vslam/spot_vslam/`.
 
 ```mermaid
 flowchart LR
@@ -8,17 +9,16 @@ flowchart LR
         DC[Depth camera 80x60<br/>train_camera, 25 Hz]
         RC[RGB-D camera 320x240<br/>tilted_camera]
         LL[Low-level policy<br/>rl_games, 25 Hz]
-        HL[High-level policy<br/>SB3 PPO, 12.5 Hz]
+        HL[High-level policy<br/>12.5 Hz]
         GT[(GT pose)]
     end
     R2[Ros2Manager]
     ORB[orbslam3_rgbd_node<br/>ORB-SLAM3 RGB-D]
-    SUB[OrbSlamSubscriberManager]
     TSDF[DenseMapManager<br/>TSDF, open3d]
 
     RC --> R2 -- "/spot0/camera/image_raw, depth, camera_info" --> ORB
-    ORB -- "/spot0/orbslam/robot_pose, tracking_state, local_pc" --> SUB
-    SUB -- "SLAM pose" --> HL
+    ORB -- "/spot0/orbslam/robot_pose, tracking_state" --> R2
+    R2 -- "env.orb_slam_res (SLAM pose)" --> HL
     GT -. "training: GT + noise" .-> HL
     HL -- "vx, wz command (EMA)" --> LL
     DC --> LL
@@ -29,27 +29,32 @@ flowchart LR
 
 ## Policies
 
-| | Low level | High level `rl_vslam_v0` | High level (paper) |
+| | Low level | High level (paper) | High level `rl_vslam_v0` |
 | --- | --- | --- | --- |
-| Task | `Spot-Paper-v0` (paper), `Spot-Vslam-Depth-v0` (v0) | `Spot-Vslam-high-level-*` | `Spot-Paper-high-level-Map{A,B}-*` |
-| Code | `tasks/spot_vslam/paper_cfg.py` | `high_level/high_level_vec_env.py` | `high_level/paper_vec_env.py` |
-| Input | 353 dims (paper) / 245 (v0): pooled depth, 5 depth stats, base vel, gravity, command, joints, last action | 11 dims: SLAM x, y, yaw, ORB tracking state, 5 depth stats, last action (2) | 9 dims: SLAM x, y, yaw, goal dx, dy, heading error, base vx, vy, wz |
-| Output | 12 joint position targets | vx, wz | vx ∈ [0, 1] m/s, wz ∈ [−0.4, 0.4] rad/s |
-| Goal | — | none | fixed start and goal per map (`PAPER_MAPS`) |
-| Net | [512, 256, 128] ELU | SB3 default [64, 64] | [256, 128] ELU |
+| Task | `Spot-Paper-v0` (v0: `Spot-Vslam-Depth-v0`) | `Spot-Nav-Map{A,B}-*` (manager-based); SB3: `Spot-Paper-high-level-*` | `Spot-Vslam-high-level-*` (SB3) |
+| Code | `tasks/locomotion/` | `tasks/navigation/`; SB3: `legacy/high_level/paper_vec_env.py` | `legacy/high_level/high_level_vec_env.py` |
+| Input | 353 dims (v0: 245): base lin/ang vel, gravity, joint pos/vel, last action, velocity command, pooled depth, 5 depth stats | 9 dims: pose x, y, yaw (start frame), goal dx, dy, goal heading error, base vx, vy, wz | 11 dims: SLAM x, y, yaw, ORB tracking state, 5 depth stats, last action (2) |
+| Output | 12 joint position targets | vx ∈ [0, 1] m/s, wz ∈ [−0.4, 0.4] rad/s | vx, wz |
+| Goal | — | fixed start and goal per map (`assets/maps.py`) | none |
+| Net | [512, 256, 128] ELU | [256, 128] ELU | SB3 default [64, 64] |
 
-- The paper high level is **trained without SLAM**: its "SLAM pose" is the GT pose in the start-pose frame plus small
-  noise (`fake_slam_noise_std`). ORB-SLAM3 is used only at play/test time.
-- **TSDF only builds a map.** `DenseMapManager` is created only in `scripts/high_level/load_high_level.py`; nothing
-  from it goes into any observation. Its pose is GT by default (`--dense_pose_source gt`) or ORB-SLAM3.
+- **The high level is trained without SLAM**: its pose is the GT pose in the start-pose frame plus small noise
+  (condition A). ORB-SLAM3 is used only when evaluating (`Spot-Nav-*-Play-v0`). The pose source is one observation
+  parameter (`pose_source="gt" | "slam"`), so conditions B/C are config changes.
+- In `Spot-Nav-*` the frozen low level runs inside the action term `tasks/navigation/mdp/actions.py`
+  (`LowLevelPolicyAction`), which loads the rl_games `.pth` from `$SPOT_VSLAM_LOW_LEVEL_CKPT`.
+- **TSDF only builds a map.** `DenseMapManager` (`slam/dense_map.py`) is created only in
+  `scripts/high_level/load_high_level.py`; nothing from it goes into any observation. Its pose is GT
+  (`--dense_pose_source gt`) or ORB-SLAM3.
 - Timing: sim dt 0.002 s, low-level decimation 20 (25 Hz), high-level decimation 2 (12.5 Hz), command EMA α = 0.25.
+  `Ros2Manager` publishes images and reads back SLAM poses once per env step, right before the observations.
 
 ## Where to measure latency
 
 1. Image render time in Isaac Lab (sim step that produced the image).
 2. `Ros2Manager` publishes the image (stamp it here).
 3. `orbslam3_rgbd_node` receives it, `TrackRGBD` returns (SLAM processing time).
-4. Pose message arrives in `OrbSlamSubscriberManager`.
-5. The high level reads the pose in `_get_obs_tensor`.
+4. Pose message arrives back in `Ros2Manager` (`env.orb_slam_res`).
+5. The high level reads the pose (`tasks/navigation/mdp/observations.py: robot_pose`).
 
 End-to-end delay = 5 − 1. SLAM processing time = inside 3.

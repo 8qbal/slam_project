@@ -22,11 +22,11 @@ import time
 import math
 import matplotlib.pyplot as plt
 from spot_vslam.envs.rl_env import ManagerBasedRLEnv
-from spot_vslam.tasks.spot_vslam.spot_vslam_test_cfg import SpotSlamTestEnvCfg
-from spot_vslam.assets.spot_with_camera import SPOT_CFG
+from spot_vslam.tasks.slam_test.slam_test_env_cfg import SlamTestEnvCfg as SpotSlamTestEnvCfg
+from spot_vslam.assets.spot import SPOT_CFG
 
-from spot_vslam.managers.ros2_manager import Ros2Manager
-from spot_vslam.managers.orb_slam_subscriber_manager import OrbSlamSubscriberManager
+from spot_vslam.slam.ros2_manager import Ros2Manager
+from spot_vslam.slam.orb_slam_subscriber import OrbSlamSubscriberManager
 
 def smart_step(env, action):
     ret = env.step(action)
