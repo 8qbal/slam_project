@@ -1,5 +1,5 @@
-"""Paper low-level policy (references/main.pdf Sec. 5.1): 353-dim observation, rewards of Eqs. 2-6 with the
-Table 3 weights. The terms the paper doesn't write out keep Isaac Lab's Spot functions.
+"""Paper low-level policy (references/main.pdf Sec. 5.1): 353-dim observation, Isaac Lab's Spot rewards with the
+Table 3 weights, and the paper's wall term (Eq. 5).
 
 The ``HighLevel`` configs are the low-level env under the paper's SB3 high-level wrapper
 (``spot_vslam.legacy.high_level.paper_vec_env``), on a paper map with its fixed start and goal.
@@ -27,35 +27,15 @@ from ...locomotion_env_cfg import (
 
 @configclass
 class PaperRewardsCfg(RewardsCfg):
-    """Table 3 weights, with the terms the paper writes out (Eqs. 2-6) replaced by those equations."""
+    """Table 3 weights. Eqs. 2-4 and 6 use Isaac Lab's Spot reward functions (inherited), Eq. 5 is our own.
 
-    base_linear_velocity = RewTerm(func=mdp.base_linear_velocity_exp, weight=5.0, params={"sigma": 1.0})
-    gait = RewTerm(
-        func=mdp.gait_phase_indicator,
-        weight=12.0,
-        params={
-            "velocity_threshold": 0.5,
-            "sensor_cfg": SceneEntityCfg(
-                "contact_forces", body_names=["fl_foot", "hr_foot", "fr_foot", "hl_foot"], preserve_order=True
-            ),
-        },
-    )
-    foot_clearance = RewTerm(
-        func=mdp.foot_clearance_hinge,
-        weight=0.5,
-        params={"h_min": 0.1, "asset_cfg": SceneEntityCfg("robot", body_names=".*_foot")},
-    )
+    Table 3 has exactly the weights of Isaac Lab's Spot rewards, so Eqs. 2-6 are read as a summary of those functions.
+    Taken literally (binary trot indicator for Eq. 3, weight 12) the policy learned to trot in place and never moved
+    (docs/low_level_reward.md).
+    """
+
     visual_wall_penalty = RewTerm(
         func=mdp.wall_min_depth, weight=-0.1, params={"sensor_cfg": SceneEntityCfg("train_camera")}
-    )
-    foot_slip = RewTerm(
-        func=mdp.foot_contact_velocity_sq,
-        weight=-0.5,
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*_foot"),
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
-            "threshold": 1.0,
-        },
     )
 
 
