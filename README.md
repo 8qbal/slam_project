@@ -5,12 +5,16 @@ Isaac Lab environments for running visual SLAM (ORB-SLAM3 over ROS 2, with Nav2)
 ## Layout
 
 ```
-scripts/
+docs/              ROADMAP.md (what to fix / build next), SYSTEM.md (diagram, policy inputs/outputs)
+scripts/           see scripts/README.md for how to train and run the policies
   low_level/       train.py, play.py (low-level locomotion + Vslam tasks, rl_games; play.py attaches ROS 2)
-  slam/            ORB-SLAM3 / Nav2 test loops (test_vslam.py, test_rotate_180.py, test_nav2_loop.py, ...)
-  orb_aware/       rule-based ORB-aware navigation
-  high_level/      high-level navigation policy (SB3 PPO on a frozen low-level policy): train / evaluate
-  tools/           USD helpers (add_light_to_spot_usd.py)
+  high_level/      high-level navigation policy (SB3 PPO on a frozen low-level policy): train / play
+  slam/            ORB-SLAM3 / Nav2 test loops (test_vslam.py, test_rotate_180.py, test_nav2_loop.py)
+  tools/           paper tables (Tables 7-9), GIF, USD helpers
+  legacy/          old scripts, not part of the pipeline
+baselines/         frozen policy snapshots + results (rl_vslam_v0)
+references/        the paper (main.pdf) and paper-vs-code notes
+output/            (git-ignored) run outputs: checkpoints/, tensorboard/, dense_map/, test results
 source/spot_vslam/
   pyproject.toml   package metadata + `isaaclab.tasks` entry point
   config/          Isaac Sim extension manifest
@@ -63,6 +67,8 @@ source/spot_vslam/
 | `Spot-test180-v0`, `Isaac-Velocity-Rough-Spot-v0` | `spot_vslam_test_cfg` |
 
 ## Running
+
+How to train and play the paper policies: [`scripts/README.md`](scripts/README.md).
 
 ```bash
 # Isaac Lab 3.0 unified entry points (tasks are discovered through the package entry point)

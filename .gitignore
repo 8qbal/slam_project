@@ -74,7 +74,5 @@ tests/
 .venv/
 .ruff_cache/
 
-checkpoints_high_level*/
-tensorboard_high_level_paper/
 # CSV logs
 *.csv

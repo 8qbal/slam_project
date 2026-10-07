@@ -8,8 +8,8 @@
 #
 # Usage (from the repo root):
 #   LOW_CKPT=logs/rl_games/spot_paper_ppo/<run>/nn/spot_paper_ppo.pth \
-#   HIGH_CKPT=checkpoints_high_level_paper/high_level_policy.zip \
-#   bash scripts/high_level/run_system_load_test.sh
+#   HIGH_CKPT=output/checkpoints/high_level_paper/high_level_policy.zip \
+#   bash scripts/tools/run_system_load_test.sh
 # Optional: MAP=A (default) or B, TRIALS=5, STEPS=2000, OUT=output/system_load_test
 cd "$(dirname "$0")/../.."
 source /opt/ros/jazzy/setup.bash
@@ -54,4 +54,4 @@ for seed in $(seq 1 "$TRIALS"); do
   run rl_vslam_tsdf "$seed" 1 --enable_dense_mapping --dense_pose_source gt
 done
 echo "[$(date +%T)] all done"
-uv run --no-sync python scripts/high_level/summarize_system_load.py "$OUT"
+uv run --no-sync python scripts/tools/summarize_system_load.py "$OUT"

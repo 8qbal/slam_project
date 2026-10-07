@@ -189,10 +189,10 @@ def main():
         vf_coef=0.5,
         policy_kwargs=policy_kwargs,
         verbose=1,
-        tensorboard_log=f"./tensorboard_high_level{out_suffix}/",
+        tensorboard_log=f"./output/tensorboard/high_level{out_suffix}/",
     )
 
-    ckpt_dir = f"./checkpoints_high_level{out_suffix}"
+    ckpt_dir = f"./output/checkpoints/high_level{out_suffix}"
     os.makedirs(ckpt_dir, exist_ok=True)
 
     tensorboard_callback = HighLevelTensorboardCallback()

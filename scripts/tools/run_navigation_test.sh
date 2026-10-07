@@ -5,8 +5,8 @@
 #
 # Usage (from the repo root):
 #   LOW_CKPT=logs/rl_games/spot_paper_ppo/<run>/nn/spot_paper_ppo.pth \
-#   HIGH_CKPT=checkpoints_high_level_paper/high_level_policy.zip \
-#   bash scripts/high_level/run_navigation_test.sh
+#   HIGH_CKPT=output/checkpoints/high_level_paper/high_level_policy.zip \
+#   bash scripts/tools/run_navigation_test.sh
 # Optional: MAPS="A B" (default), TRIALS=5, OUT=output/navigation_test, TSDF=1 (also run GT-pose TSDF mapping as in the paper)
 cd "$(dirname "$0")/../.."
 source /opt/ros/jazzy/setup.bash

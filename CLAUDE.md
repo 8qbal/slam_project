@@ -8,8 +8,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Isaac Lab 3.0 environments for running visual SLAM (ORB-SLAM3 over ROS 2, with Nav2) on the Boston Dynamics Spot
 quadruped. The project was migrated from Isaac Lab 2.x to 3.0 on 2026-09-26 (see "Isaac Lab 3.0 migration notes"
-below) and `PLAN.md` at the repo root tracks the remaining refactor work — read it before making structural changes
-to the task configs.
+below). `docs/ROADMAP.md` lists what to fix and build next (fixes, measurements, cuVSLAM, tracking-quality A/B/C,
+manager-based high level, refactor backlog) — read it before making structural changes. `docs/SYSTEM.md` has the
+system diagram and each policy's inputs/outputs. `scripts/README.md` has the run commands.
 
 ## Paper reproduction
 
@@ -68,9 +69,9 @@ python scripts/high_level/train_high_level_ppo.py --paper --task Spot-Paper-high
   --low_level_task Spot-Paper-high-level-MapA-v0 --checkpoint logs/rl_games/spot_paper_ppo/<run>/nn/spot_paper_ppo.pth
 
 # Paper tests (each starts ORB-SLAM3 itself; set LOW_CKPT and HIGH_CKPT)
-bash scripts/high_level/run_navigation_test.sh   # Table 9: success %, collisions, steps, time per map
-bash scripts/high_level/run_system_load_test.sh  # Tables 7-8: FPS, CPU, RAM, disk for RL / +VSLAM / +TSDF
-python scripts/high_level/summarize_system_load.py output/system_load_test
+bash scripts/tools/run_navigation_test.sh   # Table 9: success %, collisions, steps, time per map
+bash scripts/tools/run_system_load_test.sh  # Tables 7-8: FPS, CPU, RAM, disk for RL / +VSLAM / +TSDF
+python scripts/tools/summarize_system_load.py output/system_load_test
 
 # Nav2
 ros2 launch source/spot_vslam/launch/start_nav2_slam.launch.py
@@ -93,13 +94,16 @@ asset pack via `$ISAACSIM_ASSET_ROOT`; the low-level locomotion checkpoint comes
 ### Layout
 
 ```
-scripts/
+docs/              ROADMAP.md, SYSTEM.md
+scripts/           README.md = run commands
   low_level/       train.py, play.py (low-level locomotion + Vslam tasks, rl_games; play.py attaches ROS 2)
-  slam/            ORB-SLAM3 / Nav2 test loops (test_vslam.py, test_rotate_180.py, test_nav2_loop.py, ...)
-  orb_aware/       rule-based ORB-aware navigation
+  slam/            ORB-SLAM3 / Nav2 test loops (test_vslam.py, test_rotate_180.py, test_nav2_loop.py)
   high_level/      high-level navigation policy (SB3 PPO on a frozen low-level policy): train / evaluate;
                    load_high_level.py plays both policies with ORB-SLAM3 and records load / SLAM error / TSDF
-  tools/           USD helpers (add_light_to_spot_usd.py)
+  tools/           paper tables (run_navigation_test.sh, run_system_load_test.sh, summarize_system_load.py),
+                   play_hl_gif.py, USD helpers
+  legacy/          old scripts nothing calls (orb_aware, early high-level / SLAM tests)
+output/            git-ignored run outputs: checkpoints/high_level{,_paper}, tensorboard/, dense_map/, test results
 baselines/         frozen policy snapshots + results (rl_vslam_v0)
 references/        the paper (main.pdf), its bibliography, and paper-vs-code notes
 source/spot_vslam/
@@ -115,7 +119,7 @@ source/spot_vslam/
       __init__.py  gym.register(...) for every task id
       agents/      rl_games configs
       params/      nav2_params.yaml
-      *_cfg.py     per-task env configs (each ~200-800 lines, largely copy-pasted — see PLAN.md step 1)
+      *_cfg.py     per-task env configs (each ~200-800 lines, largely copy-pasted — see docs/ROADMAP.md backlog)
 ```
 
 ### Env / manager wiring
@@ -157,7 +161,7 @@ Every task id is registered in `tasks/spot_vslam/__init__.py` via `gym.register(
 
 These configs currently duplicate `SpotRewardsCfg`, `SpotObservationsCfg`, `COBBLESTONE_ROAD_CFG` (7 files),
 `SpotTerminationsCfg` (6 files), `get_orb_slam_pose`/`get_orb_slam_status` (4 files), and
-`SpotEventCfg`/`SpotActionsCfg` (3 files) — PLAN.md step 1 covers consolidating these into a shared
+`SpotEventCfg`/`SpotActionsCfg` (3 files) — the docs/ROADMAP.md backlog covers consolidating these into a shared
 `tasks/spot_vslam/base_cfg.py` and `mdp/`, without changing any task's observation layout (a policy trained
 under one task id must keep loading under that id).
 
@@ -177,7 +181,7 @@ changes to be aware of when touching env/asset/manager code:
   raise `AttributeError: 'NoneType' object has no attribute '__dict__'` from
   `ManagerBase._resolve_terms_callback`, even though the docstring says `None` is allowed. Leave `events` at
   its default and give `rewards` an empty `@configclass` instead. `curriculum = None` still works fine.
-- **Known bug (open, PLAN.md step 2):** in terrain-generator envs (5×5 tiles × 8 m), robots spawn at tile
+- **Known bug (open, docs/ROADMAP.md fixes):** in terrain-generator envs (5×5 tiles × 8 m), robots spawn at tile
   origins up to ±16 m from center, but the warehouse only spans x∈[-12,12], y∈[-18,20.8] — some envs spawn
   outside it (`Spot-Vslam-Deploy-Play-v0` shows open sky). The fix is to shrink the spawn area to fit the
   arena, not to scale the warehouse.

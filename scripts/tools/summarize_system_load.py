@@ -3,7 +3,7 @@
 Expects <root>/<config>/seed<N>/performance_log_*_final.csv (the layout run_system_load_test.sh writes) and prints
 mean +- std over the seeds of each config. Pure pandas, no Isaac Sim needed.
 
-    python scripts/high_level/summarize_system_load.py output/system_load_test
+    python scripts/tools/summarize_system_load.py output/system_load_test
 """
 
 import argparse

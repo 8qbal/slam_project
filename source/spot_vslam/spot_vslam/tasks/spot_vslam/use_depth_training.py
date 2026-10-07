@@ -791,7 +791,7 @@ class SpotHighLevelTrainEnvCfg_PlayWarehouse(SpotHighLevelTrainEnvCfg_Play):
 
     The 5x5 terrain generator is replaced by a single flat 40x40 m tile so the env origin is (0, 0): with the 5x5
     grid the single env sits at a tile origin (-8, -16), which together with the spawn offset lands outside the
-    warehouse (x -12..12, y -18..20.8). See PLAN.md step 2. (terrain_type="plane" would need
+    warehouse (x -12..12, y -18..20.8). See docs/ROADMAP.md. (terrain_type="plane" would need
     IsaacLab/Environments/Grid/default_ground_plane.usda, which is not in the local asset pack.)
     """
 

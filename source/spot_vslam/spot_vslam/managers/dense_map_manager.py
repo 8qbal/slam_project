@@ -17,7 +17,7 @@ class DenseMapManagerCfg:
     depth_scale: float = 1.0
     depth_max: float = 5.0
 
-    export_dir: str = "./dense_map_output"
+    export_dir: str = "./output/dense_map"
     export_every_n_frames: int = 50
     use_color: bool = True
 
