@@ -55,7 +55,7 @@ class HighLevelTensorboardCallback(BaseCallback):
         if not infos:
             return True
 
-        # 你想看的 high-level command
+        # The high-level command
         cmd_vx_vals = [info["cmd_vx"] for info in infos if "cmd_vx" in info]
         cmd_wz_vals = [info["cmd_wz"] for info in infos if "cmd_wz" in info]
 
@@ -64,7 +64,7 @@ class HighLevelTensorboardCallback(BaseCallback):
         if cmd_wz_vals:
             self.logger.record("env/cmd_wz", float(np.mean(cmd_wz_vals)))
 
-        # 順手把一些常用 env 指標也記下來，之後看圖會很方便
+        # Also log some common env metrics, handy when reading the plots
         extra_keys = [
             "progress",
             "tracking_ok",

@@ -4,12 +4,12 @@
 """
 ORB-aware rule-based high-level controller test with frozen low-level RL policy.
 
-功能：
-1. 載入已訓好的 low-level RL policy
-2. high-level 先用 rule-based command，不用神經網路
-3. ORB 資料第一版先用 GT + noise 假裝
-4. 局部避障使用 train_camera depth stats
-5. 驗證：
+What it does:
+1. Loads the trained low-level RL policy
+2. High level: a rule-based command, no neural network yet
+3. ORB data: first version fakes it with GT + noise
+4. Local obstacle avoidance from the train_camera depth stats
+5. Checks:
    ORB-like pose/status + depth -> high-level command -> low-level policy -> robot motion
 """
 
@@ -118,8 +118,8 @@ def quat_to_yaw(quat_xyzw: torch.Tensor) -> torch.Tensor:
 
 def get_orb_pose_xyyaw_from_env(env_unwrapped):
     """
-    第一版先用 GT + 小噪聲假裝 ORB-SLAM3
-    回傳 shape = (N, 3): [x, y, yaw]
+    First version: fake ORB-SLAM3 with GT + small noise,
+    shape (N, 3): [x, y, yaw]
     """
     pos_xy = env_unwrapped.scene["robot"].data.root_pos_w.torch[:, :2].clone()
     quat = env_unwrapped.scene["robot"].data.root_quat_w.torch.clone()
@@ -136,7 +136,7 @@ def get_orb_pose_xyyaw_from_env(env_unwrapped):
 
 def get_orb_status_from_env(env_unwrapped):
     """
-    第一版先假設 ORB tracking 正常
+    First version: assume ORB tracking is OK
     shape = (N, 1)
     """
     return torch.ones((env_unwrapped.num_envs, 1), device=env_unwrapped.device)
@@ -147,10 +147,10 @@ def get_orb_status_from_env(env_unwrapped):
 # -------------------------------------------------
 def get_camera_depth_stats_from_env(env_unwrapped, sensor_name: str = "train_camera"):
     """
-    從 train_camera 取出簡化深度特徵
-    回傳 shape = (N, 5)
+    Simplified depth features from train_camera,
+    shape (N, 5):
     [left, center, right, front_min, lr_balance]
-    已 normalize 到大約 [-1, 1]
+    normalized to about [-1, 1]
     """
     sensor = env_unwrapped.scene.sensors[sensor_name]
     depth = sensor.data.output["distance_to_image_plane"].torch.clone()
@@ -194,15 +194,15 @@ class CommandFilter:
 # -------------------------------------------------
 def build_orb_rule_based_high_level_command(env_unwrapped, device):
     """
-    high-level 融合：
+    High-level fusion:
     - pseudo ORB pose / status
-    - depth stats 局部避障
+    - depth stats for local obstacle avoidance
 
-    邏輯：
-    1. tracking lost -> 停下並慢慢旋轉
+    Logic:
+    1. tracking lost -> stop and rotate slowly
     2. tracking OK -> depth-based local navigation
-    3. ORB yaw 暫時只做 observation/debug，不做強導引
-       （之後接真 ORB / frontier 再做全局導航）
+    3. ORB yaw is only observed / logged for now, not used for guidance
+          (global navigation comes later with real ORB / frontiers)
     """
     stats = get_camera_depth_stats_from_env(env_unwrapped)
     orb_pose = get_orb_pose_xyyaw_from_env(env_unwrapped)
@@ -221,11 +221,11 @@ def build_orb_rule_based_high_level_command(env_unwrapped, device):
     front_clear = center > -0.05
     front_too_close = front_min < -0.70
 
-    # 大 deadband，避免崎嶇路面小噪聲造成誤轉
+    # Large deadband, so small noise on rough ground doesn't cause turns
     turn_left_strong = lr_balance > 0.25
     turn_right_strong = lr_balance < -0.25
 
-    # 預設 vx
+    # Default vx
     cmd[:, 0] = torch.where(
         front_too_close,
         torch.tensor(0.15, device=device),
@@ -236,17 +236,17 @@ def build_orb_rule_based_high_level_command(env_unwrapped, device):
         ),
     )
 
-    # vy 固定 0
+    # vy fixed at 0
     cmd[:, 1] = 0.0
 
-    # wz 預設 0
+    # wz defaults to 0
     cmd[:, 2] = 0.0
 
-    # 只有前方真的近，且左右差明顯時才轉
+    # Turn only when the front is really close and left/right differ clearly
     cmd[:, 2] = torch.where(front_too_close & turn_left_strong, torch.tensor(0.20, device=device), cmd[:, 2])
     cmd[:, 2] = torch.where(front_too_close & turn_right_strong, torch.tensor(-0.20, device=device), cmd[:, 2])
 
-    # 如果 tracking 壞掉，先停下並慢慢旋轉找回
+    # If tracking is lost, stop and rotate slowly to recover
     cmd[:, 0] = torch.where(~tracking_ok, torch.tensor(0.0, device=device), cmd[:, 0])
     cmd[:, 2] = torch.where(~tracking_ok, torch.tensor(0.15, device=device), cmd[:, 2])
 

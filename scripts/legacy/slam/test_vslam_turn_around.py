@@ -1,20 +1,20 @@
 # source/spot_vslam/spot_vslam/my_project/envs/test_square_spiral_v2.py
-# 狀態：[完美版] 3圈建圖 -> 紅線分隔 -> 方形螺旋 (直走->左轉)
+# Status: 3 mapping turns -> red separator line -> square spiral (straight -> turn left)
 
 import argparse
 from isaaclab.app import AppLauncher
 
-# --- 1. 設定參數 ---
-parser = argparse.ArgumentParser(description="VSLAM 測試：3圈建圖 + 方形螺旋")
+# --- 1. Parameters ---
+parser = argparse.ArgumentParser(description="VSLAM test: 3 mapping turns + square spiral")
 parser.add_argument("--task", type=str, default="Spot-test-spiral-v0")
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
-# --- 2. 啟動模擬器 ---
+# --- 2. Launch the simulator ---
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-# --- 3. 匯入庫 ---
+# --- 3. Imports ---
 import gymnasium as gym
 import torch
 import rclpy
@@ -39,30 +39,30 @@ def smart_step(env, action):
 def main():
     rclpy.init()
 
-    # [保護機制] 30 FPS 限速，確保 SLAM Viewer 不崩潰
-    print("[INFO] 啟用 30 FPS 限速...")
+    # 30 FPS limit so the SLAM viewer doesn't crash
+    print("[INFO] Limiting to 30 FPS...")
     simulation_app.set_setting("/app/runLoops/main/rateLimitEnabled", True)
     simulation_app.set_setting("/app/runLoops/main/rateLimit", 30)
 
     # ==========================
-    # [參數設定區]
+    # [Parameters]
     # ==========================
-    # 1. 轉圈設定
-    SPIN_LOOPS = 3       # 轉 3 圈 (建圖)
-    SPIN_SPEED = 0.4     # 轉速 (rad/step)
+    # 1. Spinning
+    SPIN_LOOPS = 3       # 3 turns (mapping)
+    SPIN_SPEED = 0.4     # spin rate (rad/step)
     
-    # 2. 方形螺旋設定
-    # 依序執行：直走 -> 左轉
-    # 1.0m -> 左轉 -> 1.0m -> 左轉 -> 2.0m -> 左轉 -> 2.0m -> 左轉
+    # 2. Square spiral
+    # in order: straight -> turn left
+    # 1.0 m -> left -> 1.0 m -> left -> 2.0 m -> left -> 2.0 m -> left
     SPIRAL_LENGTHS = [1.0, 1.0, 2.0, 2.0] 
     
-    MOVE_SPEED = 0.005   # 直線速度 (m/step)
-    TURN_SPEED = 0.4     # 轉彎速度 (rad/step)
+    MOVE_SPEED = 0.005   # straight-line speed (m/step)
+    TURN_SPEED = 0.4     # turn rate (rad/step)
     
     START_HEIGHT = 1.0  
-    CAMERA_OFFSET_X = 0.4 # 相機在前方 0.4m
+    CAMERA_OFFSET_X = 0.4 # camera 0.4 m ahead
     
-    print("正在載入環境與 Manager...")
+    print("Loading the environment and managers...")
     env_cfg = SpotSlamTestEnvCfg()
     env_cfg.scene.robot = SPOT_CFG.copy()
     env_cfg.scene.robot.prim_path = "{ENV_REGEX_NS}/Robot"
@@ -89,16 +89,16 @@ def main():
     
     dt = base_env.step_dt
     sim_pos = torch.tensor([[0.0, 0.0, START_HEIGHT]], device=base_env.device)
-    sim_yaw_rad = 0.0 # 這是機器人的累積角度
+    sim_yaw_rad = 0.0 # accumulated robot yaw
 
-    print("環境初始化完成。等待 ROS 穩定...")
+    print("Environment ready. Waiting for ROS to settle...")
     for _ in range(30):
         simulation_app.update()
 
     # ==================================================================================
-    # [階段 0] 熱身 (原地晃動直到 SLAM Tracking)
+    # [Phase 0] Warm-up (wiggle in place until SLAM tracks)
     # ==================================================================================
-    print(f"\n[階段 0] 熱身直到 SLAM 初始化...")
+    print(f"\n[Phase 0] Warming up until SLAM initializes...")
     warmup_steps = 0
     slam_ready = False
     
@@ -130,16 +130,16 @@ def main():
         warmup_steps += 1
         if warmup_steps > 3000: break
 
-    # 歸零準備正式測試
+    # Zero everything for the test
     sim_pos[0, 0] = 0.0
     sim_pos[0, 1] = 0.0
     robot.write_root_pose_to_sim_index(root_pose=torch.cat([sim_pos, sim_quat], dim=-1))
     robot.write_root_velocity_to_sim_index(root_velocity=torch.zeros((1, 6), device=base_env.device))
     for _ in range(10): smart_step(base_env, stand_joint_pos)
 
-    print(f"\n=== 正式測試開始 ===")
+    print(f"\n=== Test start ===")
     
-    # 紀錄基準點
+    # Reference point
     start_base_gt = robot.data.root_pos_w.torch[0, :3].clone().cpu().numpy()
     start_yaw_gt = 0.0 
     
@@ -153,12 +153,12 @@ def main():
     log_error, log_steps = [], []
 
     total_steps = 0
-    spin_end_step = 0 # 用來記錄建圖完成的時間點
+    spin_end_step = 0 # step at which mapping finished
 
     # ==================================================================================
-    # [階段 1] 原地轉 3 圈 (Mapping Phase)
+    # [Phase 1] Spin 3 turns in place (mapping)
     # ==================================================================================
-    print(f"\n[階段 1] 原地轉 {SPIN_LOOPS} 圈 (建立地圖)...")
+    print(f"\n[Phase 1] Spinning {SPIN_LOOPS} turns in place (mapping)...")
     target_yaw = SPIN_LOOPS * 2 * math.pi
     
     while sim_yaw_rad < target_yaw:
@@ -177,7 +177,7 @@ def main():
         smart_step(base_env, stand_joint_pos)
         slam_sub_mgr.update(dt)
         
-        # 紀錄數據
+        # Log data
         if total_steps % 5 == 0:
             curr_base_gt = robot.data.root_pos_w.torch[0, :3].cpu().numpy()
             curr_cam_gt_x = curr_base_gt[0] + CAMERA_OFFSET_X * math.cos(sim_yaw_rad)
@@ -203,24 +203,24 @@ def main():
 
         total_steps += 1
 
-    # 紀錄建圖結束的時間點 (為了畫紅線)
+    # Step at which mapping ended (for the red line)
     spin_end_step = total_steps
-    print(f"✅ 建圖完成 (Step: {spin_end_step})，準備開始方形移動...")
+    print(f"✅ Mapping done (step: {spin_end_step}), starting the square path...")
     
-    # 暫停一下讓 SLAM 存好關鍵幀
+    # Pause so SLAM can store its keyframes
     for _ in range(50):
         smart_step(base_env, stand_joint_pos)
         slam_sub_mgr.update(dt)
 
     # ==================================================================================
-    # [階段 2] 方形螺旋 (Straight -> Turn Left -> Straight -> Turn Left ...)
+    # [Phase 2] Square spiral (straight -> turn left -> straight -> turn left ...)
     # ==================================================================================
-    print(f"\n[階段 2] 方形螺旋測試 {SPIRAL_LENGTHS}...")
+    print(f"\n[Phase 2] Square spiral {SPIRAL_LENGTHS}...")
 
     for seg_idx, target_dist in enumerate(SPIRAL_LENGTHS):
-        print(f"\n>>> [Segment {seg_idx+1}] 直走 {target_dist}m...")
+        print(f"\n>>> [Segment {seg_idx+1}] Straight {target_dist} m...")
         
-        # --- A. 直走 ---
+        # --- A. Straight ---
         seg_traveled = 0.0
         start_seg_x = sim_pos[0, 0].item()
         start_seg_y = sim_pos[0, 1].item()
@@ -269,8 +269,8 @@ def main():
             
             total_steps += 1
 
-        # --- B. 左轉 90 度 (每走完一段就要轉) ---
-        print(f"    [Turn] 左轉 90 度...")
+        # --- B. Turn left 90 degrees (after every segment) ---
+        print(f"    [Turn] Turning left 90 degrees...")
         target_yaw_turn = sim_yaw_rad + (math.pi / 2)
         
         while sim_yaw_rad < target_yaw_turn:
@@ -311,12 +311,12 @@ def main():
             
             total_steps += 1
 
-    print("\n[測試結束] 正在繪製誤差圖...")
+    print("\n[Test done] Plotting the error...")
     
-    # --- 繪製 Matplotlib 圖表 ---
+    # --- Matplotlib plots ---
     plt.figure(figsize=(12, 6))
     
-    # 子圖 1: 軌跡比較
+    # Subplot 1: trajectories
     plt.subplot(1, 2, 1)
     plt.plot(log_gt_x, log_gt_y, 'b-', label='Ground Truth (Camera)')
     plt.plot(log_slam_x, log_slam_y, 'r--', label='SLAM Estimate')
@@ -327,11 +327,11 @@ def main():
     plt.grid(True)
     plt.axis('equal') 
     
-    # 子圖 2: 誤差隨時間變化 (包含紅色虛線)
+    # Subplot 2: error over time (with the red dashed line)
     plt.subplot(1, 2, 2)
     plt.plot(log_steps, log_error, 'g-', label='ATE')
     
-    # [關鍵新增] 畫紅色垂直虛線代表建圖完成
+    # Red dashed vertical line: end of mapping
     plt.axvline(x=spin_end_step, color='r', linestyle='--', label='Mapping Done (Spin End)')
     
     plt.title('Absolute Position Error (ATE)')
@@ -342,7 +342,7 @@ def main():
     
     filename = 'vslam_result_spiral.png'
     plt.savefig(filename)
-    print(f"圖表已儲存至: {filename}")
+    print(f"Plot saved to: {filename}")
 
     slam_sub_mgr.close()
     try:

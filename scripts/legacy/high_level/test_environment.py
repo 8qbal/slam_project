@@ -22,7 +22,7 @@ parser.add_argument("--dense_live_vis", action="store_true", help="Live visualiz
 parser.add_argument("--dense_vis_mesh", action="store_true", help="Visualize mesh instead of point cloud")
 
 # ==========================================
-# Experiment 2: 動態場景與目標點設定參數
+# Experiment 2: dynamic scene and goal parameters
 # ==========================================
 parser.add_argument("--scene_usd", type=str, default=None, help="Path to USD environment (e.g. Simple Room)")
 parser.add_argument("--target_x", type=float, default=-4.0, help="Target X coordinate for success evaluation")
@@ -111,12 +111,12 @@ class OrbGtComparator:
         return np.arctan2(siny_cosp, cosy_cosp)
 
     def get_gt_xyyaw(self, env_unwrapped) -> np.ndarray:
-        # 取得機器人本體位置並計算 Yaw 角
+        # Robot base position and yaw
         pos = env_unwrapped.scene["robot"].data.root_pos_w.torch[0].detach().cpu().numpy()
         quat = env_unwrapped.scene["robot"].data.root_quat_w.torch[0].detach().cpu().numpy()
         yaw = self.quat_xyzw_to_yaw(quat)
         
-        # 座標轉換：將 GT 從「機器人中心」推到「相機中心」(前方 0.4m)
+        # Move the GT from the robot center to the camera center (0.4 m ahead)
         cam_x = pos[0] + 0.4 * np.cos(yaw)
         cam_y = pos[1] + 0.4 * np.sin(yaw)
         
@@ -205,12 +205,12 @@ class OrbGtComparator:
         print("Orb:", orb_now)
         print("Gt:", gt_now)
 
-        # buffer (保留但不做 SE2)
+        # buffer (kept, no SE2)
         self.orb_buffer.append(orb_now[:2].copy())
         self.gt_buffer.append(gt_now[:2].copy())
 
         # =========================
-        # 原始 yaw / xy（不做 SE2）
+        # raw yaw / xy (no SE2)
         # =========================
         orb_xy = np.array([orb_now[0], orb_now[1]])
         yaw = orb_now[2]
@@ -268,13 +268,13 @@ def build_low_level():
         print("[INFO] Custom indoor USD scene enabled")
 
         # =====================================================
-        # 1. 關閉地形難度遞增 (Curriculum)
+        # 1. Turn off the terrain difficulty curriculum
         # =====================================================
         if hasattr(env_cfg, "curriculum"):
             env_cfg.curriculum = None
 
         # =====================================================
-        # 2. 關閉與地形相關的終止條件 (避免不小心觸發 Done)
+        # 2. Turn off terrain-related terminations (avoid accidental dones)
         # =====================================================
         if hasattr(env_cfg, "terminations"):
             for term_name in list(vars(env_cfg.terminations).keys()):
@@ -286,7 +286,7 @@ def build_low_level():
                     setattr(env_cfg.terminations, term_name, None)
 
         # =====================================================
-        # 3. 解析 USD 路徑
+        # 3. Resolve the USD path
         # =====================================================
         scene_map = {
             "simple_room": simple_room_url,
@@ -300,15 +300,15 @@ def build_low_level():
         print(f"[INFO] Using custom USD scene: {actual_usd_path}")
 
         # =====================================================
-        # 4. 【關鍵修改】直接把 USD 指定為地形！
+        # 4. Use the USD directly as the terrain
         # =====================================================
         if hasattr(env_cfg.scene, "terrain"):
-            # 告訴 Isaac Lab：不要生成 plane，直接使用 usd 類型
+            # tell Isaac Lab: don't generate a plane, use the usd type
             env_cfg.scene.terrain.terrain_type = "usd"
-            # 指定 USD 檔案的路徑
+            # path of the USD file
             env_cfg.scene.terrain.usd_path = actual_usd_path
             
-            # 注意：我們不再需要 indoor_scene 了，因為場景本身就是 Terrain！
+            # note: no indoor_scene needed any more, the scene itself is the terrain
 
     agent_cfg = load_cfg_from_registry(args_cli.low_level_task, "rl_games_cfg_entry_point")
 
@@ -322,7 +322,7 @@ def build_low_level():
     clip_obs = agent_cfg["params"]["env"].get("clip_observations", float("inf"))
     clip_actions = agent_cfg["params"]["env"].get("clip_actions", float("inf"))
 
-    # 直接建立環境，不需要再去刪除 Prim 了！
+    # Create the env directly, no prims to delete
     env = gym.make(args_cli.low_level_task, cfg=env_cfg)
     
     if isinstance(env.unwrapped, DirectMARLEnv):
@@ -399,7 +399,7 @@ def save_error_plots(out_dir, timesteps, pos_errors, yaw_errors, orb_traj_x, orb
 
 
 def save_performance_plots(csv_path, out_dir, suffix="", show_plot=False):
-    """讀取 CSV 數據並自動生成 CPU, RAM, FPS, Disk I/O 的趨勢圖"""
+    """Read the CSV log and plot CPU, RAM, FPS and disk I/O over time."""
     import pandas as pd
     import matplotlib.pyplot as plt
     import os
@@ -414,7 +414,7 @@ def save_performance_plots(csv_path, out_dir, suffix="", show_plot=False):
     
     fig, axs = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
 
-    # 1. CPU 使用率 & Disk I/O (雙 Y 軸)
+    # 1. CPU usage & disk I/O (two y axes)
     line1 = axs[0].plot(df['Step'], df['CPU_Usage_Percent'], color='tab:red', linewidth=2, label='CPU (%)')
     axs[0].set_title(f'System Performance Over Time ({mode_name_clean})')
     axs[0].set_ylabel('CPU Usage (%)')
@@ -432,13 +432,13 @@ def save_performance_plots(csv_path, out_dir, suffix="", show_plot=False):
     else:
         axs[0].legend(loc='upper left')
 
-    # 2. RAM 使用量
+    # 2. RAM usage
     axs[1].plot(df['Step'], df['RAM_Usage_GB'], color='tab:blue', linewidth=2)
     axs[1].set_title('System RAM Usage Over Time')
     axs[1].set_ylabel('RAM Usage (GB)')
     axs[1].grid(True, linestyle='--', alpha=0.7)
 
-    # 3. 系統 FPS
+    # 3. System FPS
     axs[2].plot(df['Step'], df['System_FPS'], color='tab:green', linewidth=2)
     axs[2].set_title('System Processing Speed (FPS)')
     axs[2].set_xlabel('Simulation Step')

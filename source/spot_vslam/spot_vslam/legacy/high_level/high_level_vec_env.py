@@ -130,7 +130,7 @@ class FrozenLowLevelAgentAdapter:
         base_obs = base_obs.to(device)
 
         if self.agent.is_rnn:
-            raise RuntimeError("目前這版 adapter 先不支援 RNN low-level policy，請先用非 RNN policy。")
+            raise RuntimeError("This adapter does not support RNN low-level policies yet; use a non-RNN policy.")
 
         action_list = []
         for i in range(self.num_envs):
@@ -280,11 +280,11 @@ class HighLevelIsaacVecEnv(VecEnv):
 
 
     # def _compute_reward(self, action_cmd: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, float]]:
-    #     # 目前位置與前一個 high-level step 的位移
+    #     # Displacement since the previous high-level step
     #     curr_pos_xy = self.env_unwrapped.scene["robot"].data.root_pos_w.torch[:, :2]
     #     delta_xy = curr_pos_xy - self.prev_pos_xy
 
-    #     # 用 robot 當前朝向，計算「沿機器人前向」的真實位移
+    #     # Displacement along the robot's forward axis (current heading)
     #     quat = self.env_unwrapped.scene["robot"].data.root_quat_w.torch
     #     yaw = quat_to_yaw(quat)
 
@@ -292,12 +292,12 @@ class HighLevelIsaacVecEnv(VecEnv):
     #     progress = torch.sum(delta_xy * forward_dir, dim=-1)
     #     progress = torch.clamp(progress, min=0.0)
 
-    #     # ORB / fake SLAM tracking 狀態
+    #     # ORB / fake SLAM tracking state
     #     orb_status = get_orb_status_from_env(self.env_unwrapped).squeeze(-1)
     #     tracking_ok = orb_status
     #     tracking_bad = 1.0 - orb_status
 
-    #     # stuck 判定放寬
+    #     # Looser stuck check
     #     stuck = (progress < self.cfg.stuck_dist_threshold).float()
 
     #     body_contact = self._body_contact_flag()
@@ -318,16 +318,16 @@ class HighLevelIsaacVecEnv(VecEnv):
     #     #     + body_contact_term
     #     #     + turn_term
     #     # )
-    #     # --- Forward progress (主要 reward) ---
+    #     # --- Forward progress (main reward) ---
     #     progress_term = 5.0 * progress
 
-    #     # --- Stuck penalty (避免卡住) ---
+    #     # --- Stuck penalty (avoid getting stuck) ---
     #     stuck_term = -0.05 * stuck
 
     #     # --- Body collision penalty ---
     #     body_contact_term = -0.05 * body_contact
 
-    #     # --- 小幅度轉彎懲罰 (避免抖動) ---
+    #     # --- Small turn penalty (avoid jitter) ---
     #     turn_term = -0.01 * wz_abs
 
     #     reward = (

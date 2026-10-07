@@ -54,31 +54,31 @@ def set_base_velocity_command(env_unwrapped, cmd_tensor: torch.Tensor):
 
 def build_manual_high_level_command(num_envs, device, t):
     """
-    手動測試高層 command
-    前 100 step 前進
-    接著 100 step 左轉
-    接著 100 step 右轉
-    最後停住
+    Manual high-level command test:
+    forward for the first 100 steps,
+    then left turn for 100 steps,
+    then right turn for 100 steps,
+    then stop
     """
     cmd = torch.zeros((num_envs, 3), device=device)
 
     if t < 100:
-        # 前進
+        # forward
         cmd[:, 0] = 0.4
         cmd[:, 1] = 0.0
         cmd[:, 2] = 0.0
     elif t < 200:
-        # 前進 + 左轉
+        # forward + left
         cmd[:, 0] = 0.25
         cmd[:, 1] = 0.0
         cmd[:, 2] = 0.2
     elif t < 300:
-        # 前進 + 右轉
+        # forward + right
         cmd[:, 0] = 0.25
         cmd[:, 1] = 0.0
         cmd[:, 2] = -0.2
     else:
-        # 停住
+        # stop
         cmd[:, 0] = 0.0
         cmd[:, 1] = 0.0
         cmd[:, 2] = 0.0
@@ -168,13 +168,13 @@ def main():
         start_time = time.time()
 
         with torch.inference_mode():
-            # 1. 手動高層 command
+            # 1. Manual high-level command
             cmd = build_manual_high_level_command(env.unwrapped.num_envs, rl_device, t)
 
-            # 2. 強制覆蓋 low-level env 的 base_velocity command
+            # 2. Overwrite the low-level env's base_velocity command
             set_base_velocity_command(env.unwrapped, cmd)
 
-            # 3. low-level frozen agent 依 observation + command 產生 joint action
+            # 3. The frozen low-level agent turns observation + command into joint actions
             obs_dict = agent.obs_to_torch(obs)
             actions = agent.get_action(obs_dict, is_deterministic=True)
 

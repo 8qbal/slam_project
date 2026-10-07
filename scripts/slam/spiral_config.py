@@ -3,35 +3,35 @@
 import os
 
 class SpiralTestConfig:
-    # --- 模型路徑 ---
-    # 低階走路策略 (.pt)：由環境變數 SPOT_VSLAM_LOW_LEVEL_CKPT 或腳本的 --checkpoint 指定
+    # --- Model path ---
+    # Low-level walking policy: from $SPOT_VSLAM_LOW_LEVEL_CKPT or the script's --checkpoint
     MODEL_PATH = os.environ.get("SPOT_VSLAM_LOW_LEVEL_CKPT", "")
     
-    # --- 模擬器設定 ---
+    # --- Simulator ---
     ENABLE_RATE_LIMIT = True
     RATE_LIMIT_FPS = 30.0
 
-    # --- 機器人與相機 ---
-    START_HEIGHT = 0.55         # Spot 站立高度
+    # --- Robot and camera ---
+    START_HEIGHT = 0.55         # Spot standing height
     CAMERA_OFFSET_X = 0.4
     
-    # --- 階段 1: 建圖 (原地轉圈) ---
+    # --- Phase 1: mapping (spin in place) ---
     SPIN_LOOPS = 3
     
-    # [關鍵修正] 補回 SPIN_SPEED (用於 Phase 1 漂浮計算)
-    SPIN_SPEED = 0.4            # rad/s (漂浮模式的轉速)
+    # SPIN_SPEED: spin rate of the Phase 1 floating motion
+    SPIN_SPEED = 0.4            # rad/s (floating mode)
     
-    # [保留] SPIN_VEL_Z (用於 Phase 2 RL 指令限制)
-    SPIN_VEL_Z = 0.5            # rad/s (走路模式的最大角速度)
+    # SPIN_VEL_Z: limits the Phase 2 RL yaw-rate command
+    SPIN_VEL_Z = 0.5            # rad/s (max yaw rate when walking)
     
-    # --- 階段 2: 方形螺旋 ---
+    # --- Phase 2: square spiral ---
     SPIRAL_LENGTHS = [1.0, 1.0, 2.0, 2.0, 3.0]
-    GOAL_TOLERANCE = 0.3        # 走路誤差容許值
+    GOAL_TOLERANCE = 0.3        # goal tolerance when walking
     
-    # --- 數據記錄 ---
+    # --- Logging ---
     LOG_INTERVAL = 5
     
-    # --- PPO Agent Config (載入模型結構用) ---
+    # --- PPO agent config (network structure for loading the model) ---
     AGENT_CFG = {
         "seed": 42,
         "device": "cuda:0",

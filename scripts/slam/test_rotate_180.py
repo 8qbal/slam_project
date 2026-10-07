@@ -1,20 +1,20 @@
 # source/spot_vslam/spot_vslam/my_project/envs/test_rotate_180.py
-# 狀態：[已修復] 移除重複的 ros2_mgr.update，解決 Double Publishing 問題
+# Status: fixed the double ros2_mgr.update (double publishing)
 
 import argparse
 from isaaclab.app import AppLauncher
 
-# --- 1. 設定參數 ---
-parser = argparse.ArgumentParser(description="VSLAM 壓力測試")
+# --- 1. Parameters ---
+parser = argparse.ArgumentParser(description="VSLAM stress test")
 parser.add_argument("--task", type=str, default="Spot-test180-v0")
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
-# --- 2. 啟動模擬器 ---
+# --- 2. Launch the simulator ---
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-# --- 3. 匯入庫 ---
+# --- 3. Imports ---
 import gymnasium as gym
 import torch
 import rclpy
@@ -46,7 +46,7 @@ def main():
     START_HEIGHT = 1.0  
     CAMERA_OFFSET_X = 0.4 
     
-    print("正在載入環境與 Manager...")
+    print("Loading the environment and managers...")
     env_cfg = SpotSlamTestEnvCfg()
     env_cfg.scene.robot = SPOT_CFG.copy()
     env_cfg.scene.robot.prim_path = "{ENV_REGEX_NS}/Robot"
@@ -56,17 +56,17 @@ def main():
 
     base_env = ManagerBasedRLEnv(cfg=env_cfg)
     
-    # [注意] 這裡不需要再手動建立 Ros2Manager 了，因為 env 內部已經有了
-    # 但為了保險起見 (如果是外部需要 reset)，我們先留著變數，但不在迴圈呼叫 update
-    # 如果 base_env.ros2_manager 存在，我們就用它
+    # No need to create a Ros2Manager here: the env already has one.
+    # Keep the variable (in case an external reset needs it), but don't call update in the loop.
+    # Use base_env.ros2_manager if it exists
     if hasattr(base_env, "ros2_manager"):
-        print("[INFO] 檢測到環境內部已有 Ros2Manager，將使用內部實例。")
+        print("[INFO] The env already has a Ros2Manager; using it.")
         ros2_mgr = base_env.ros2_manager
     else:
-        print("[INFO] 環境內部無 Ros2Manager，手動建立。")
+        print("[INFO] The env has no Ros2Manager; creating one.")
         ros2_mgr = Ros2Manager(env_cfg.ros2, base_env)
 
-    # SLAM Subscriber 還是需要手動建立並掛載
+    # The SLAM subscriber still has to be created and attached here
     slam_sub_mgr = OrbSlamSubscriberManager(env_cfg.slam_subscriber, base_env)
     base_env.slam_subscriber_manager = slam_sub_mgr
 
@@ -74,7 +74,7 @@ def main():
     stand_joint_pos = robot.data.default_joint_pos.torch.clone()
 
     base_env.reset()
-    # 確保 ros2_mgr 重置
+    # Make sure ros2_mgr is reset
     if hasattr(ros2_mgr, "reset"): ros2_mgr.reset(env_ids=range(base_env.num_envs))
     slam_sub_mgr.reset(env_ids=range(base_env.num_envs))
     
@@ -82,12 +82,12 @@ def main():
     sim_pos = torch.tensor([[0.0, 0.0, START_HEIGHT]], device=base_env.device)
     sim_yaw_rad = 0.0
 
-    print("環境初始化完成。等待 ROS 穩定...")
+    print("Environment ready. Waiting for ROS to settle...")
     for _ in range(30):
         simulation_app.update()
 
-    # [階段 0] 熱身
-    print(f"\n[階段 0] 熱身直到 SLAM 初始化...")
+    # [Phase 0] Warm-up
+    print(f"\n[Phase 0] Warming up until SLAM initializes...")
     warmup_steps = 0
     slam_ready = False
     
@@ -106,11 +106,11 @@ def main():
         robot.write_joint_position_to_sim_index(position=stand_joint_pos)
         robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(stand_joint_pos))
         
-        # [關鍵修正] 只呼叫 smart_step，不要再呼叫 ros2_mgr.update(dt)！
-        # smart_step -> env.step -> env.ros2_manager.update (內部已執行)
+        # Only call smart_step, never ros2_mgr.update(dt) as well:
+        # smart_step -> env.step -> env.ros2_manager.update (already done inside)
         smart_step(base_env, stand_joint_pos)
         
-        # Subscriber 是純接收，可以手動呼叫 (或者 env.step 內部也有呼叫，重複呼叫沒副作用)
+        # The subscriber only receives, so calling it here is fine (env.step also calls it; a second call has no side effect)
         slam_sub_mgr.update(dt)
         
         if slam_sub_mgr.state_buffer[0].item() == 1: 
@@ -123,14 +123,14 @@ def main():
         warmup_steps += 1
         if warmup_steps > 3000: break
 
-    # 歸零準備正式測試
+    # Zero everything for the test
     sim_pos[0, 0] = 0.0
     sim_pos[0, 1] = 0.0
     robot.write_root_pose_to_sim_index(root_pose=torch.cat([sim_pos, sim_quat], dim=-1))
     robot.write_root_velocity_to_sim_index(root_velocity=torch.zeros((1, 6), device=base_env.device))
     for _ in range(10): smart_step(base_env, stand_joint_pos)
 
-    print(f"\n=== 正式測試開始 (紀錄數據) ===")
+    print(f"\n=== Test start (logging) ===")
     
     start_base_gt = robot.data.root_pos_w.torch[0, :3].clone().cpu().numpy()
     start_yaw_gt = 0.0 
@@ -149,8 +149,8 @@ def main():
 
     total_steps = 0
 
-    # [階段 1] 轉圈
-    print(f"\n[階段 1] 自轉 {SPIN_LOOPS} 圈...")
+    # [Phase 1] Spin
+    print(f"\n[Phase 1] Spinning {SPIN_LOOPS} turns...")
     target_yaw = SPIN_LOOPS * 2 * math.pi
     
     while sim_yaw_rad < target_yaw:
@@ -166,7 +166,7 @@ def main():
         robot.write_joint_position_to_sim_index(position=stand_joint_pos)
         robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(stand_joint_pos))
         
-        # [關鍵修正] 移除重複的 ros2_mgr.update
+        # no extra ros2_mgr.update here
         smart_step(base_env, stand_joint_pos)
         slam_sub_mgr.update(dt)
         
@@ -197,8 +197,8 @@ def main():
 
         total_steps += 1
 
-    # [階段 2] 直線移動
-    print(f"\n[階段 2] 直線移動 {MOVE_DISTANCE}m...")
+    # [Phase 2] Straight line
+    print(f"\n[Phase 2] Moving straight {MOVE_DISTANCE} m...")
     start_pos_x = sim_pos[0, 0].item()
     start_pos_y = sim_pos[0, 1].item()
     dist_traveled = 0.0
@@ -220,7 +220,7 @@ def main():
         robot.write_joint_position_to_sim_index(position=stand_joint_pos)
         robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(stand_joint_pos))
         
-        # [關鍵修正] 移除重複的 ros2_mgr.update
+        # no extra ros2_mgr.update here
         smart_step(base_env, stand_joint_pos)
         slam_sub_mgr.update(dt)
         
@@ -251,7 +251,7 @@ def main():
 
         total_steps += 1
 
-    print("\n[測試結束] 正在繪製誤差圖...")
+    print("\n[Test done] Plotting the error...")
     
     plt.figure(figsize=(12, 6))
     plt.subplot(1, 2, 1)
@@ -267,9 +267,9 @@ def main():
     
     filename = 'vslam_result_compensated.png'
     plt.savefig(filename)
-    print(f"圖表已儲存至: {filename}")
+    print(f"Plot saved to: {filename}")
 
-    # ros2_mgr 已經由 base_env 管理，這裡不需手動 close，或讓 env.close() 去處理
+    # ros2_mgr is owned by base_env; env.close() closes it
     slam_sub_mgr.close()
     base_env.close()
     rclpy.shutdown()

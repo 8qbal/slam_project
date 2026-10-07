@@ -107,7 +107,7 @@ def main():
     print("[INFO] obs shape:", obs.shape)
     print("[INFO] initial obs:", obs)
 
-    # 先跑幾步 random action 驗證
+    # Run a few random-action steps first as a check
     for i in range(20):
         action = hl_env.action_space.sample()
         obs, reward, terminated, truncated, info = hl_env.step(action)

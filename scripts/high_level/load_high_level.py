@@ -119,19 +119,19 @@ class OrbGtComparator:
         return np.arctan2(siny_cosp, cosy_cosp)
 
     def get_gt_xyyaw(self, env_unwrapped) -> np.ndarray:
-            # 1. 取得機器人本體 (Base) 的世界位置與四元數
+            # 1. World position and quaternion of the robot base
             pos = env_unwrapped.scene["robot"].data.root_pos_w.torch[0].detach().cpu().numpy()
             quat = env_unwrapped.scene["robot"].data.root_quat_w.torch[0].detach().cpu().numpy()
             
-            # 2. 計算機器人本體的 Yaw 角 (朝向)
+            # 2. Base yaw (heading)
             yaw = self.quat_xyzw_to_yaw(quat)
             
-            # 3. 座標轉換：將 GT 基準點從「機器人中心」平移到「相機中心」
-            # 相機在機器人本體座標系的 X 軸前方 0.4 公尺處
+            # 3. Move the GT reference point from the robot center to the camera center:
+            # the camera is 0.4 m ahead along the base x axis
             cam_x = pos[0] + 0.4 * np.cos(yaw)
             cam_y = pos[1] + 0.4 * np.sin(yaw)
             
-            # 回傳相機真實的 Ground Truth 座標與朝向
+            # Return the camera's ground-truth position and heading
             return np.array([cam_x, cam_y, yaw], dtype=np.float64)
 
     def try_initialize(self, env_unwrapped) -> bool:
@@ -314,7 +314,7 @@ def save_error_plots(
 
 
 def save_performance_plots(csv_path, out_dir, suffix="", show_plot=False):
-    """讀取 CSV 數據並自動生成 CPU, RAM, FPS, Disk I/O 的趨勢圖"""
+    """Read the CSV log and plot CPU, RAM, FPS and disk I/O over time."""
     import pandas as pd
     import matplotlib.pyplot as plt
     import os
@@ -329,33 +329,33 @@ def save_performance_plots(csv_path, out_dir, suffix="", show_plot=False):
     
     fig, axs = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
 
-    # 1. 畫 CPU 使用率 (左邊的 Y 軸)
+    # 1. CPU usage (left y axis)
     line1 = axs[0].plot(df['Step'], df['CPU_Usage_Percent'], color='tab:red', linewidth=2, label='CPU (%)')
     axs[0].set_title(f'System Performance Over Time ({mode_name_clean})')
     axs[0].set_ylabel('CPU Usage (%)')
     axs[0].grid(True, linestyle='--', alpha=0.7)
 
-    # [新增] 建立雙 Y 軸來畫硬碟讀寫 (右邊的 Y 軸，單位 MB/s)
+    # Second y axis for disk read/write (right, MB/s)
     if 'Disk_Read_MBs' in df.columns and 'Disk_Write_MBs' in df.columns:
         ax0_twin = axs[0].twinx()
         line2 = ax0_twin.plot(df['Step'], df['Disk_Read_MBs'], color='tab:orange', linewidth=1.5, linestyle=':', label='Read (MB/s)')
         line3 = ax0_twin.plot(df['Step'], df['Disk_Write_MBs'], color='tab:purple', linewidth=1.5, linestyle='--', label='Write (MB/s)')
         ax0_twin.set_ylabel('Disk I/O (MB/s)')
         
-        # 合併左軸與右軸的圖例 (Legend)
+        # Merge the legends of both axes
         lines = line1 + line2 + line3
         labels = [l.get_label() for l in lines]
         axs[0].legend(lines, labels, loc='upper left')
     else:
         axs[0].legend(loc='upper left')
 
-    # 2. 畫 RAM 使用量
+    # 2. RAM usage
     axs[1].plot(df['Step'], df['RAM_Usage_GB'], color='tab:blue', linewidth=2)
     axs[1].set_title('System RAM Usage Over Time')
     axs[1].set_ylabel('RAM Usage (GB)')
     axs[1].grid(True, linestyle='--', alpha=0.7)
 
-    # 3. 畫 系統 FPS
+    # 3. System FPS
     axs[2].plot(df['Step'], df['System_FPS'], color='tab:green', linewidth=2)
     axs[2].set_title('System Processing Speed (FPS)')
     axs[2].set_xlabel('Simulation Step')
@@ -372,7 +372,7 @@ def save_performance_plots(csv_path, out_dir, suffix="", show_plot=False):
     # if show_plot:
     #     plt.show() 
     
-    # plt.close(fig) # 務必關閉，否則記憶體會爆掉
+    # plt.close(fig) # must close, or memory blows up
 
 
 class CollisionCounter:
@@ -506,13 +506,13 @@ def main():
     sys_ram_log = []
     fps_log = []
     last_time = time.time()
-    record_interval = 10  # 每 10 個 step 記錄一次
-    sys_disk_read_log = []   # [新增] 記錄硬碟讀取率
-    sys_disk_write_log = []  # [新增] 記錄硬碟寫入率
+    record_interval = 10  # log every 10 steps
+    sys_disk_read_log = []   # disk read rate
+    sys_disk_write_log = []  # disk write rate
 
     last_time = time.time()
-    last_disk_io = psutil.disk_io_counters()  # [新增] 獲取初始的硬碟 I/O 狀態
-    record_interval = 10  # 每 10 個 step 記錄一次
+    last_disk_io = psutil.disk_io_counters()  # initial disk I/O counters
+    record_interval = 10  # log every 10 steps
 
     try:
         for step in range(args_cli.steps):
@@ -520,33 +520,33 @@ def main():
             obs, rewards, dones, infos = vec_env.step(action)
 
             # ----------------------------------------------------
-            # [新增] 3. 迴圈內的效能紀錄 (加在 vec_env.step 之後)
+            # 3. Performance logging in the loop (after vec_env.step)
             if step % record_interval == 0 and step > 0:
                 current_time = time.time()
-                current_disk_io = psutil.disk_io_counters() # [新增] 取得當下硬碟 I/O 狀態
+                current_disk_io = psutil.disk_io_counters() # current disk I/O counters
                 
-                # 取得 CPU 與 RAM 數據
+                # CPU and RAM
                 cpu_percent = psutil.cpu_percent(interval=None)
                 ram_gb = psutil.virtual_memory().used / (1024 ** 3)
                 
-                # 計算這 10 步的平均 FPS 與經過時間
+                # Mean FPS and elapsed time over these 10 steps
                 elapsed = current_time - last_time
                 fps = record_interval / elapsed
                 
-                # [新增] 計算硬碟讀寫率 (轉為 MB/s)
-                # disk_io_counters 記錄的是開機以來的總位元組(Bytes)，所以要相減並除以時間與 1MB
+                # Disk read/write rate (MB/s):
+                # disk_io_counters counts bytes since boot, so take the difference and divide by the time and 1 MB
                 read_mbs = (current_disk_io.read_bytes - last_disk_io.read_bytes) / (1024 * 1024 * elapsed)
                 write_mbs = (current_disk_io.write_bytes - last_disk_io.write_bytes) / (1024 * 1024 * elapsed)
                 
                 sys_cpu_log.append(cpu_percent)
                 sys_ram_log.append(ram_gb)
                 fps_log.append(fps)
-                sys_disk_read_log.append(read_mbs)   # [新增]
-                sys_disk_write_log.append(write_mbs) # [新增]
+                sys_disk_read_log.append(read_mbs)
+                sys_disk_write_log.append(write_mbs)
                 
-                # 更新上一次的狀態
+                # Remember the current state
                 last_time = current_time
-                last_disk_io = current_disk_io       # [新增]
+                last_disk_io = current_disk_io
             # ----------------------------------------------------
 
             if dense_map_manager is not None:
@@ -593,9 +593,9 @@ def main():
             else:
                 print("[ORB-vs-GT] waiting for ORB tracking initialization...")
 
-            # --- 定期自動存檔區塊 (縮排修正) ---
+            # --- Periodic autosave ---
             if step > 0 and step % autosave_every == 0:
-                # 1. 存軌跡圖
+                # 1. Trajectory plot
                 save_error_plots(
                     out_dir=plot_dir, timesteps=timesteps,
                     pos_errors=pos_errors, yaw_errors=yaw_errors,
@@ -604,7 +604,7 @@ def main():
                     suffix=f"step_{step:06d}"
                 )
 
-                # 2. 存效能圖 (只有在有紀錄時才存)
+                # 2. Performance plot (only when something was logged)
                 if len(sys_cpu_log) > 0:
                     mode_name = "rl_slam_mapping" if args_cli.enable_dense_mapping else "rl_slam"
                     df = pd.DataFrame({
@@ -612,15 +612,15 @@ def main():
                         'CPU_Usage_Percent': sys_cpu_log,
                         'RAM_Usage_GB': sys_ram_log,
                         'System_FPS': fps_log,
-                        'Disk_Read_MBs': sys_disk_read_log,   # <- 請確認是否有這行
-                        'Disk_Write_MBs': sys_disk_write_log  # <- 請確認是否有這行
+                        'Disk_Read_MBs': sys_disk_read_log,
+                        'Disk_Write_MBs': sys_disk_write_log
                     })
                     temp_csv = os.path.join(args_cli.dense_export_dir, f"performance_log_{mode_name}_step_{step:06d}.csv")
                     df.to_csv(temp_csv, index=False)
                     save_performance_plots(temp_csv, plot_dir, suffix=f"step_{step:06d}", show_plot=False)
                 # ----------------------------------------------------
 
-            # 只印第一個 env，觀察最直觀
+            # Print only the first env
             info0 = infos[0] if len(infos) > 0 else {}
             cmd_vx = info0.get("cmd_vx", None)
             cmd_wz = info0.get("cmd_wz", None)
@@ -661,7 +661,7 @@ def main():
             record_navigation_run(map_name, pos_err=pos_err, **run_result)
 
     # ----------------------------------------------------
-    # [新增] 4. 迴圈結束後，將收集到的數據存成 CSV
+    # 4. After the loop, save the collected data as CSV
     mode_name = "rl_slam_mapping" if args_cli.enable_dense_mapping else "rl_slam"
     if len(sys_cpu_log) > 0:
         final_csv = os.path.join(args_cli.dense_export_dir, f"performance_log_{mode_name}_final.csv")
@@ -670,8 +670,8 @@ def main():
             'CPU_Usage_Percent': sys_cpu_log,
             'RAM_Usage_GB': sys_ram_log,
             'System_FPS': fps_log,
-            'Disk_Read_MBs': sys_disk_read_log,   # [新增]
-            'Disk_Write_MBs': sys_disk_write_log  # [新增]
+            'Disk_Read_MBs': sys_disk_read_log,
+            'Disk_Write_MBs': sys_disk_write_log
         })
         df.to_csv(final_csv, index=False)
         save_performance_plots(final_csv, plot_dir, suffix="final", show_plot=True)

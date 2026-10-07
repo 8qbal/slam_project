@@ -10,7 +10,7 @@ bt_navigator:
     odom_topic: /odom
     bt_loop_duration: 10
     default_server_timeout: 20
-    # 精簡插件列表 (已修正)
+    # Trimmed plugin list
     plugin_lib_names:
     - nav2_compute_path_to_pose_action_bt_node
     - nav2_compute_path_through_poses_action_bt_node
@@ -124,7 +124,7 @@ local_costmap:
       robot_base_frame: base_link
       use_sim_time: True
       rolling_window: true
-      # [注意] 這裡原本就是整數 5，保持不變
+      # [Note] already the integer 5; unchanged
       width: 5
       height: 5
       resolution: 0.05
@@ -164,7 +164,7 @@ global_costmap:
       robot_base_frame: base_link
       use_sim_time: True
       rolling_window: true
-      # [關鍵修正] 改為整數 (Integer) 20
+      # Integer (not float) 20
       width: 20
       height: 20
       resolution: 0.05
