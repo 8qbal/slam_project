@@ -28,7 +28,8 @@ class RlGamesPolicy(torch.nn.Module):
     """Deterministic action of an rl_games continuous PPO checkpoint, batched.
 
     Same result as ``BasePlayer.get_action(obs, is_deterministic=True)`` behind Isaac Lab's ``RlGamesVecEnvWrapper``
-    with symmetric action clipping: normalized obs -> MLP mean, clamped to [-1, 1].
+    with symmetric action clipping: normalized obs -> MLP mean, clamped to [-1, 1] (not clamped when the agent cfg
+    sets ``config.clip_actions: False``, as the paper low level does).
     """
 
     def __init__(self, checkpoint: str, agent_cfg: dict, obs_dim: int, action_dim: int):
@@ -47,11 +48,15 @@ class RlGamesPolicy(torch.nn.Module):
         )
         self.model.load_state_dict(torch_ext.load_checkpoint(checkpoint)["model"])
         self.model.eval()
-        self.clip_actions = min(float(params.get("env", {}).get("clip_actions", 1.0)), 1.0)
+        # rl_games clamps to [-1, 1] unless config.clip_actions is False; the env wrapper clamps to env.clip_actions
+        clip = params["config"].get("clip_actions", True) is not False
+        self.clip_actions = min(float(params.get("env", {}).get("clip_actions", 1.0)), 1.0) if clip else None
 
     @torch.inference_mode()
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
         mu = self.model.a2c_network({"obs": self.model.norm_obs(obs)})[0]
+        if self.clip_actions is None:
+            return mu
         return torch.clamp(mu, -self.clip_actions, self.clip_actions)
 
 

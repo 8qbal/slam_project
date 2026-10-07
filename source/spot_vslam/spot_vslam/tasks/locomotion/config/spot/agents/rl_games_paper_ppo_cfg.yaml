@@ -1,10 +1,11 @@
-# Low-level PPO for the paper policy (Table 4): same as rl_games_rough_ppo_cfg.yaml, plus orthogonal init and its own log dir.
+# Low-level PPO for the paper policy (network: Table 4). The paper gives no low-level PPO settings, so these follow
+# Isaac Lab's Spot (isaaclab_tasks/contrib/velocity/config/spot/agents/rsl_rl_ppo_cfg.py, RSL-RL) mapped to rl_games:
+# no action clipping, separate actor / critic, no obs / value normalization, no reward scaling, default init.
 params:
   seed: 42
 
-  # environment wrapper clipping
-  env:
-    clip_actions: 1.0
+  # environment wrapper clipping: none (no clip_actions / clip_observations key = no clipping)
+  env: {}
 
   algo:
     name: a2c_continuous
@@ -14,7 +15,7 @@ params:
 
   network:
     name: actor_critic
-    separate: False
+    separate: True
     space:
       continuous:
         mu_activation: None
@@ -32,8 +33,7 @@ params:
       d2rl: False
 
       initializer:
-        name: orthogonal_initializer
-        gain: 1.41421356
+        name: default
       regularizer:
         name: None
 
@@ -41,38 +41,39 @@ params:
   load_path: '' # path to the checkpoint to load
 
   config:
+    clip_actions: False  # rl_games clamps to [-1, 1] otherwise
     name: spot_paper_ppo
     env_name: rlgpu
     device: 'cuda:0'
     device_name: 'cuda:0'
     multi_gpu: False
     ppo: True
-    mixed_precision: True
-    normalize_input: True
-    normalize_value: True
+    mixed_precision: False
+    normalize_input: False
+    normalize_value: False
     value_bootstrap: True
     num_actors: -1  # configured from the script (based on num_envs)
     reward_shaper:
-      scale_value: 2.0
+      scale_value: 1.0
     normalize_advantage: True
     gamma: 0.99
     tau: 0.95
-    learning_rate: 5e-4
+    learning_rate: 1e-3
     lr_schedule: adaptive
     schedule_type: legacy
     kl_threshold: 0.01
     score_to_win: 20000
-    max_epochs: 6000
+    max_epochs: 20000
     save_best_after: 100
     save_frequency: 50
     grad_norm: 1.0
-    entropy_coef: 0.002
+    entropy_coef: 0.0025
     truncate_grads: True
     e_clip: 0.2
-    horizon_length: 48
-    minibatch_size: 256 #98304 env 16384/ 49152 env 8192 /24576 env 4096 / 96 env 16 / 6 env 1
-    mini_epochs: 4
-    critic_coef: 2.0
+    horizon_length: 24
+    minibatch_size: 3072  # 4 minibatches = num_envs * 24 / 4 (3072 for 512 envs; must divide num_envs * 24)
+    mini_epochs: 5
+    critic_coef: 1.0  # rl_games uses 0.5 * critic_coef * MSE; RSL-RL value_loss_coef 0.5 * MSE
     clip_value: True
     seq_length: 4
     bounds_loss_coef: 0.0
