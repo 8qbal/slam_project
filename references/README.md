@@ -11,7 +11,7 @@
 | --- | --- | --- |
 | Low-level sim dt / decimation / control rate (Table 1) | 0.002 s / 20 / 25 Hz | `tasks/locomotion/locomotion_env_cfg.py` |
 | Low-level obs (Table 2) | 353-dim, depth 15×20 + 5 depth stats | `tasks/locomotion/locomotion_env_cfg.py`, `tasks/locomotion/mdp/observations.py` |
-| Low-level reward (Eqs. 2-6, Table 3) | | `tasks/locomotion/config/spot/paper_env_cfg.py`, `tasks/locomotion/mdp/rewards.py` |
+| Low-level reward (Eqs. 2-6, Table 3) | Isaac Lab Spot functions, Eq. 5 ours (`docs/low_level_reward.md`) | `tasks/locomotion/config/spot/paper_env_cfg.py`, `tasks/locomotion/mdp/rewards.py` |
 | Low-level MLP (Table 4) | [512, 256, 128], ELU | `tasks/locomotion/config/spot/agents/rl_games_paper_ppo_cfg.yaml` |
 | High-level obs (Table 5) | 9-dim: pose, goal, base velocity | `tasks/navigation/config/spot/navigation_env_cfg.py` (`Spot-Nav-*`); SB3 version `legacy/high_level/paper_vec_env.py` |
 | High-level PPO (Table 6) | lr 3e-4, n_steps 256, batch 128, 4 epochs, 500k steps | `tasks/navigation/config/spot/agents/rl_games_ppo_cfg.yaml`; SB3 version `scripts/high_level/train_high_level_ppo.py` |

@@ -24,7 +24,9 @@ Two policy sets exist side by side. Never change one in a way that breaks the ot
   (`Spot-Vslam-Depth-v0`, `Spot-Vslam-high-level-*`, config `locomotion/config/spot/baseline_v0_env_cfg.py`),
   245-dim low-level obs, 11-dim SB3 high level with no goal (`legacy/high_level/high_level_vec_env.py`).
 - **Paper version**: low level `Spot-Paper-*` (`locomotion/config/spot/paper_env_cfg.py`): 353-dim obs (80x60
-  depth), reward Eqs. 2-6 with Table 3 weights. High level: 9-dim obs with goal (Table 5), [256, 128] ELU, Table 6
+  depth), Table 3 reward weights on Isaac Lab's Spot reward functions plus the Eq. 5 wall term, PPO settings of
+  Isaac Lab's Spot (no action clipping; the literal Eqs. 2-6 made the policy trot in place, see
+  `docs/low_level_reward.md`). High level: 9-dim obs with goal (Table 5), [256, 128] ELU, Table 6
   PPO, as the manager-based `Spot-Nav-*` (`tasks/navigation/`) and as the older SB3 wrapper
   (`legacy/high_level/paper_vec_env.py`, `Spot-Paper-high-level-*`). The paper gives no high-level reward or
   training map, so those are our own (goal progress + success bonus; trained on Map A or B).
@@ -57,7 +59,7 @@ source /opt/ros/jazzy/setup.bash
 # Train / play any task with rl_games. Isaac Lab 3.0 runs headless by default: every task has a depth camera, so
 # pass --cameras (`isaaclab train` has no camera flag), and --viz kit for a window. train.py prints the reward every
 # epoch (--quiet_rewards turns it off, --reward_terms_every N sets the per-term breakdown interval).
-python scripts/rl_games/train.py --task Spot-Paper-v0 --num_envs 512 --cameras          # paper low level, ~13 h
+python scripts/rl_games/train.py --task Spot-Paper-v0 --num_envs 512 --cameras          # paper low level, 20000 epochs
 python scripts/rl_games/play.py  --task Spot-Paper-Play-v0 --cameras --checkpoint <.pth> --viz kit
 SPOT_VSLAM_LOW_LEVEL_CKPT=<low-level .pth> python scripts/rl_games/train.py --task Spot-Nav-MapA-v0 --cameras
 python scripts/rl_games/play.py --task Spot-Nav-MapA-GT-Play-v0 --cameras --checkpoint <high-level .pth> --viz kit
@@ -147,6 +149,7 @@ via `import_packages`). Task ids of trained policies never change.
 | Task ID | Config (under `tasks/`) |
 | --- | --- |
 | `Spot-Paper-v0` / `-Play-v0` | `locomotion/config/spot/paper_env_cfg.py` (paper low level) |
+| `Spot-Paper-Rough-v0`, `Spot-Paper-Obstacles-v0` | same reward / PPO, other training terrain (Isaac Lab Spot terrain; pillars) |
 | `Spot-Paper-high-level-Map{A,B}-v0` / `-Play-v0` | same; low-level env under the SB3 high level |
 | `Spot-Nav-Map{A,B}-v0` / `-Play-v0` / `-GT-Play-v0` | `navigation/config/spot/navigation_env_cfg.py` (train: GT pose; Play: ORB-SLAM3 pose; GT-Play: GT pose, no ROS 2) |
 | `Spot-Vslam-Depth-v0` / `-Play-v0` | `locomotion/config/spot/baseline_v0_env_cfg.py` (rl_vslam_v0 low level) |
