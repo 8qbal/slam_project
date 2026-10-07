@@ -19,6 +19,7 @@ from ... import mdp
 from ...locomotion_env_cfg import (
     GROUND_MATERIAL_CFG,
     SLAM_CAMERA_CFG,
+    TERRAIN_CFG,
     LocomotionEnvCfg,
     LocomotionEnvCfg_PLAY,
     RewardsCfg,
@@ -53,6 +54,67 @@ class SpotPaperEnvCfg(LocomotionEnvCfg):
 @configclass
 class SpotPaperEnvCfg_PLAY(LocomotionEnvCfg_PLAY):
     rewards: PaperRewardsCfg = PaperRewardsCfg()
+
+
+# -- training-terrain study: same reward and PPO as Spot-Paper-v0, other terrain (docs/low_level_reward.md)
+
+ROUGH_TERRAIN_CFG = terrain_gen.TerrainGeneratorCfg(
+    size=(8.0, 8.0),
+    border_width=20.0,
+    num_rows=9,
+    num_cols=21,
+    horizontal_scale=0.1,
+    vertical_scale=0.005,
+    slope_threshold=0.75,
+    difficulty_range=(0.0, 1.0),
+    use_cache=False,
+    sub_terrains={
+        "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.2),
+        "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
+            proportion=0.2, noise_range=(0.02, 0.05), noise_step=0.02, border_width=0.25
+        ),
+    },
+)
+"""Isaac Lab's Spot terrain (``COBBLESTONE_ROAD_CFG``): 9x21 tiles of 8 m, half flat, half rough (2-5 cm)."""
+
+OBSTACLE_TERRAIN_CFG = TERRAIN_CFG.replace(
+    sub_terrains={
+        "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.4),
+        "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
+            proportion=0.3, noise_range=(0.01, 0.03), noise_step=0.01, border_width=0.25
+        ),
+        "obstacles": terrain_gen.HfDiscreteObstaclesTerrainCfg(
+            proportion=0.3,
+            obstacle_height_mode="fixed",
+            obstacle_width_range=(0.5, 2.0),
+            obstacle_height_range=(1.0, 2.0),
+            num_obstacles=8,
+            platform_width=2.0,
+            border_width=0.25,
+        ),
+    },
+)
+"""The paper terrain with 30 % of the tiles holding 8 pillars / wall pieces (1-2 m high) the depth camera sees."""
+
+
+@configclass
+class SpotPaperRoughEnvCfg(SpotPaperEnvCfg):
+    """``Spot-Paper-Rough-v0``: Isaac Lab's Spot terrain, all levels from the start and no curriculum, as there."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.scene.terrain.terrain_generator = ROUGH_TERRAIN_CFG
+        self.scene.terrain.max_init_terrain_level = ROUGH_TERRAIN_CFG.num_rows - 1
+        self.curriculum.terrain_levels = None
+
+
+@configclass
+class SpotPaperObstaclesEnvCfg(SpotPaperEnvCfg):
+    """``Spot-Paper-Obstacles-v0``: the paper terrain plus obstacle tiles (same terrain curriculum)."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.scene.terrain.terrain_generator = OBSTACLE_TERRAIN_CFG
 
 
 def use_paper_map(cfg: LocomotionEnvCfg, map_name: str):
