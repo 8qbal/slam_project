@@ -1,104 +1,135 @@
 # Roadmap
 
-What to fix and what to build, in rough order. Tick items off as they land. Each bigger item gets its own design
-note when we start it. Background: the advisor's feedback and our proposal (cuVSLAM, SLAM benchmark, Kalman filter,
-depth noise, tracking signals in the high-level observation, goal observation, hopping gait).
+What to build next, in rough order. Tick items off as they land. Each bigger item gets its own design note when we
+start it. Background: our proposal (cuVSLAM, SLAM benchmark, Kalman filter, depth noise, tracking signals in the
+high-level observation, goal observation, hopping gait) and the advisor's feedback on it.
 
-Rules for every experiment: keep the `rl_vslam_v0` baseline runnable (`baselines/rl_vslam_v0/`, tag
-`baseline/rl-vslam-v0`), and change one thing at a time. Keep the low-level policy, task, rewards and training budget
-fixed unless that is what is being tested.
+**The baseline is done.** `rl_vslam_v0` is frozen (`baselines/rl_vslam_v0/`, tag `baseline/rl-vslam-v0`); keep it
+runnable, but don't build on it. All new work trains with the paper policies and rewards in this repo (see
+`docs/SYSTEM.md`):
 
-## 1. Fixes before any experiment
+| | Task | Policy | Reward |
+| --- | --- | --- | --- |
+| Low level | `Spot-Paper-v0` (`tasks/locomotion/config/spot/paper_env_cfg.py`) | 353-dim obs (80x60 depth), [512, 256, 128] ELU | Table 3 weights, Isaac Lab Spot functions + Eq. 5 wall (`docs/low_level_reward.md`) |
+| High level | `Spot-Nav-Map{A,B}-v0` (`tasks/navigation/`) | 9-dim obs with goal (Table 5), [256, 128] ELU, Table 6 PPO | goal progress + success bonus, time and fall penalties (ours) |
 
-- [ ] Paper baseline reaches the goal. The paper policies fail every Table 9 run so far (0/10 on Map A,
-      `output/paper_tables/navigation/navigation_results.csv`). Found so far (2026-10-07):
-  - [ ] **The paper low-level policy doesn't walk.** `logs/rl_games/spot_paper_ppo/2026-10-05_16-01-15` with a fixed
-        command vx = 1 m/s in `Spot-Paper-Play-v0` moves ~0.25 m in 5 s (both through rl_games' player and the new
-        batched loader). The rl_vslam_v0 low level walks at ~0.9 m/s in the same test. Retrain / fix the paper reward
-        before training any high level on it (ties in with the hopping-gait item in section 6).
-  - [ ] **Frequent falls at the map start.** With a zero command on Map A, ~1 in 5 low-level episodes per env ends in
-        body/leg contact within 100 low-level steps (old SB3 path and new nav env alike). Check the spawn height,
-        the random start velocity/yaw (`reset_base`), and walls next to the start.
-- [ ] ORB-SLAM3 reset: `orbslam3_rgbd_node` keeps `have_origin_`/`origin_` after `slam_->Reset()` or a new map, and
-      `Ros2Manager.reset()` has `publish_orb_reset` commented out. Poses jump after an episode reset.
-- [ ] Spawn outside the warehouse in terrain-generator envs (5×5 tiles × 8 m vs. warehouse x −12..12,
-      y −18..20.8). Shrink the spawn area; don't scale the warehouse.
-- [ ] "RL only" runs still attach `Ros2Manager` and publish images (`rl_vslam_v0`, known limitation 4).
-- [ ] Declare open3d 0.19.0, pandas and psutil in `pyproject.toml` (open3d 0.20 breaks TSDF).
-- [x] `Spot-test180-v0` failed on a missing `default_ground_plane.usda`: now a generated flat floor.
-- [x] The low-level SB3 wrapper left Isaac Lab's velocity command generator running, so ~5 % of the time
-      (`rel_standing_envs`) the low level got a zero command. The manager-based `Spot-Nav-*` doesn't have this.
+Rules for every experiment: change one thing at a time. Keep the low-level policy, task, rewards and training
+budget fixed unless that is what is being tested. Compare policies under the same evaluation (same maps, start/goal,
+SLAM system, commanded speed).
 
-## 2. Measure the current system (E0)
+## Paper plan
 
-- [ ] System diagram and policy inputs/outputs: `docs/SYSTEM.md` (done, keep it up to date).
-- [ ] Latency: SLAM processing time per frame, and image capture → pose used by the policy (stamp the image in
-      `Ros2Manager`, carry the stamp through the SLAM pose message, compare when the high level reads it).
-- [ ] Pose error with evo (ATE/RPE): export GT and SLAM trajectories as TUM files.
-- [ ] Tracking failures: count of lost frames, lost episodes, time to recover.
-- [ ] CPU **and GPU** usage (the performance log has no GPU yet).
-- [ ] Navigation: success %, collisions, steps, time (Table 9 script).
-- [ ] TSDF on vs. off with the same policy and test runs. TSDF only builds a map; it does not feed control.
-- [ ] GT-pose runs keep SLAM running in the background, so the compute load matches the SLAM runs.
+| # | Comparison | Fixed | Varied | Section |
+| --- | --- | --- | --- | --- |
+| 1 | Low level: old vs. new reward | terrain, obs | literal Eqs. 2-6 (results in the original paper, no retrain) vs. Isaac Lab Spot functions | 1 |
+| 2 | Low level: training terrain | reward, PPO, budget | paper terrain / rough / obstacles | 1 |
+| 3 | Low level: depth noise | reward, PPO, terrain | without / with depth noise | 1 |
+| 4 | SLAM: ORB-SLAM3 vs. cuVSLAM (± IMU / Kalman filter) | recorded data, policy | SLAM system | 2, 3 |
+| 5 | High level with different SLAM | low level, high level, maps | GT / ORB-SLAM3 / cuVSLAM / cuVSLAM + IMU | 4 |
+| 6 | High level: tracking quality (A/B/C) | low level, task, reward, budget | pose source, quality inputs | 5 |
 
-## 3. cuVSLAM (E1)
+Proposal items → sections: 1 cuVSLAM → 2; 2 benchmark (evo) → 2; 3 Kalman filter / IMU → 3; 4 depth noise → 1;
+5 tracking signals → 5; 6 goal observation → 0 (done); 7 hopping gait → 1.
+
+## 0. Baseline, up to E0 (done)
+
+- [x] Code, settings and trained policies saved: `baselines/rl_vslam_v0/`, tag `baseline/rl-vslam-v0`.
+- [x] System diagram and each policy's inputs/outputs: `docs/SYSTEM.md` (keep it up to date).
+- [x] Goal information in the high level (proposal item 6): the paper high level gets goal dx, dy and heading error,
+      one fixed start/goal per map (`assets/maps.py`), reward for progress toward the goal. This is a task change
+      vs. `rl_vslam_v0` (no goal), documented in `docs/SYSTEM.md`.
+- [x] High level as a manager-based env (`Spot-Nav-*`): frozen low level in `LowLevelPolicyAction`, goal as a command
+      term, pose as an observation term with `pose_source="gt" | "slam"`, rl_games trainer.
+- [x] Paper policies trained: low level `Spot-Paper-v0`, high level with GT pose (condition A).
+- [x] E0, the current system measured: latency, pose error, tracking failures, CPU/GPU, navigation (Table 9),
+      GT vs. SLAM pose with TSDF on and off. TSDF only builds a map; it does not feed control.
+
+## 1. Low level: fix the gait, then compare (proposal items 4, 7; paper comparisons 1-3)
+
+The paper low level hopped in place. A hopping body shakes the camera and would hurt every SLAM measurement, so this
+comes first. Details and result tables: `docs/low_level_reward.md`.
+
+- [x] Diagnose (`scripts/tools/gait_check.py`): the policy trots in place and never moves. The literal Eq. 3 gait
+      indicator (weight 12) pays more than speed tracking.
+- [x] Reward switched to Isaac Lab's Spot functions (Eqs. 2-4, 6), same Table 3 weights; PPO settings match Isaac
+      Lab's Spot (no action clipping, separate critic, no normalization, 20000 iterations).
+- [ ] Train `Spot-Paper-v0` and check it with `gait_check.py`. If it still hops or tracks poorly, change one reward
+      term at a time (Unitree / legged_gym rewards as reference).
+- [ ] Comparison 1, old vs. new reward: old results come from the original paper; new from `gait_check.py` at the
+      same commanded speeds (gait pattern, speed error, falls).
+- [ ] Comparison 2, training terrain: train `Spot-Paper-Rough-v0` (Isaac Lab's Spot terrain) and
+      `Spot-Paper-Obstacles-v0` (paper terrain + 1-2 m pillars the depth camera sees). Evaluate every policy on every
+      terrain (`gait_check.py --task <terrain task>`).
+- [ ] Comparison 3, depth noise: add realistic errors to the policy's depth image during training (missing pixels,
+      edge noise, range-dependent noise), as a variant of the best terrain. Evaluate with and without noise.
+- [ ] Pick the low level for everything below. Keep the 353-dim observation so the high-level code still fits, and
+      retrain the high level (condition A) on it.
+
+## 2. cuVSLAM and the SLAM benchmark (proposal items 1, 2; paper comparison 4)
+
+Goal: shorter perception delay and less CPU than ORB-SLAM3.
 
 - [ ] Record one sensor dataset (rosbag: RGB, depth, stereo pair if used, IMU, GT pose) from a fixed policy run.
-- [ ] cuVSLAM wrapper (PyCuVSLAM, already installed in `.venv`) with the same output as ORB-SLAM3: pose, tracking
+- [ ] cuVSLAM wrapper (PyCuVSLAM, declared in `pyproject.toml`) with the same output as ORB-SLAM3: pose, tracking
       state, feature count. Decide in-process vs. ROS node in its design note.
 - [ ] Offline benchmark on the recorded data: ORB-SLAM3 vs. cuVSLAM with matched camera inputs and IMU use. evo
       ATE/RPE, tracking failures, recovery.
-- [ ] Online benchmark with the same fixed policy: total latency, CPU/GPU, collisions, success. Check whether
-      sharing the GPU with Isaac Lab becomes the new bottleneck.
+- [ ] Online benchmark with the same fixed policy: total latency (image capture → pose used by the policy), SLAM
+      time per frame, CPU/GPU. Check whether sharing the GPU with Isaac Lab becomes the new bottleneck.
 
-## 4. Tracking quality in the high level (E2, main experiment)
+## 3. IMU and Kalman filter (proposal item 3; paper comparison 4)
 
-- [ ] Check that SLAM behaves correctly across episode resets in a small setup first (needs fix 1.2).
-- [ ] Define each quality signal carefully: tracking state, number of tracked features, and what each one does and
-      doesn't tell us (a returned pose is not always healthy tracking).
+- [ ] IMU in simulation: Isaac Lab's `Imu` sensor on the body (or the camera mount), or a ZED camera through the
+      Stereolabs Isaac Lab integration (stereo + IMU, as on the real camera). Pick one in the design note.
+- [ ] First test cuVSLAM's own visual-inertial mode on the recorded data (evo, tracking failures, recovery).
+- [ ] Only then decide whether an extra Kalman filter is needed: which problem it solves (e.g. pose gaps when tracking
+      is lost, delay between SLAM poses) and which measurements it fuses (SLAM pose, IMU, leg odometry). If yes,
+      compare with and without it with evo and the same runs.
+
+## 4. High level with different SLAM (paper comparison 5)
+
+Same low level, same high level (condition A), same maps (A, B) and start/goal.
+
+- [ ] SLAM must reset cleanly between episodes. Today `orbslam3_rgbd_node` keeps `have_origin_`/`origin_` after
+      `slam_->Reset()` or a new map, and `Ros2Manager.reset()` has `publish_orb_reset` commented out, so poses jump
+      after a reset. Fix it (or use cuVSLAM) and test in a small setup first.
+- [ ] Pose source in `Spot-Nav-*-Play`: GT / ORB-SLAM3 / cuVSLAM / cuVSLAM + IMU (+ Kalman filter if section 3 adds
+      one). During GT runs keep SLAM running in the background so the compute load matches.
+- [ ] Measure per pose source: success %, collisions, steps, time (Table 9), pose error (evo), tracking failures,
+      latency, CPU/GPU/RAM (Tables 7-8).
+
+## 5. Tracking quality in the high level (proposal item 5; paper comparison 6, main experiment)
+
+Question: can the robot learn to change how it moves when localization becomes unreliable?
+
+- [ ] Define each quality signal carefully: tracking state (cuVSLAM `track()` valid/lost), number of tracked
+      features, and what each one does and doesn't tell us (a returned pose is not always healthy tracking; feature
+      count alone is not a confidence measure).
+- [ ] Tracking-quality observation terms in `tasks/navigation/mdp/observations.py`.
+- [ ] Many envs with SLAM in the loop need one tracker per env (easier with in-process cuVSLAM).
 - [ ] Train three high-level policies with the same low level, task, reward and budget:
-  - [ ] A: GT pose, no quality inputs (the current paper high level is trained this way: GT + noise).
-  - [ ] B: SLAM pose, no quality inputs.
+  - [ ] A: GT pose, no quality inputs (section 1's retrained high level).
+  - [ ] B: SLAM pose, no quality inputs (`pose_source="slam"`, with cuVSLAM).
   - [ ] C: SLAM pose + quality inputs.
 - [ ] Evaluate A, B, C with the same SLAM system and scenarios. A vs. B = training with SLAM; B vs. C = quality inputs.
-
-## 5. High level as an Isaac Lab manager-based env
-
-Done (2026-10-07): `tasks/navigation/`, tasks `Spot-Nav-Map{A,B}-v0` / `-Play-v0` / `-GT-Play-v0`, following Isaac
-Lab's `isaaclab_tasks/contrib/navigation/`. The frozen low level runs inside an action term.
-
-- [x] Action term that loads the rl_games `.pth` directly (`LowLevelPolicyAction`, no TorchScript export).
-- [x] 353-dim low-level observation (with depth) through `low_level_observations`.
-- [x] Goal as a command term (start-frame goal), pose as an observation term with `pose_source="gt" | "slam"`.
-- [x] Trainer: rl_games, Table 6 mapped in `agents/rl_games_ppo_cfg.yaml` (16 envs x 64 steps = SB3's 4 x 256).
-- [x] SB3 wrappers kept in `legacy/high_level/` so `rl_vslam_v0` and the current paper high level still run.
-- [ ] Tracking-quality observation terms (condition C).
-- [ ] Many envs with SLAM in the loop need one tracker per env (easier with in-process cuVSLAM).
-
-## 6. Separate studies (E3)
-
-- [ ] IMU: first test cuVSLAM's own IMU fusion. Only then decide whether an extra Kalman filter is needed, which
-      problem it solves, and which measurements it fuses.
-- [ ] Depth noise: realistic errors (missing pixels, edge noise, range-dependent noise) during low-level training.
-      Compare with and without, under the same evaluation.
-- [ ] Hopping gait: diagnose first (reward terms, foot contacts, body motion, speed-tracking error). Compare any new
-      policy at the same commanded speed.
 
 ## Engineering backlog
 
 - [x] One shared base config (2026-10-07): `tasks/locomotion/locomotion_env_cfg.py` + `config/spot/{paper,baseline_v0}_env_cfg.py`.
-      Every kept task's resolved config (terms, order, weights, cameras, timing) was checked identical before/after,
-      except intended changes: unused cfg fields removed, paper Play/HL low-level envs now use the paper reward
-      (not used with a frozen policy), `Spot-Vslam-Depth-Play-v0` depth camera also renders RGB (else the SLAM
-      camera is black), v0 Play tasks use the v0 training yaml (same network). Dropped task ids: `Spot-v0`,
-      `Spot-Vslam-v0`, `-Deploy-`, `-Depth-2-`, `-Depth-3-`, `Isaac-Velocity-Rough-Spot-v0` (still in tag
-      `baseline/rl-vslam-v0`).
+      Every kept task's resolved config was checked identical before/after, except intended changes. Dropped task
+      ids are still in tag `baseline/rl-vslam-v0`.
+- [x] `Spot-test180-v0` uses a generated flat floor (was a missing `default_ground_plane.usda`).
+- [x] The manager-based `Spot-Nav-*` has no zero-command bug (the SB3 wrapper left Isaac Lab's velocity command
+      generator running, ~5 % zero commands).
+- [ ] Spawn outside the warehouse in terrain-generator envs (5×5 tiles × 8 m vs. warehouse x −12..12, y −18..20.8).
+      Shrink the spawn area; don't scale the warehouse. Map tasks are not affected.
+- [ ] "RL only" runs still attach `Ros2Manager` and publish images (`rl_vslam_v0`, known limitation 4).
+- [ ] Declare open3d 0.19.0, pandas and psutil in `pyproject.toml` (open3d 0.20 breaks TSDF).
 - [ ] Arena as a parameter (`warehouse` / `none` / USD path) instead of hard-coded `/World/Maze`.
 - [ ] Lighting: dome light 3000 + warehouse lights over-expose the camera; may hurt SLAM features.
 - [ ] Physics presets (PhysX / Newton) via Isaac Lab 3.0 `PresetCfg`. Verify RTX camera, ray casters, contact
       sensors and ROS 2 under Newton before claiming support.
 - [ ] ROS 2 topic prefixes and frame names are hard-coded in 13 places; keep them only in `Ros2ManagerCfg`.
 - [ ] `scripts/slam/test_nav2_loop.py` defaults to the unregistered task `Spot-test-hybrid`.
-- [x] `add_light_to_spot_usd.py` (wrote next to the lost USDs) moved to `scripts/legacy/`.
-- [ ] Low-level scenes keep a height scanner nothing reads (from Isaac Lab's velocity config); remove it with the
-      next low-level retrain (it doesn't change the observation).
+- [ ] Low-level scenes keep a height scanner nothing reads; remove it with the next low-level retrain (it doesn't
+      change the observation).
