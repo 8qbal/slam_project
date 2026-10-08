@@ -75,34 +75,54 @@ Tracked forward speed (m/s):
 
 | Command vx | Paper, literal reward | `rl_vslam_v0` (Isaac Lab functions) | Paper, Isaac Lab reward + PPO |
 | --- | --- | --- | --- |
-| 0.25 | 0.00 | 0.22 | _to fill after retraining_ |
-| 0.50 | 0.00 | 0.46 | |
-| 0.75 | 0.00 | 0.62 | |
-| 1.00 | 0.00 / 0.00 | 0.81 / 0.57 (one env fell 4×) | |
-| 0.50, wz ±0.4 | wz 0.01 / 0.00 | wz 0.26 / −0.30 | |
+| 0.00 | | | 0.54 |
+| 0.25 | 0.00 | 0.22 | 0.59 |
+| 0.50 | 0.00 | 0.46 | 0.62 |
+| 0.75 | 0.00 | 0.62 | 0.65 |
+| 1.00 | 0.00 / 0.00 | 0.81 / 0.57 (one env fell 4×) | 0.69 / 0.69 (1 reset in 8 envs) |
+| 0.50, wz ±0.4 | wz 0.01 / 0.00 | wz 0.26 / −0.30 | wz 0.38 / −0.40 |
 
 Gait (averaged over the moving commands):
 
 | | Paper, literal reward | `rl_vslam_v0` | Paper, Isaac Lab reward + PPO |
 | --- | --- | --- | --- |
-| Trot-pattern share of time | 0.64-0.80 | ~0.03 | |
-| Step rate (touchdowns / foot / s) | 0.7-2.0 Hz | ~4 Hz | |
-| Foot lift (swing dz) | 3-5 cm | 1-4 cm | |
-| Outputs clipped to [−1, 1] | 92 % | 81 % | |
+| Trot-pattern share of time | 0.64-0.80 | ~0.03 | 1.00 |
+| Step rate (touchdowns / foot / s) | 0.7-2.0 Hz | ~4 Hz | 2.2 Hz |
+| Foot lift (swing dz) | 3-5 cm | 1-4 cm | 3-6 cm |
+| Outputs clipped to [−1, 1] | 92 % | 81 % | 75 % above 1 (not clipped) |
 
 Mean per-step reward (weighted, ÷ dt), largest terms:
 
 | Term | Paper, literal reward | `rl_vslam_v0` | Paper, Isaac Lab reward + PPO |
 | --- | --- | --- | --- |
-| gait | 7.46 | 6.52 | |
-| base_angular_velocity | 4.55 | 4.70 | |
-| base_linear_velocity | 3.47 | 4.44 | |
-| action_smoothness | −0.98 | −1.84 | |
-| air_time | 0.70 | 1.55 | |
-| joint_pos | −0.80 | −0.70 | |
-| foot_clearance | 0.003 | 0.46 | |
+| gait | 7.46 | 6.52 | 11.90 |
+| base_angular_velocity | 4.55 | 4.70 | 4.95 |
+| base_linear_velocity | 3.47 | 4.44 | 3.95 |
+| action_smoothness | −0.98 | −1.84 | −1.44 |
+| air_time | 0.70 | 1.55 | 2.44 |
+| joint_pos | −0.80 | −0.70 | −0.75 |
+| foot_clearance | 0.003 | 0.46 | 0.48 |
 
 Training log of the literal run: speed error stayed ~0.57 m/s from epoch 1500 to 6000; gait was the largest reward.
+
+Paper, Isaac Lab reward + PPO = `2026-10-08_11-08-43`, epoch 20000 (reward 413). It walks with a clean trot and
+turns well, but its speed barely follows the command: 0.54-0.69 m/s for commands 0-1 m/s. It cannot stand still or
+walk slowly, and is too slow at 1 m/s. Likely cause: gait (12) and air time (5) pay for any steady trot, while the
+speed term with σ = 1 is flat (0.35 m/s error costs only 1.5 of 5). The commands span only 0-1 m/s (Isaac Lab:
+−2..3), so one fixed speed in the middle is a good enough answer. The epoch-8500 checkpoint gives the same numbers
+(0.57-0.75 m/s, no resets): the reward is flat after ~8000 epochs, so longer training does not help.
+
+### Speed-tracking fix (2026-10-08, retrain needed)
+
+Only in `PaperRewardsCfg` / `SpotPaperEnvCfg` (`rl_vslam_v0` unchanged); weights stay at Table 3:
+
+| Change | Isaac Lab | Now | Why |
+| --- | --- | --- | --- |
+| `base_linear_velocity` σ | 1.0 | 0.25 | a 0.35 m/s error now costs 3.8 of 5 instead of 1.5 (the paper gives no σ) |
+| `gait`, `air_time` `velocity_threshold` | 0.5 m/s | ∞ | they paid a standing env for walking > 0.5 m/s (12 + 5 > 5), so it never stood; now only when a speed is commanded |
+| `rel_standing_envs` | 0.05 | 0.1 | more zero commands, so standing still gets learned |
+
+Retrain with `--max_iterations 8000` (~5-6 h at 512 envs), then rerun `gait_check.py`.
 
 ## Training-terrain study
 
