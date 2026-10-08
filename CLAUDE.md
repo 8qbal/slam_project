@@ -59,7 +59,7 @@ source /opt/ros/jazzy/setup.bash
 # Train / play any task with rl_games. Isaac Lab 3.0 runs headless by default: every task has a depth camera, so
 # pass --cameras (`isaaclab train` has no camera flag), and --viz kit for a window. train.py prints the reward every
 # epoch (--quiet_rewards turns it off, --reward_terms_every N sets the per-term breakdown interval).
-python scripts/rl_games/train.py --task Spot-Paper-v0 --num_envs 512 --cameras          # paper low level, 20000 epochs
+python scripts/rl_games/train.py --task Spot-Paper-v0 --num_envs 512 --cameras --max_iterations 8000  # paper low level (reward flat after ~8000)
 python scripts/rl_games/play.py  --task Spot-Paper-Play-v0 --cameras --checkpoint <.pth> --viz kit
 SPOT_VSLAM_LOW_LEVEL_CKPT=<low-level .pth> python scripts/rl_games/train.py --task Spot-Nav-MapA-v0 --cameras
 python scripts/rl_games/play.py --task Spot-Nav-MapA-GT-Play-v0 --cameras --checkpoint <high-level .pth> --viz kit

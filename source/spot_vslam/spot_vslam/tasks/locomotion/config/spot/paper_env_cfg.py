@@ -39,6 +39,15 @@ class PaperRewardsCfg(RewardsCfg):
         func=mdp.wall_min_depth, weight=-0.1, params={"sensor_cfg": SceneEntityCfg("train_camera")}
     )
 
+    def __post_init__(self):
+        # Speed tracking (docs/low_level_reward.md): with Isaac Lab's sigma = 1 and commands of only 0-1 m/s, the
+        # policy walked at ~0.6 m/s for every command. A sharper kernel makes a 0.35 m/s error cost 3.8 of 5, not 1.5.
+        self.base_linear_velocity.params["std"] = 0.25
+        # Gait and air time also paid when a standing env walked faster than 0.5 m/s (12 + 5 > the speed term), so
+        # it never stood still. Enforce them only when a speed is commanded.
+        self.gait.params["velocity_threshold"] = float("inf")
+        self.air_time.params["velocity_threshold"] = float("inf")
+
 
 @configclass
 class SpotPaperEnvCfg(LocomotionEnvCfg):
@@ -49,6 +58,7 @@ class SpotPaperEnvCfg(LocomotionEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.scene.env_spacing = 8.0
+        self.commands.base_velocity.rel_standing_envs = 0.1  # Isaac Lab: 0.05; more zero commands to learn standing
 
 
 @configclass
