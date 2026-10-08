@@ -27,8 +27,9 @@ app = AppLauncher(args).app
 import gymnasium as gym
 import torch
 
-import spot_vslam.tasks  # noqa: F401
 from isaaclab_tasks.utils import load_cfg_from_registry, parse_env_cfg
+
+import spot_vslam.tasks  # noqa: F401
 from spot_vslam.tasks.navigation.mdp.actions import RlGamesPolicy
 
 CMDS = [0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 0.5, 0.5]  # vx per env, wz = 0 (last two: wz = +0.4 / -0.4)
@@ -89,7 +90,7 @@ fl, fr, hl, hr = c.unbind(-1)
 trot = (fl == hr) & (fr == hl) & (fl != fr)
 n_down = c.sum(-1)
 flight = n_down == 0
-pronk = (n_down == 4)
+pronk = n_down == 4
 touchdowns = ((~c[:-1]) & c[1:]).sum(0).float()  # [N, 4]
 step_hz = touchdowns.mean(-1) / (T * dt)
 swing_h = []
@@ -103,7 +104,8 @@ for e in range(N):
     print(
         f" {CMDS[e]:5.2f} {WZ[e]:4.1f} | {L['vx'][:, e].mean():5.2f} {L['wz'][:, e].mean():5.2f} |"
         f" {trot[:, e].float().mean():.2f}  {pronk[:, e].float().mean():.2f}   {flight[:, e].float().mean():.2f}  |"
-        f"  {step_hz[e]:4.1f}   |  {swing_h[e]:.3f}  |   {L['base_z'][:, e].std():.3f}    | {L['vz'][:, e].mean():.2f} |"
+        f"  {step_hz[e]:4.1f}   |  {swing_h[e]:.3f}  |   {L['base_z'][:, e].std():.3f}    |"
+        f" {L['vz'][:, e].mean():.2f} |"
         f"   {L['pitch_rate'][:, e].mean():.2f}     | {int(resets[e])}"
     )
 print("\n mean per-step reward (weighted, /dt) per term, all envs:")

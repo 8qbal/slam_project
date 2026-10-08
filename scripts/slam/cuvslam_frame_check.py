@@ -25,13 +25,17 @@ import os
 import gymnasium as gym
 import torch
 
-import spot_vslam.tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
+
+import spot_vslam.tasks  # noqa: F401
 
 # (steps, vx m/s, wz rad/s)
 PHASES = [(25, 0.0, 0.0), (100, 0.5, 0.0), (80, 0.3, 0.4), (80, 0.3, -0.4)]
 VX_RANGE, WZ_RANGE = (0.0, 1.0), (-0.4, 0.4)
-SLAM_KEYS = ("pose_xyyaw", "status", "num_features", "track_time_ms")
+NO_SLAM = {
+    "pose_xyyaw": torch.zeros(1, 3),
+    **{k: torch.zeros(1, 1) for k in ("status", "num_features", "track_time_ms")},
+}
 
 
 def to_action(vx, wz):
@@ -58,7 +62,7 @@ for n, vx, wz in PHASES:
         env.step(action)
         step += 1
         gt = goal.gt_pose_start_frame()[0].tolist()
-        res = getattr(env, "slam_res", None) or {k: torch.zeros(1, 3 if k == "pose_xyyaw" else 1) for k in SLAM_KEYS}  # GT-Play: no SLAM
+        res = getattr(env, "slam_res", None) or NO_SLAM  # GT-Play: no SLAM
         sl = res["pose_xyyaw"][0].tolist()
         ok, feat, ms = float(res["status"][0]), float(res["num_features"][0]), float(res["track_time_ms"][0])
         rows.append((step, *gt, *sl, ok, feat, ms))
