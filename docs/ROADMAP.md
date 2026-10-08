@@ -70,8 +70,11 @@ comes first. Details and result tables: `docs/low_level_reward.md`.
 Goal: shorter perception delay and less CPU than ORB-SLAM3.
 
 - [ ] Record one sensor dataset (rosbag: RGB, depth, stereo pair if used, IMU, GT pose) from a fixed policy run.
-- [ ] cuVSLAM wrapper (PyCuVSLAM, declared in `pyproject.toml`) with the same output as ORB-SLAM3: pose, tracking
-      state, feature count. Decide in-process vs. ROS node in its design note.
+- [x] cuVSLAM wrapper written (`slam/cuvslam_manager.py`, design in `docs/cuvslam.md`): in-process, RGB-D like
+      ORB-SLAM3, loop closure on, one tracker per env, pose + tracking state + feature count + track time.
+      Tasks `Spot-Nav-Map{A,B}-cuVSLAM-Play-v0`.
+- [x] First run and frame check (`scripts/slam/cuvslam_frame_check.py`): pose follows GT in sign and scale.
+- [ ] Longer runs (drift, loop closure): blocked, the low-level policy falls over on Map A within ~2 s.
 - [ ] Offline benchmark on the recorded data: ORB-SLAM3 vs. cuVSLAM with matched camera inputs and IMU use. evo
       ATE/RPE, tracking failures, recovery.
 - [ ] Online benchmark with the same fixed policy: total latency (image capture → pose used by the policy), SLAM
