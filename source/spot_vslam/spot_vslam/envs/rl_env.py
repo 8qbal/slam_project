@@ -5,8 +5,9 @@ step/reset logic and only adds two optional managers, created from the env cfg:
 
 * ``cfg.ros2`` -> :class:`Ros2Manager` (publishes camera images / TF to ROS 2)
 * ``cfg.slam_subscriber`` -> :class:`OrbSlamSubscriberManager` (receives ORB-SLAM3 poses)
+* ``cfg.cuvslam`` -> :class:`CuVslamManager` (in-process cuVSLAM, writes ``env.slam_res``; docs/cuvslam.md)
 
-Both are updated every env step right after the command manager and before interval events and
+All are updated every env step right after the command manager and before interval events and
 observations, so observation terms can read the latest SLAM pose.
 """
 
@@ -19,17 +20,19 @@ import torch
 from isaaclab.envs import ManagerBasedRLEnv as BaseManagerBasedRLEnv
 from isaaclab.envs import ManagerBasedRLEnvCfg
 
+from spot_vslam.slam.cuvslam_manager import CuVslamManager
 from spot_vslam.slam.orb_slam_subscriber import OrbSlamSubscriberManager
 from spot_vslam.slam.ros2_manager import Ros2Manager
 
 
 class ManagerBasedRLEnv(BaseManagerBasedRLEnv):
-    """:class:`isaaclab.envs.ManagerBasedRLEnv` plus the ROS 2 and ORB-SLAM3 managers."""
+    """:class:`isaaclab.envs.ManagerBasedRLEnv` plus the ROS 2, ORB-SLAM3 and cuVSLAM managers."""
 
     def __init__(self, cfg: ManagerBasedRLEnvCfg, render_mode: str | None = None, **kwargs):
         # must exist before the base class calls load_managers()
         self.ros2_manager: Ros2Manager | None = None
         self.slam_subscriber_manager: OrbSlamSubscriberManager | None = None
+        self.cuvslam_manager: CuVslamManager | None = None
         super().__init__(cfg=cfg, render_mode=render_mode, **kwargs)
 
     def load_managers(self):
@@ -47,6 +50,10 @@ class ManagerBasedRLEnv(BaseManagerBasedRLEnv):
         else:
             print("[WARN] 'slam_subscriber' config is None or missing. Manager skipped.")
 
+        if getattr(self.cfg, "cuvslam", None) is not None:
+            self.cuvslam_manager = CuVslamManager(self.cfg.cuvslam, self)
+            print("[INFO] cuVSLAM Manager: loaded.")
+
         # The base step() calls command_manager.compute() exactly once per env step, after resets and
         # before interval events / observations. Hook the ROS 2 / SLAM update there instead of forking step().
         compute_commands = self.command_manager.compute
@@ -62,6 +69,8 @@ class ManagerBasedRLEnv(BaseManagerBasedRLEnv):
             self.ros2_manager.update(dt=dt)
         if self.slam_subscriber_manager:
             self.slam_subscriber_manager.update(dt=dt)
+        if self.cuvslam_manager:
+            self.cuvslam_manager.update(dt=dt)
 
     def _reset_idx(self, env_ids: Sequence[int] | torch.Tensor):
         super()._reset_idx(env_ids)
@@ -74,9 +83,14 @@ class ManagerBasedRLEnv(BaseManagerBasedRLEnv):
             info = self.slam_subscriber_manager.reset(env_ids)
             if info:
                 self.extras["log"].update(info)
+        if self.cuvslam_manager:
+            self.cuvslam_manager.reset(env_ids)
 
     def close(self):
         if not self._is_closed:
+            if self.cuvslam_manager:
+                self.cuvslam_manager.close()
+                self.cuvslam_manager = None
             # close the subscriber first: it may share the ROS 2 node owned by Ros2Manager
             if self.slam_subscriber_manager:
                 self.slam_subscriber_manager.close()
