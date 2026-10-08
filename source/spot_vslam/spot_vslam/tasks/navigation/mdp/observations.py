@@ -26,7 +26,8 @@ def robot_pose(env: ManagerBasedRLEnv, command_name: str = "goal", pose_source: 
         cmd: GoalCommand = env.command_manager.get_term(command_name)
         return cmd.gt_pose_start_frame()
     if pose_source == "slam":
-        res = getattr(env, "orb_slam_res", None)
+        # cuVSLAM (CuVslamManager) if the task runs it, else ORB-SLAM3 (Ros2Manager)
+        res = getattr(env, "slam_res", None) or getattr(env, "orb_slam_res", None)
         if res is None:
             return torch.zeros(env.num_envs, 3, device=env.device)
         return res["pose_xyyaw"]

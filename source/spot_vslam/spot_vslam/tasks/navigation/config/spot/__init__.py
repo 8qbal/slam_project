@@ -5,7 +5,7 @@ import gymnasium as gym
 from . import agents
 
 for _map, _suffix in (("A", ""), ("B", "_MAP_B")):
-    for _variant, _cfg in (("", ""), ("-Play", "_PLAY"), ("-GT-Play", "_GT_PLAY")):
+    for _variant, _cfg in (("", ""), ("-Play", "_PLAY"), ("-GT-Play", "_GT_PLAY"), ("-cuVSLAM-Play", "_CUVSLAM_PLAY")):
         gym.register(
             id=f"Spot-Nav-Map{_map}{_variant}-v0",
             entry_point="spot_vslam.envs:ManagerBasedRLEnv",

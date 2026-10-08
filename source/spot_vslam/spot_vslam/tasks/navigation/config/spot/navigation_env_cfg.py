@@ -19,7 +19,7 @@ from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import GaussianNoiseCfg as Gnoise
 
 from spot_vslam.assets import PAPER_MAPS
-from spot_vslam.slam import Ros2ManagerCfg
+from spot_vslam.slam import CuVslamManagerCfg, Ros2ManagerCfg
 from spot_vslam.tasks.locomotion.config.spot.paper_env_cfg import (
     SpotPaperHighLevelEnvCfg,
     SpotPaperHighLevelEnvCfg_PLAY,
@@ -100,6 +100,7 @@ class SpotNavigationEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     curriculum = None
     ros2: Ros2ManagerCfg | None = None
+    cuvslam: CuVslamManagerCfg | None = None
 
     def low_level_env_cfg(self):
         """The low-level env this task wraps: scene, events, timing, and the frozen policy's action/observation."""
@@ -159,6 +160,18 @@ class SpotNavigationEnvCfg_GT_PLAY(SpotNavigationEnvCfg_PLAY):
 
 
 @configclass
+class SpotNavigationEnvCfg_CUVSLAM_PLAY(SpotNavigationEnvCfg_PLAY):
+    """Like ``_PLAY`` but with in-process cuVSLAM (RGB-D, loop closure) instead of ROS 2 / ORB-SLAM3.
+
+    See docs/cuvslam.md."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.ros2 = None
+        self.cuvslam = CuVslamManagerCfg(camera_name="tilted_camera")
+
+
+@configclass
 class SpotNavigationEnvCfg_MAP_B(SpotNavigationEnvCfg):
     paper_map: str = "B"
 
@@ -170,4 +183,9 @@ class SpotNavigationEnvCfg_MAP_B_PLAY(SpotNavigationEnvCfg_PLAY):
 
 @configclass
 class SpotNavigationEnvCfg_MAP_B_GT_PLAY(SpotNavigationEnvCfg_GT_PLAY):
+    paper_map: str = "B"
+
+
+@configclass
+class SpotNavigationEnvCfg_MAP_B_CUVSLAM_PLAY(SpotNavigationEnvCfg_CUVSLAM_PLAY):
     paper_map: str = "B"
