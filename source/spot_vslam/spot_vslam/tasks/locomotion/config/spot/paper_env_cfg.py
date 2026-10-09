@@ -43,6 +43,9 @@ class PaperRewardsCfg(RewardsCfg):
         # Speed tracking (docs/low_level_reward.md): with Isaac Lab's sigma = 1 and commands of only 0-1 m/s, the
         # policy walked at ~0.6 m/s for every command. A sharper kernel makes a 0.35 m/s error cost 3.8 of 5, not 1.5.
         self.base_linear_velocity.params["std"] = 0.25
+        # Same for turning: with sigma = 2 a 0.2 rad/s error cost 0.5 of 5, and the policy turned at 40-75 % of the
+        # command (weaker to the right). Now 0.2 rad/s costs 1.6.
+        self.base_angular_velocity.params["std"] = 0.5
         # Gait and air time also paid when a standing env walked faster than 0.5 m/s (12 + 5 > the speed term), so
         # it never stood still. Enforce them only when a speed is commanded.
         self.gait.params["velocity_threshold"] = float("inf")
