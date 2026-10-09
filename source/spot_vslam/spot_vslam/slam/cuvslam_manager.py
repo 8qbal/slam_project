@@ -43,7 +43,10 @@ class CuVslamManager:
 
     ``env.slam_res`` after each update (all tensors on the env device):
 
-    * ``pose_xyyaw`` (N, 3): robot body x, y, yaw in its start frame (the body at the last reset)
+    * ``pose_xyyaw`` (N, 3): robot body x, y, yaw in its start frame (the body at the last reset): the loop-closure
+      pose when SLAM gives one, else the odometry pose
+    * ``odom_xyyaw`` (N, 3): the odometry pose alone (no loop closure)
+    * ``slam_xyyaw`` (N, 3): the loop-closure pose alone (NaN until SLAM gives one, or with ``loop_closure=False``)
     * ``status`` (N, 1): 1 = the tracker returned a pose for the last frame, 0 = lost / no frame yet
     * ``num_features`` (N, 1): tracked 2D features in the last frame
     * ``track_time_ms`` (N, 1): wall time of the last ``track()`` call
@@ -63,6 +66,8 @@ class CuVslamManager:
         self.trackers: list[cuvslam.Tracker | None] = [None] * self.num_envs
 
         self.pose_xyyaw = torch.zeros(self.num_envs, 3, device=self.device)
+        self.odom_xyyaw = torch.zeros(self.num_envs, 3, device=self.device)
+        self.slam_xyyaw = torch.full((self.num_envs, 3), float("nan"), device=self.device)
         self.status = torch.zeros(self.num_envs, 1, device=self.device)
         self.num_features = torch.zeros(self.num_envs, 1, device=self.device)
         self.track_time_ms = torch.zeros(self.num_envs, 1, device=self.device)
@@ -129,6 +134,10 @@ class CuVslamManager:
 
             ok = odom.world_from_rig is not None
             self.status[i, 0] = 1.0 if ok else 0.0
+            if ok:
+                self.odom_xyyaw[i] = torch.tensor(self._xyyaw(odom.world_from_rig.pose), device=self.device)
+            if slam_pose is not None:
+                self.slam_xyyaw[i] = torch.tensor(self._xyyaw(slam_pose), device=self.device)
             pose = slam_pose if slam_pose is not None else (odom.world_from_rig.pose if ok else None)
             if pose is not None:
                 self.pose_xyyaw[i] = torch.tensor(self._xyyaw(pose), device=self.device)
@@ -144,6 +153,8 @@ class CuVslamManager:
     def _publish(self):
         self.env.slam_res = {
             "pose_xyyaw": self.pose_xyyaw,
+            "odom_xyyaw": self.odom_xyyaw,
+            "slam_xyyaw": self.slam_xyyaw,
             "status": self.status,
             "num_features": self.num_features,
             "track_time_ms": self.track_time_ms,
@@ -161,6 +172,8 @@ class CuVslamManager:
         for i in env_ids:
             self.trackers[i] = None
             self.pose_xyyaw[i] = 0.0
+            self.odom_xyyaw[i] = 0.0
+            self.slam_xyyaw[i] = float("nan")
             self.status[i] = 0.0
             self.num_features[i] = 0.0
             # sensor time restarts at 0 on reset, so any new frame counts as new
