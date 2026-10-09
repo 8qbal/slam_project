@@ -74,7 +74,8 @@ Goal: shorter perception delay and less CPU than ORB-SLAM3.
       ORB-SLAM3, loop closure on, one tracker per env, pose + tracking state + feature count + track time.
       Tasks `Spot-Nav-Map{A,B}-cuVSLAM-Play-v0`.
 - [x] First run and frame check (`scripts/slam/cuvslam_frame_check.py`): pose follows GT in sign and scale.
-- [ ] Longer runs (drift, loop closure): blocked, the low-level policy falls over on Map A within ~2 s.
+- [ ] Odometry jumps (2 single-frame jumps of 3-4 m in a 10 m drive on Map A, `docs/cuvslam.md` frame check 2):
+      find the cause before the benchmark.
 - [ ] Offline benchmark on the recorded data: ORB-SLAM3 vs. cuVSLAM with matched camera inputs and IMU use. evo
       ATE/RPE, tracking failures, recovery.
 - [ ] Online benchmark with the same fixed policy: total latency (image capture → pose used by the policy), SLAM

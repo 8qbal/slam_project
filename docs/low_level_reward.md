@@ -122,7 +122,24 @@ Only in `PaperRewardsCfg` / `SpotPaperEnvCfg` (`rl_vslam_v0` unchanged); weights
 | `gait`, `air_time` `velocity_threshold` | 0.5 m/s | ∞ | they paid a standing env for walking > 0.5 m/s (12 + 5 > 5), so it never stood; now only when a speed is commanded |
 | `rel_standing_envs` | 0.05 | 0.1 | more zero commands, so standing still gets learned |
 
-Retrain with `--max_iterations 8000` (~5-6 h at 512 envs), then rerun `gait_check.py`.
+Retrained on `Spot-Paper-Obstacles-v0` (`2026-10-09_19-27-34`, 8000 epochs, 5.5 h, reward 179; not comparable
+with 413 above, the reward is stricter). `gait_check.py`, tracked vx (m/s) and resets in 8 envs × 10 s:
+
+| Command vx | Before the fix (paper terrain, ep 20000) | Fix: eval paper terrain | Eval obstacles | Eval Map A |
+| --- | --- | --- | --- | --- |
+| 0 | 0.54 | 0.05 | 0.14 | 0.10 |
+| 0.25 | 0.59 | 0.31 | 0.28 | 0.27 |
+| 0.50 | 0.62 | 0.51 | 0.52 | 0.52 |
+| 0.75 | 0.65 | 0.73 | 0.79 | 0.18 (hit a wall, 2 resets) |
+| 1.00 | 0.69 / 0.69 | 0.95 / 1.03 | 0.94 / 0.98 | 1.02 / 0.95 |
+| 0.50, wz ±0.4 | wz 0.38 / −0.40 | wz 0.30 / −0.16 | wz 0.31 / −0.18 | wz 0.03 / −0.02 |
+| Resets | 1 | 0 | 0 | 3 (31 before the fix) |
+
+Speed now follows the command and the robot can stand. On Map A it no longer falls: the old policy (trained on an
+empty floor) fell because its depth input showed walls it never saw in training (`gait_check.py --no_maze`: 1 reset;
+`--hide_maze`, colliders kept but invisible: 14; visible map: 31). Still weak: turning, mostly to the right
+(−0.16 for −0.4), and almost none on Map A. Its kernel is as flat as the old speed kernel (σ = 2: a 0.2 rad/s error
+costs 0.5 of 5). |mu| > 1: 45 % (was 75 %).
 
 ## Training-terrain study
 
@@ -144,7 +161,7 @@ Results (fill after training; one row per trained policy, one column group per e
 | --- | --- | --- | --- |
 | paper terrain | | | |
 | rough | | | |
-| obstacles | | | |
+| obstacles | wz −0.16 to right, vx ok, 0 resets | | vx ok, 0 resets |
 
 ## Still open
 
@@ -155,7 +172,7 @@ Results (fill after training; one row per trained policy, one column group per e
 ## Retrain (the user runs this)
 
 ```bash
-python scripts/rl_games/train.py --task Spot-Paper-v0 --num_envs 512 --cameras   # 20000 epochs, roughly 20+ h
+python scripts/rl_games/train.py --task Spot-Paper-v0 --num_envs 512 --cameras --max_iterations 8000  # ~5.5 h
 python scripts/rl_games/train.py --task Spot-Paper-Rough-v0 --num_envs 512 --cameras
 python scripts/rl_games/train.py --task Spot-Paper-Obstacles-v0 --num_envs 512 --cameras
 python scripts/tools/gait_check.py --task Spot-Paper-v0 --checkpoint logs/rl_games/spot_paper_ppo/<run>/nn/spot_paper_ppo.pth

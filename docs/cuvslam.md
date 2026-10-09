@@ -1,9 +1,8 @@
 # cuVSLAM in the Isaac Lab pipeline (design note)
 
 Roadmap section 2. Goal: shorter perception delay and less CPU than ORB-SLAM3, with the same input so the benchmark
-is fair. Status (2026-10-08): manager and Play tasks run; frame check passed on the first 30 steps
-(`scripts/slam/cuvslam_frame_check.py`). Loop closure is on. Longer runs wait on a low-level fix: the current
-low-level policy falls over on Map A within ~2 s, with GT pose too (not a cuVSLAM issue).
+is fair. Status (2026-10-10): manager and Play tasks run, frames are right (`scripts/slam/cuvslam_frame_check.py`).
+Loop closure is on. Open: the RGB-D odometry jumps several metres on single frames (frame check 2 below).
 
 ## Same input as ORB-SLAM3
 
@@ -41,6 +40,8 @@ Per step, for each env whose SLAM camera produced a new frame:
 | Key | Shape | Meaning |
 | --- | --- | --- |
 | `pose_xyyaw` | (N, 3) | x, y, yaw of the robot body in its start frame (same frame as ORB-SLAM3 and the GT pose observation) |
+| `odom_xyyaw` | (N, 3) | odometry pose alone |
+| `slam_xyyaw` | (N, 3) | loop-closure pose alone (NaN until SLAM gives one) |
 | `status` | (N, 1) | 1 = the tracker returned a pose this frame, 0 = lost / not started |
 | `num_features` | (N, 1) | tracked 2D features in the last frame, `len(get_last_observations(0))` (needs `enable_observations_export`) |
 | `track_time_ms` | (N, 1) | wall time of `track()` (SLAM processing time) |
@@ -100,3 +101,22 @@ level; `--task Spot-Nav-MapA-GT-Play-v0` runs the same drive without SLAM). Befo
 
 x, y and yaw have the same sign and scale as GT, so the rig and frames are right. `track()` takes the RGB and the
 uint16 GPU depth tensors directly. Tracked 100 % of frames, 200-450 features, 1-7 ms per `track()`.
+
+## Frame check 2 (2026-10-10, low level `2026-10-09_19-27-34`)
+
+The new low level walks on Map A without falling, so the full 285-step drive (23 s, ~10 m) runs:
+
+| | Mean xy error | Max | Final | Mean yaw error | Jumps > 0.5 m in one step |
+| --- | --- | --- | --- | --- | --- |
+| odometry | 3.2 m | 5.2 m | 4.3 m | 5.8° | 2 |
+| loop closure | same as odometry on every step | | | | |
+
+- The loop-closure pose equals the odometry pose on every step: no loop is closed on this short drive, so loop
+  closure is not the cause of the error.
+- All the xy error comes from two single-frame odometry jumps: 4.4 m at step 87 (t = 7.0 s) and 2.7 m at step 145
+  (t = 11.6 s). Between them each step follows GT. Yaw stays within ~6°. Tracking status stays 1.
+- An earlier odometry-only run (robot stuck near the start) had a 0.34 m mean error, so short runs look fine.
+- GT moves ~0.5 m in y in the first second (robot settling after spawn) before cuVSLAM sees it: small fixed offset.
+
+Next: dump the RGB / depth frames around a jump (depth holes or far wall only? RGB and depth from the same render?)
+and try `max_depth_m`, grayscale input, or a lower camera rate.
