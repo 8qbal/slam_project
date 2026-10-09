@@ -16,6 +16,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--task", default="Spot-Nav-MapA-cuVSLAM-Play-v0")
 parser.add_argument("--print_every", type=int, default=10)
 parser.add_argument("--no_loop_closure", action="store_true", help="cuVSLAM odometry only")
+parser.add_argument("--dump_frames", action="store_true", help="save every SLAM frame (RGB, depth, stamp) for replay")
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 args.enable_cameras = True
@@ -54,6 +55,7 @@ env.reset()
 goal = env.command_manager.get_term("goal")
 
 rows = []  # step, GT (3), pose (3), odom (3), slam (3), ok, features, ms
+frames = {"rgb": [], "depth": [], "stamp": []}
 step = 0
 robot = env.scene["robot"]
 print(
@@ -70,6 +72,11 @@ for n, vx, wz in PHASES:
         est = [res.get(k, torch.full((1, 3), float("nan")))[0].tolist() for k in EST]
         ok, feat, ms = float(res["status"][0]), float(res["num_features"][0]), float(res["track_time_ms"][0])
         rows.append((step, *gt, *est[0], *est[1], *est[2], ok, feat, ms))
+        if args.dump_frames:
+            out_cam = env.scene.sensors["tilted_camera"].data.output
+            frames["rgb"].append(out_cam["rgb"].torch[0, ..., :3].cpu().numpy())
+            frames["depth"].append(out_cam["distance_to_image_plane"].torch[0, ..., 0].cpu().numpy())
+            frames["stamp"].append(float(res["stamp_s"][0]) if "stamp_s" in res else step * env.step_dt)
         if step % args.print_every == 0:
             z = float(robot.data.root_pos_w.torch[0, 2])
             qx, qy, qz, qw = robot.data.root_quat_w.torch[0].tolist()
@@ -110,5 +117,15 @@ for j, name in enumerate(("gt",) + EST):
             x, y, yaw = r[1 + 3 * j : 4 + 3 * j]
             f.write(f"{r[0] * dt:.3f} {x:.4f} {y:.4f} {yaw:.4f}\n")
 print(f"wrote {out}/{{gt,pose,odom,slam}}.txt (t x y yaw)")
+if args.dump_frames:
+    import numpy as np
+
+    np.savez_compressed(
+        f"{out}/frames.npz",
+        **{k: np.stack(v) for k, v in frames.items()},
+        gt=t[:, 1:4].numpy(),
+        odom=t[:, 7:10].numpy(),
+    )
+    print(f"wrote {out}/frames.npz ({len(frames['rgb'])} frames)")
 env.close()
 app.close()
