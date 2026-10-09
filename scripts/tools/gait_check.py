@@ -19,6 +19,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--task", default="Spot-Paper-v0")
 parser.add_argument("--checkpoint", required=True)
 parser.add_argument("--steps", type=int, default=300)
+parser.add_argument("--no_maze", action="store_true", help="map tasks: drop the map (flat floor only)")
+parser.add_argument("--hide_maze", action="store_true", help="map tasks: keep the map colliders, hide it")
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 args.enable_cameras = True
@@ -42,7 +44,17 @@ cfg.episode_length_s = 1000.0
 cfg.events.push_robot = None
 cfg.commands.base_velocity.resampling_time_range = (1e6, 1e6)
 cfg.commands.base_velocity.rel_standing_envs = 0.0
+if args.no_maze:
+    cfg.scene.maze = None
 env = gym.make(args.task, cfg=cfg).unwrapped
+if args.hide_maze:
+    from pxr import UsdGeom
+
+    import isaaclab.sim as sim_utils
+
+    stage = sim_utils.get_current_stage()
+    for i in range(N):
+        UsdGeom.Imageable(stage.GetPrimAtPath(f"/World/envs/env_{i}/Maze")).MakeInvisible()
 agent_cfg = load_cfg_from_registry(args.task, "rl_games_cfg_entry_point")
 obs, _ = env.reset()
 obs_dim = obs["policy"].shape[1]
