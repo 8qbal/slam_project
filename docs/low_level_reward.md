@@ -141,6 +141,24 @@ empty floor) fell because its depth input showed walls it never saw in training 
 (−0.16 for −0.4), and almost none on Map A. Its kernel is as flat as the old speed kernel (σ = 2: a 0.2 rad/s error
 costs 0.5 of 5). |mu| > 1: 45 % (was 75 %).
 
+### Turn fix (2026-10-10)
+
+`base_angular_velocity` σ 2.0 → 0.5 (a 0.2 rad/s error now costs 1.6 of 5). Retrained on `Spot-Paper-Obstacles-v0`
+(`2026-10-10_07-00-46`, 8000 epochs, 5.5 h, reward 161). `gait_check.py`, 8 envs × 10 s:
+
+| Command | Eval paper terrain | Eval obstacles | Eval Map A | Map A `--hide_maze` | Map A `--no_maze` |
+| --- | --- | --- | --- | --- | --- |
+| vx 0.25 / 0.5 / 0.75 / 1.0 | 0.25 / 0.52 / 0.79 / 1.04 | 0.24 / 0.51 / 0.78 / 1.02 | 0.23 / 0.51 / 0.79 / 1.02 | 0.21 / 0.43 / 0.77 / 1.04 | 0.23 / 0.52 / 0.79 / 1.01 |
+| vx 0.5, wz +0.4 | wz 0.37 | 0.08 | 0.04 | 0.34 | 0.37 |
+| vx 0.5, wz −0.4 | wz −0.31 | −0.31 | −0.03 | −0.30 | −0.31 |
+| Resets | 0 | 1 | 1 | 8 | 0 |
+
+Speed tracking stayed good. Turning is better on an open floor (+0.37 / −0.31, was +0.30 / −0.16). On Map A the
+robot still does not turn, but with the map hidden (same colliders, the depth camera sees no walls) it turns
+normally. So the depth image of the map, not contact, stops the turn: the policy reacts to what its depth input
+shows (the walls and shelves of the warehouse are unlike the training pillars). Next: train with obstacles that
+look more like the map, or check whether `visual_wall_penalty` / `open_space_seeker` push it to go straight.
+
 ## Training-terrain study
 
 Same reward, PPO and budget; only the training terrain changes. All three use the same agent yaml, so any of their
