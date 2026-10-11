@@ -29,6 +29,7 @@ _register("Spot-Paper-Play-v0", "paper_env_cfg:SpotPaperEnvCfg_PLAY", PAPER_AGEN
 # same reward and PPO, other training terrain
 _register("Spot-Paper-Rough-v0", "paper_env_cfg:SpotPaperRoughEnvCfg", PAPER_AGENT)
 _register("Spot-Paper-Obstacles-v0", "paper_env_cfg:SpotPaperObstaclesEnvCfg", PAPER_AGENT)
+_register("Spot-Paper-Walls-v0", "paper_env_cfg:SpotPaperWallsEnvCfg", PAPER_AGENT)
 # low-level env under the SB3 high-level wrapper, on paper Map A / B
 _register("Spot-Paper-high-level-MapA-v0", "paper_env_cfg:SpotPaperHighLevelEnvCfg", PAPER_AGENT)
 _register("Spot-Paper-high-level-MapA-Play-v0", "paper_env_cfg:SpotPaperHighLevelEnvCfg_PLAY", PAPER_AGENT)

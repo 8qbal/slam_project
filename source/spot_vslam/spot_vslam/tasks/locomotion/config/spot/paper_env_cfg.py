@@ -109,6 +109,18 @@ OBSTACLE_TERRAIN_CFG = TERRAIN_CFG.replace(
 )
 """The paper terrain with 30 % of the tiles holding 8 pillars / wall pieces (1-2 m high) the depth camera sees."""
 
+WALLS_TERRAIN_CFG = OBSTACLE_TERRAIN_CFG.replace(
+    sub_terrains={
+        **OBSTACLE_TERRAIN_CFG.sub_terrains,
+        "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.3),
+        "random_rough": OBSTACLE_TERRAIN_CFG.sub_terrains["random_rough"].replace(proportion=0.2),
+        "obstacles": OBSTACLE_TERRAIN_CFG.sub_terrains["obstacles"].replace(proportion=0.25),
+        "walls": mdp.WallsTerrainCfg(proportion=0.25),
+    },
+)
+"""The obstacle terrain plus 25 % tiles with long walls (1.5-5 m long, 1.5-3 m high, any angle), like the shelves
+and walls of the paper maps: the obstacle-trained policy stopped turning on Map A when it saw them."""
+
 
 @configclass
 class SpotPaperRoughEnvCfg(SpotPaperEnvCfg):
@@ -128,6 +140,15 @@ class SpotPaperObstaclesEnvCfg(SpotPaperEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.scene.terrain.terrain_generator = OBSTACLE_TERRAIN_CFG
+
+
+@configclass
+class SpotPaperWallsEnvCfg(SpotPaperEnvCfg):
+    """``Spot-Paper-Walls-v0``: the obstacle terrain plus wall tiles (same terrain curriculum)."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.scene.terrain.terrain_generator = WALLS_TERRAIN_CFG
 
 
 def use_paper_map(cfg: LocomotionEnvCfg, map_name: str):

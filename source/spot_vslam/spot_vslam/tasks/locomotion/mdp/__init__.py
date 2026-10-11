@@ -6,3 +6,4 @@ from isaaclab_tasks.core.velocity.mdp import terrain_levels_vel, terrain_out_of_
 
 from .observations import *  # noqa: F401, F403
 from .rewards import *  # noqa: F401, F403
+from .terrains import *  # noqa: F401, F403
