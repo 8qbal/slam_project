@@ -16,6 +16,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--task", default="Spot-Nav-MapA-cuVSLAM-Play-v0")
 parser.add_argument("--print_every", type=int, default=10)
 parser.add_argument("--no_loop_closure", action="store_true", help="cuVSLAM odometry only")
+parser.add_argument("--clip_far", type=float, default=None, help="override the SLAM camera's far clipping distance (m)")
 parser.add_argument("--dump_frames", action="store_true", help="save every SLAM frame (RGB, depth, stamp) for replay")
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
@@ -50,6 +51,9 @@ def to_action(vx, wz):
 cfg = parse_env_cfg(args.task, num_envs=1)
 if args.no_loop_closure and cfg.cuvslam is not None:
     cfg.cuvslam.loop_closure = False
+if args.clip_far is not None:
+    cam = cfg.scene.tilted_camera
+    cam.spawn = cam.spawn.replace(clipping_range=(cam.spawn.clipping_range[0], args.clip_far))
 env = gym.make(args.task, cfg=cfg).unwrapped
 env.reset()
 goal = env.command_manager.get_term("goal")
