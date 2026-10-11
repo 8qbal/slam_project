@@ -159,6 +159,24 @@ normally. So the depth image of the map, not contact, stops the turn: the policy
 shows (the walls and shelves of the warehouse are unlike the training pillars). Next: train with obstacles that
 look more like the map, or check whether `visual_wall_penalty` / `open_space_seeker` push it to go straight.
 
+### Wall terrain (2026-10-11/12): did not fix the Map A turn
+
+The policy's depth image at the Map A start shows a wall ~2 m away filling the whole image (start near a corner,
+random yaw). `Spot-Paper-Walls-v0` adds 25 % tiles with long walls (`mdp/terrains.py`, now 2-7 m long, 2.5-6 m high,
+plus 6 m walls on up to two tile edges).
+
+- Training from scratch on it failed (episode length ~30 steps at epoch 3000, 270 before; the env itself is fine: the
+  old policy survives on it). Stopped and deleted.
+- Fine-tune from `2026-10-10_07-00-46` instead: `2026-10-11_23-19-23` (epochs 7399-10000, first wall sizes), then
+  `2026-10-12_01-26-58` (10000-12000, taller walls). Speed tracking stays good (0.30 / 0.51 / 0.77 / 1.02 on the paper
+  terrain). Note: `spot_paper_ppo.pth` of a resumed run is saved right after the start; use the `last_*` files.
+- Map A turning is still weak and erratic, also turning in place (vx 0, wz ±0.4: 0.07 / −0.02 visible, 0.26 / −0.37
+  with the map hidden). With one env per command the numbers are noisy, but the visible map clearly blocks turns.
+
+Likely reason: near walls any motion risks a contact termination, so the policy learned to move little there, and
+the Map A start is in a corner. Open: make the low level follow commands near walls (e.g. no termination on light
+wall contact, or let the high level handle avoidance) or move the Map A start away from the corner.
+
 ## Training-terrain study
 
 Same reward, PPO and budget; only the training terrain changes. All three use the same agent yaml, so any of their
