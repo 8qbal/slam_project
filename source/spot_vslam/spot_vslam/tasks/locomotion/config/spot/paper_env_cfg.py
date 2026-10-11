@@ -118,8 +118,9 @@ WALLS_TERRAIN_CFG = OBSTACLE_TERRAIN_CFG.replace(
         "walls": mdp.WallsTerrainCfg(proportion=0.25),
     },
 )
-"""The obstacle terrain plus 25 % tiles with long walls (1.5-5 m long, 1.5-3 m high, any angle), like the shelves
-and walls of the paper maps: the obstacle-trained policy stopped turning on Map A when it saw them."""
+"""The obstacle terrain plus 25 % tiles with long walls (2-7 m long, 2.5-6 m high, any angle) and up to two 6 m
+room walls on the tile edges, like the shelves and walls of the paper maps: the obstacle-trained policy stopped
+turning on Map A, where a wall near the start fills its whole depth image."""
 
 
 @configclass
