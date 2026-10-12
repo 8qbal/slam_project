@@ -10,16 +10,6 @@
   --accent: #2f6fb0; --good: #2d8a4e; --warn: #b7791f; --bad: #c0392b; --chip: #eef3f9;
   --hl: #fff6d6;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #161615; --fg: #e9e9e4; --muted: #a3a39b; --line: #34342f; --card: #1f1f1d;
-    --accent: #7fb2e5; --good: #6cc48b; --warn: #e0b25a; --bad: #ec7c6f; --chip: #23303d; --hl: #3a3420;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #161615; --fg: #e9e9e4; --muted: #a3a39b; --line: #34342f; --card: #1f1f1d;
-  --accent: #7fb2e5; --good: #6cc48b; --warn: #e0b25a; --bad: #ec7c6f; --chip: #23303d; --hl: #3a3420;
-}
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
 main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
@@ -141,7 +131,7 @@ li { margin: 4px 0; }
   <text x="670" y="60" text-anchor="middle" class="muted">10-08_11-08-43 · 20000 ep</text>
   <text x="670" y="78" text-anchor="middle" class="muted">jalan bagus, speed selalu ~0.6</text>
   <path class="arr2" d="M210,59 H265"/><text x="238" y="50" text-anchor="middle" class="muted">353 dim</text>
-  <path class="arr2" d="M490,59 H545"/><text x="518" y="50" text-anchor="middle" class="muted">fungsi IL</text>
+  <path class="arr2" d="M490,59 H545"/><text x="518" y="50" text-anchor="middle" class="muted">Isaac Lab</text>
   <!-- down to row 2 -->
   <path class="arr2" d="M670,98 V130 H130 V155"/>
   <text x="400" y="124" text-anchor="middle" class="muted">fix kecepatan (σ 0.25) + terrain obstacles</text>
@@ -178,7 +168,7 @@ li { margin: 4px 0; }
   <text x="680" y="348" text-anchor="middle" class="muted">belum ada kode</text>
   <rect class="box w" x="30" y="300" width="200" height="78" rx="8"/>
   <text x="130" y="328" text-anchor="middle" font-weight="600">Rough</text>
-  <text x="130" y="348" text-anchor="middle" class="muted">reward kita, terrain IL</text>
+  <text x="130" y="348" text-anchor="middle" class="muted">reward kita, terrain Isaac Lab</text>
   <path class="arr2" d="M520,339 H575"/>
   <path class="arr2" d="M290,339 H235"/><text x="262" y="330" text-anchor="middle" class="muted">reward sama</text>
 </svg>
@@ -197,25 +187,25 @@ li { margin: 4px 0; }
 <p class="muted">rl_vslam_v0 (model lama kamu) tetap disimpan sebagai baseline di <code>baselines/rl_vslam_v0/</code>, tapi bukan bagian dari 5 model ini.</p>
 
 <h2 id="reward">4. Tabel perbandingan reward</h2>
-<p>Bobot sama di semua model (Table 3 paper), kecuali yang ditandai. Kolom kuning = berbeda dari kolom sebelumnya. "IL" = fungsi reward Spot Isaac Lab (<code>isaaclab_tasks/contrib/velocity/config/spot/mdp</code>).</p>
+<p>Bobot sama di semua model (Table 3 paper), kecuali yang ditandai. Kolom kuning = berbeda dari kolom sebelumnya. "Isaac Lab" = fungsi reward Spot bawaan Isaac Lab (<code>isaaclab_tasks/contrib/velocity/config/spot/mdp</code>).</p>
 <div class="scroll"><table>
 <tr><th>Term</th><th class="c">Bobot</th><th>rl_vslam_v0 (lama)</th><th>Literal</th><th>paper-isaaclab-reward-reproduce</th><th>Speed fix</th><th>Turn fix</th><th>Walls</th><th>WallsSoft</th></tr>
-<tr><td>Linear velocity</td><td class="c">5.0</td><td>IL, σ = 1.0</td><td class="diff">exp(−‖e‖²/1), kuadrat</td><td class="diff">IL, σ = 1.0</td><td class="diff">IL, <b>σ = 0.25</b></td><td>σ = 0.25</td><td>σ = 0.25</td><td>σ = 0.25</td></tr>
-<tr><td>Angular velocity</td><td class="c">5.0</td><td>IL, σ = 2.0</td><td>IL, σ = 2.0</td><td>IL, σ = 2.0</td><td>σ = 2.0</td><td class="diff"><b>σ = 0.5</b></td><td>σ = 0.5</td><td>σ = 0.5</td></tr>
-<tr><td>Gait</td><td class="c">12.0</td><td>IL GaitReward, aktif &gt; 0.5 m/s</td><td class="diff">indikator biner pola trot</td><td class="diff">IL GaitReward, &gt; 0.5 m/s</td><td class="diff">aktif <b>hanya kalau ada perintah</b></td><td>sama</td><td>sama</td><td>sama</td></tr>
-<tr><td>Air time</td><td class="c">5.0</td><td>IL, &gt; 0.5 m/s</td><td>IL</td><td>IL, &gt; 0.5 m/s</td><td class="diff">hanya kalau ada perintah</td><td>sama</td><td>sama</td><td>sama</td></tr>
-<tr><td>Foot clearance</td><td class="c">0.5</td><td>IL (exp, target 0.1 m)</td><td class="diff">Σ max(0, h − 0.1), tak terbatas</td><td class="diff">IL</td><td>IL</td><td>IL</td><td>IL</td><td>IL</td></tr>
+<tr><td>Linear velocity</td><td class="c">5.0</td><td>Isaac Lab, σ = 1.0</td><td class="diff">exp(−‖e‖²/1), kuadrat</td><td class="diff">Isaac Lab, σ = 1.0</td><td class="diff">Isaac Lab, <b>σ = 0.25</b></td><td>σ = 0.25</td><td>σ = 0.25</td><td>σ = 0.25</td></tr>
+<tr><td>Angular velocity</td><td class="c">5.0</td><td>Isaac Lab, σ = 2.0</td><td>Isaac Lab, σ = 2.0</td><td>Isaac Lab, σ = 2.0</td><td>σ = 2.0</td><td class="diff"><b>σ = 0.5</b></td><td>σ = 0.5</td><td>σ = 0.5</td></tr>
+<tr><td>Gait</td><td class="c">12.0</td><td>Isaac Lab GaitReward, aktif &gt; 0.5 m/s</td><td class="diff">indikator biner pola trot</td><td class="diff">Isaac Lab GaitReward, &gt; 0.5 m/s</td><td class="diff">aktif <b>hanya kalau ada perintah</b></td><td>sama</td><td>sama</td><td>sama</td></tr>
+<tr><td>Air time</td><td class="c">5.0</td><td>Isaac Lab, &gt; 0.5 m/s</td><td>Isaac Lab</td><td>Isaac Lab, &gt; 0.5 m/s</td><td class="diff">hanya kalau ada perintah</td><td>sama</td><td>sama</td><td>sama</td></tr>
+<tr><td>Foot clearance</td><td class="c">0.5</td><td>Isaac Lab (exp, target 0.1 m)</td><td class="diff">Σ max(0, h − 0.1), tak terbatas</td><td class="diff">Isaac Lab</td><td>Isaac Lab</td><td>Isaac Lab</td><td>Isaac Lab</td><td>Isaac Lab</td></tr>
 <tr><td>Open space seeker</td><td class="c">0.5</td><td>vx × rata-rata depth depan</td><td>sama</td><td>sama</td><td>sama</td><td>sama</td><td>sama</td><td>sama</td></tr>
 <tr><td>Visual wall</td><td class="c">−0.1</td><td>(0.6 − jarak terdekat)², kuadrat</td><td class="diff">Eq. 5: −min(depth)</td><td>Eq. 5</td><td>Eq. 5</td><td>Eq. 5</td><td>Eq. 5</td><td>Eq. 5</td></tr>
-<tr><td>Foot slip</td><td class="c">−0.5</td><td>IL (kecepatan kaki planar)</td><td class="diff">Σ‖v_kaki‖² 3D</td><td class="diff">IL</td><td>IL</td><td>IL</td><td>IL</td><td>IL</td></tr>
-<tr><td>Action smoothness</td><td class="c">−1.0</td><td colspan="7">IL di semua model</td></tr>
-<tr><td>Air time variance</td><td class="c">−1.0</td><td colspan="7">IL di semua model</td></tr>
-<tr><td>Base motion</td><td class="c">−2.0</td><td colspan="7">IL di semua model</td></tr>
-<tr><td>Base orientation</td><td class="c">−3.0</td><td colspan="7">IL di semua model</td></tr>
-<tr><td>Joint acc</td><td class="c">−1e−4</td><td colspan="7">IL di semua model</td></tr>
-<tr><td>Joint pos</td><td class="c">−0.7</td><td colspan="7">IL di semua model</td></tr>
-<tr><td>Joint torque</td><td class="c">−5e−4</td><td colspan="7">IL di semua model</td></tr>
-<tr><td>Joint vel</td><td class="c">−1e−2</td><td colspan="7">IL di semua model</td></tr>
+<tr><td>Foot slip</td><td class="c">−0.5</td><td>Isaac Lab (kecepatan kaki planar)</td><td class="diff">Σ‖v_kaki‖² 3D</td><td class="diff">Isaac Lab</td><td>Isaac Lab</td><td>Isaac Lab</td><td>Isaac Lab</td><td>Isaac Lab</td></tr>
+<tr><td>Action smoothness</td><td class="c">−1.0</td><td colspan="7">Isaac Lab di semua model</td></tr>
+<tr><td>Air time variance</td><td class="c">−1.0</td><td colspan="7">Isaac Lab di semua model</td></tr>
+<tr><td>Base motion</td><td class="c">−2.0</td><td colspan="7">Isaac Lab di semua model</td></tr>
+<tr><td>Base orientation</td><td class="c">−3.0</td><td colspan="7">Isaac Lab di semua model</td></tr>
+<tr><td>Joint acc</td><td class="c">−1e−4</td><td colspan="7">Isaac Lab di semua model</td></tr>
+<tr><td>Joint pos</td><td class="c">−0.7</td><td colspan="7">Isaac Lab di semua model</td></tr>
+<tr><td>Joint torque</td><td class="c">−5e−4</td><td colspan="7">Isaac Lab di semua model</td></tr>
+<tr><td>Joint vel</td><td class="c">−1e−2</td><td colspan="7">Isaac Lab di semua model</td></tr>
 <tr><td><b>Wall contact</b> (baru)</td><td class="c">−5.0</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td class="diff">jumlah bagian badan/kaki yang menyentuh</td></tr>
 </table></div>
 
