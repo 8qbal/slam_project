@@ -63,6 +63,9 @@ comes first. Details and result tables: `docs/low_level_reward.md`.
 | Rough | ours, other terrain (Isaac Lab's Spot terrain), same reward as WallsSoft | `Spot-Paper-Rough-v0` | to train |
 | WallsSoft + noise | WallsSoft with depth noise (comparison 3) | to build | to train |
 
+`rl_vslam_v0` stays in the repo but is not used in our paper: the baseline is the numbers reported in the original
+paper (a rerun here would differ anyway), and the high level is retrained on the chosen low level.
+
 Main comparison: `paper-isaaclab-reward-reproduce` vs. WallsSoft (reward and terrain changes as one package). The paper terrain is not retrained
 with our reward: flat-floor training already failed near Map A's walls.
 
