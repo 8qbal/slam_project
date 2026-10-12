@@ -10,6 +10,7 @@ import isaaclab.terrains as terrain_gen
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 
@@ -150,6 +151,27 @@ class SpotPaperWallsEnvCfg(SpotPaperEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.scene.terrain.terrain_generator = WALLS_TERRAIN_CFG
+
+
+@configclass
+class SpotPaperWallsSoftEnvCfg(SpotPaperWallsEnvCfg):
+    """``Spot-Paper-WallsSoft-v0``: the wall terrain, but a body / leg contact costs a penalty instead of ending the
+    episode; only a fall ends it. With contact = termination the policy learned to barely move (or turn) near walls,
+    and on Map A, whose start is a corner, the high level's turn commands were ignored (docs/low_level_reward.md).
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.terminations.body_contact = None
+        self.terminations.leg_contact = None
+        self.terminations.bad_orientation = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 1.0})
+        self.terminations.base_too_low = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.2})
+        # -5 x dt (0.04) = -0.2 per touching body and step, about the whole per-step reward
+        self.rewards.wall_contact = RewTerm(
+            func=mdp.undesired_contacts,
+            weight=-5.0,
+            params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=["body", ".*leg"]), "threshold": 1.0},
+        )
 
 
 def use_paper_map(cfg: LocomotionEnvCfg, map_name: str):
