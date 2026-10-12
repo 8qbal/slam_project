@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Low Level Spot</title>
+<style>
+:root {
+  --bg: #fafaf8; --fg: #1d1d1b; --muted: #66665f; --line: #deded8; --card: #ffffff;
+  --accent: #2f6fb0; --good: #2d8a4e; --warn: #b7791f; --bad: #c0392b; --chip: #eef3f9;
+  --hl: #fff6d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161615; --fg: #e9e9e4; --muted: #a3a39b; --line: #34342f; --card: #1f1f1d;
+    --accent: #7fb2e5; --good: #6cc48b; --warn: #e0b25a; --bad: #ec7c6f; --chip: #23303d; --hl: #3a3420;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161615; --fg: #e9e9e4; --muted: #a3a39b; --line: #34342f; --card: #1f1f1d;
+  --accent: #7fb2e5; --good: #6cc48b; --warn: #e0b25a; --bad: #ec7c6f; --chip: #23303d; --hl: #3a3420;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.7rem; margin: 0 0 4px; }
+h2 { font-size: 1.25rem; margin: 40px 0 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.05rem; margin: 20px 0 8px; }
+p.sub { color: var(--muted); margin: 0 0 16px; }
+nav { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0; }
+nav a { background: var(--chip); color: var(--accent); padding: 3px 10px; border-radius: 99px; text-decoration: none; font-size: 0.88rem; }
+code { font: 0.85em ui-monospace, "SF Mono", Menlo, monospace; background: var(--chip); padding: 1px 4px; border-radius: 4px; }
+.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+table { border-collapse: collapse; width: 100%; font-size: 0.86rem; }
+th, td { padding: 6px 9px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+th { background: var(--chip); font-weight: 600; white-space: nowrap; position: sticky; top: 0; }
+tr:last-child td { border-bottom: none; }
+td.c, th.c { text-align: center; }
+.diff { background: var(--hl); }
+.good { color: var(--good); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.muted { color: var(--muted); }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.card b { display: block; margin-bottom: 2px; }
+.note { background: var(--card); border-left: 3px solid var(--warn); padding: 8px 12px; margin: 8px 0; border-radius: 0 6px 6px 0; }
+.note.info { border-left-color: var(--accent); }
+.note.bad { border-left-color: var(--bad); font-weight: normal; color: var(--fg); }
+svg { display: block; width: 100%; height: auto; }
+svg text { fill: var(--fg); font: 12px system-ui, sans-serif; }
+svg .muted { fill: var(--muted); }
+svg .box { fill: var(--card); stroke: var(--line); stroke-width: 1.2; }
+svg .box.a { stroke: var(--accent); stroke-width: 1.8; }
+svg .box.g { stroke: var(--good); stroke-width: 1.8; }
+svg .box.w { stroke: var(--warn); stroke-width: 1.8; stroke-dasharray: 5 3; }
+svg .box.b { stroke: var(--bad); stroke-width: 1.8; }
+svg .arr { stroke: var(--muted); stroke-width: 1.4; fill: none; marker-end: url(#ah); }
+svg .arr.a { stroke: var(--accent); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.85rem; color: var(--muted); margin: 6px 0 0; }
+.legend span::before { content: ""; display: inline-block; width: 14px; height: 10px; border: 2px solid; margin-right: 5px; vertical-align: -1px; border-radius: 2px; }
+.legend .l-a::before { border-color: var(--accent); }
+.legend .l-g::before { border-color: var(--good); }
+.legend .l-w::before { border-color: var(--warn); border-style: dashed; }
+.legend .l-b::before { border-color: var(--bad); }
+ul { padding-left: 20px; }
+li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>Low level Spot: model, reward, observasi, action</h1>
+<p class="sub">Reproduksi Li &amp; Jeong (IJCAS 2026) di Isaac Lab 3.0. Status per 2026-10-12. Sumber: kode di <code>tasks/locomotion/</code> dan <code>docs/low_level_reward.md</code>.</p>
+<nav>
+  <a href="#alur">Alur sistem</a><a href="#riwayat">Riwayat model</a><a href="#lima">5 model final</a>
+  <a href="#reward">Tabel reward</a><a href="#obs">Observasi</a><a href="#action">Action &amp; cfg</a>
+  <a href="#hasil">Hasil</a><a href="#penting">Perlu diketahui</a>
+</nav>
+
+<h2 id="alur">1. Alur sistem sekarang</h2>
+<p>High level memberi perintah kecepatan, low level mengubahnya jadi sudut 12 sendi. Low level melihat dunia lewat kamera depth kecil (80×60). SLAM memakai kamera RGB-D terpisah (320×240) dan hanya memberi pose ke high level.</p>
+<div class="scroll" style="padding:8px">
+<svg viewBox="0 0 1040 330" role="img" aria-label="Diagram alur sistem">
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" style="color:var(--muted)"/></marker></defs>
+  <!-- row 1 -->
+  <rect class="box" x="10" y="20" width="150" height="62" rx="8"/>
+  <text x="85" y="45" text-anchor="middle">Kamera RGB-D</text><text x="85" y="63" text-anchor="middle" class="muted">320×240, 10 Hz</text>
+  <rect class="box" x="210" y="20" width="170" height="62" rx="8"/>
+  <text x="295" y="45" text-anchor="middle">ORB-SLAM3 / cuVSLAM</text><text x="295" y="63" text-anchor="middle" class="muted">atau GT pose saat training</text>
+  <rect class="box a" x="430" y="10" width="200" height="82" rx="8"/>
+  <text x="530" y="34" text-anchor="middle" font-weight="600">High level (PPO)</text>
+  <text x="530" y="52" text-anchor="middle" class="muted">9 dim: pose, goal, kecepatan</text>
+  <text x="530" y="70" text-anchor="middle" class="muted">MLP [256,128], 12.5 Hz</text>
+  <rect class="box" x="680" y="20" width="150" height="62" rx="8"/>
+  <text x="755" y="45" text-anchor="middle">EMA α = 0.25</text><text x="755" y="63" text-anchor="middle" class="muted">vx 0..1, ωz ±0.4</text>
+  <path class="arr" d="M160,51 H205"/><path class="arr" d="M380,51 H425"/><path class="arr" d="M630,51 H675"/>
+  <text x="402" y="44" text-anchor="middle" class="muted">x,y,ψ</text>
+  <!-- down -->
+  <path class="arr" d="M755,82 V150 H705"/>
+  <text x="790" y="125" class="muted">perintah vx, ωz</text>
+  <!-- row 2 -->
+  <rect class="box" x="10" y="140" width="150" height="62" rx="8"/>
+  <text x="85" y="165" text-anchor="middle">Kamera depth</text><text x="85" y="183" text-anchor="middle" class="muted">80×60, 25 Hz, 0–5 m</text>
+  <rect class="box" x="210" y="140" width="170" height="62" rx="8"/>
+  <text x="295" y="160" text-anchor="middle">Pool 4×4 → 15×20</text><text x="295" y="177" text-anchor="middle" class="muted">300 dim + 5 statistik</text><text x="295" y="193" text-anchor="middle" class="muted">(kiri/tengah/kanan/min/balance)</text>
+  <rect class="box" x="210" y="230" width="170" height="62" rx="8"/>
+  <text x="295" y="255" text-anchor="middle">Proprioseptif</text><text x="295" y="273" text-anchor="middle" class="muted">48 dim (IMU, sendi, aksi, cmd)</text>
+  <rect class="box g" x="430" y="140" width="270" height="110" rx="8"/>
+  <text x="565" y="165" text-anchor="middle" font-weight="600">Low level (PPO, rl_games)</text>
+  <text x="565" y="185" text-anchor="middle" class="muted">obs 353 dim → MLP [512,256,128] ELU</text>
+  <text x="565" y="203" text-anchor="middle" class="muted">25 Hz (dt 0.002 s × decimation 20)</text>
+  <text x="565" y="221" text-anchor="middle" class="muted">output 12 aksi sendi</text>
+  <rect class="box" x="750" y="150" width="130" height="90" rx="8"/>
+  <text x="815" y="178" text-anchor="middle">Sendi Spot</text><text x="815" y="196" text-anchor="middle" class="muted">target = default</text><text x="815" y="212" text-anchor="middle" class="muted">+ 0.2 × aksi</text>
+  <rect class="box" x="920" y="150" width="110" height="90" rx="8"/>
+  <text x="975" y="185" text-anchor="middle">PhysX</text><text x="975" y="203" text-anchor="middle" class="muted">PD controller</text>
+  <path class="arr" d="M160,171 H205"/><path class="arr" d="M380,175 H425"/><path class="arr" d="M380,261 H500 V255"/>
+  <path class="arr" d="M700,195 H745"/><path class="arr" d="M880,195 H915"/>
+  <path class="arr" d="M975,240 V315 H85 V292"/>
+  <text x="520" y="310" text-anchor="middle" class="muted">robot bergerak → kamera &amp; sensor berubah</text>
+</svg>
+</div>
+
+<h2 id="riwayat">2. Riwayat semua model low level</h2>
+<p>Urutan training dari awal sampai sekarang. Setiap panah = satu perubahan.</p>
+<div class="scroll" style="padding:8px">
+<svg viewBox="0 0 1040 400" role="img" aria-label="Riwayat model">
+  <defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" style="color:var(--muted)"/></marker></defs>
+  <style>.arr2{stroke:var(--muted);stroke-width:1.4;fill:none;marker-end:url(#ah2)}</style>
+  <!-- row 1 -->
+  <rect class="box" x="10" y="20" width="200" height="78" rx="8"/>
+  <text x="110" y="42" text-anchor="middle" font-weight="600">rl_vslam_v0</text>
+  <text x="110" y="60" text-anchor="middle" class="muted">09-30 · model lama kamu</text>
+  <text x="110" y="78" text-anchor="middle" class="muted">245 dim, depth 64×48</text>
+  <rect class="box b" x="270" y="20" width="220" height="78" rx="8"/>
+  <text x="380" y="42" text-anchor="middle" font-weight="600">Reward literal</text>
+  <text x="380" y="60" text-anchor="middle" class="muted">10-05_16-01-15 · 6000 ep</text>
+  <text x="380" y="78" text-anchor="middle" class="bad" style="fill:var(--bad)">trot di tempat, tidak jalan</text>
+  <rect class="box a" x="550" y="20" width="240" height="78" rx="8"/>
+  <text x="670" y="42" text-anchor="middle" font-weight="600">paper-isaaclab-reward-reproduce</text>
+  <text x="670" y="60" text-anchor="middle" class="muted">10-08_11-08-43 · 20000 ep</text>
+  <text x="670" y="78" text-anchor="middle" class="muted">jalan bagus, speed selalu ~0.6</text>
+  <path class="arr2" d="M210,59 H265"/><text x="238" y="50" text-anchor="middle" class="muted">353 dim</text>
+  <path class="arr2" d="M490,59 H545"/><text x="518" y="50" text-anchor="middle" class="muted">fungsi IL</text>
+  <!-- down to row 2 -->
+  <path class="arr2" d="M670,98 V130 H130 V155"/>
+  <text x="400" y="124" text-anchor="middle" class="muted">fix kecepatan (σ 0.25) + terrain obstacles</text>
+  <!-- row 2 -->
+  <rect class="box" x="10" y="160" width="230" height="78" rx="8"/>
+  <text x="125" y="182" text-anchor="middle" font-weight="600">Speed fix (Obstacles)</text>
+  <text x="125" y="200" text-anchor="middle" class="muted">10-09_19-27-34 · 8000 ep</text>
+  <text x="125" y="218" text-anchor="middle" class="muted">speed ikut, belok lemah</text>
+  <rect class="box" x="290" y="160" width="230" height="78" rx="8"/>
+  <text x="405" y="182" text-anchor="middle" font-weight="600">Turn fix (Obstacles)</text>
+  <text x="405" y="200" text-anchor="middle" class="muted">10-10_07-00-46 · 8000 ep</text>
+  <text x="405" y="218" text-anchor="middle" class="muted">belok OK di lantai, Map A tidak</text>
+  <rect class="box" x="570" y="160" width="210" height="78" rx="8"/>
+  <text x="675" y="182" text-anchor="middle" font-weight="600">Walls fine-tune 1</text>
+  <text x="675" y="200" text-anchor="middle" class="muted">10-11_23-19-23 · →10000</text>
+  <text x="675" y="218" text-anchor="middle" class="muted">Map A masih tidak belok</text>
+  <rect class="box" x="830" y="160" width="200" height="78" rx="8"/>
+  <text x="930" y="182" text-anchor="middle" font-weight="600">Walls fine-tune 2</text>
+  <text x="930" y="200" text-anchor="middle" class="muted">10-12_01-26-58 · →12000</text>
+  <text x="930" y="218" text-anchor="middle" class="muted">dinding lebih tinggi, sama</text>
+  <path class="arr2" d="M240,199 H285"/><text x="263" y="190" text-anchor="middle" class="muted">σ_ωz .5</text>
+  <path class="arr2" d="M520,199 H565"/><text x="543" y="190" text-anchor="middle" class="muted">+dinding</text>
+  <path class="arr2" d="M780,199 H825"/>
+  <!-- down to row 3 -->
+  <path class="arr2" d="M930,238 V270 H400 V295"/>
+  <text x="660" y="264" text-anchor="middle" class="muted">kontak dinding = penalti, bukan terminate</text>
+  <!-- row 3 -->
+  <rect class="box g" x="290" y="300" width="230" height="78" rx="8"/>
+  <text x="405" y="322" text-anchor="middle" font-weight="600">WallsSoft</text>
+  <text x="405" y="340" text-anchor="middle" class="muted">→14000 · model utama</text>
+  <text x="405" y="358" text-anchor="middle" class="warn" style="fill:var(--warn)">sedang training</text>
+  <rect class="box w" x="580" y="300" width="200" height="78" rx="8"/>
+  <text x="680" y="328" text-anchor="middle" font-weight="600">WallsSoft + noise</text>
+  <text x="680" y="348" text-anchor="middle" class="muted">belum ada kode</text>
+  <rect class="box w" x="30" y="300" width="200" height="78" rx="8"/>
+  <text x="130" y="328" text-anchor="middle" font-weight="600">Rough</text>
+  <text x="130" y="348" text-anchor="middle" class="muted">reward kita, terrain IL</text>
+  <path class="arr2" d="M520,339 H575"/>
+  <path class="arr2" d="M290,339 H235"/><text x="262" y="330" text-anchor="middle" class="muted">reward sama</text>
+</svg>
+</div>
+<div class="legend"><span class="l-a">paper</span><span class="l-b">gagal</span><span class="l-g">model utama</span><span class="l-w">belum dilatih</span></div>
+
+<h2 id="lima">3. Lima model yang dipakai untuk perbandingan</h2>
+<div class="scroll"><table>
+<tr><th>Model</th><th>Peran</th><th>Run / task</th><th>Status</th></tr>
+<tr><td>Reward literal</td><td>Paper kalau Eq. 2–6 diikuti persis</td><td><code>10-05_16-01-15</code> (tidak bisa di-load lagi)</td><td class="good">ada</td></tr>
+<tr><td><b>paper-isaaclab-reward-reproduce</b></td><td>Reproduksi paper: bobot Table 3 di fungsi reward Spot Isaac Lab, PPO &amp; default Isaac Lab, terrain paper</td><td><code>Spot-Paper-v0</code>, <code>10-08_11-08-43</code></td><td class="good">ada</td></tr>
+<tr><td><b>WallsSoft</b></td><td>Versi kita, model utama</td><td><code>Spot-Paper-WallsSoft-v0</code></td><td class="warn">training</td></tr>
+<tr><td>Rough</td><td>Terrain lain, reward sama dengan WallsSoft</td><td><code>Spot-Paper-Rough-v0</code></td><td class="bad">belum</td></tr>
+<tr><td>WallsSoft + noise</td><td>Depth noise (perbandingan 3)</td><td>belum dibuat</td><td class="bad">belum</td></tr>
+</table></div>
+<p class="muted">rl_vslam_v0 (model lama kamu) tetap disimpan sebagai baseline di <code>baselines/rl_vslam_v0/</code>, tapi bukan bagian dari 5 model ini.</p>
+
+<h2 id="reward">4. Tabel perbandingan reward</h2>
+<p>Bobot sama di semua model (Table 3 paper), kecuali yang ditandai. Kolom kuning = berbeda dari kolom sebelumnya. "IL" = fungsi reward Spot Isaac Lab (<code>isaaclab_tasks/contrib/velocity/config/spot/mdp</code>).</p>
+<div class="scroll"><table>
+<tr><th>Term</th><th class="c">Bobot</th><th>rl_vslam_v0 (lama)</th><th>Literal</th><th>paper-isaaclab-reward-reproduce</th><th>Speed fix</th><th>Turn fix</th><th>Walls</th><th>WallsSoft</th></tr>
+<tr><td>Linear velocity</td><td class="c">5.0</td><td>IL, σ = 1.0</td><td class="diff">exp(−‖e‖²/1), kuadrat</td><td class="diff">IL, σ = 1.0</td><td class="diff">IL, <b>σ = 0.25</b></td><td>σ = 0.25</td><td>σ = 0.25</td><td>σ = 0.25</td></tr>
+<tr><td>Angular velocity</td><td class="c">5.0</td><td>IL, σ = 2.0</td><td>IL, σ = 2.0</td><td>IL, σ = 2.0</td><td>σ = 2.0</td><td class="diff"><b>σ = 0.5</b></td><td>σ = 0.5</td><td>σ = 0.5</td></tr>
+<tr><td>Gait</td><td class="c">12.0</td><td>IL GaitReward, aktif &gt; 0.5 m/s</td><td class="diff">indikator biner pola trot</td><td class="diff">IL GaitReward, &gt; 0.5 m/s</td><td class="diff">aktif <b>hanya kalau ada perintah</b></td><td>sama</td><td>sama</td><td>sama</td></tr>
+<tr><td>Air time</td><td class="c">5.0</td><td>IL, &gt; 0.5 m/s</td><td>IL</td><td>IL, &gt; 0.5 m/s</td><td class="diff">hanya kalau ada perintah</td><td>sama</td><td>sama</td><td>sama</td></tr>
+<tr><td>Foot clearance</td><td class="c">0.5</td><td>IL (exp, target 0.1 m)</td><td class="diff">Σ max(0, h − 0.1), tak terbatas</td><td class="diff">IL</td><td>IL</td><td>IL</td><td>IL</td><td>IL</td></tr>
+<tr><td>Open space seeker</td><td class="c">0.5</td><td>vx × rata-rata depth depan</td><td>sama</td><td>sama</td><td>sama</td><td>sama</td><td>sama</td><td>sama</td></tr>
+<tr><td>Visual wall</td><td class="c">−0.1</td><td>(0.6 − jarak terdekat)², kuadrat</td><td class="diff">Eq. 5: −min(depth)</td><td>Eq. 5</td><td>Eq. 5</td><td>Eq. 5</td><td>Eq. 5</td><td>Eq. 5</td></tr>
+<tr><td>Foot slip</td><td class="c">−0.5</td><td>IL (kecepatan kaki planar)</td><td class="diff">Σ‖v_kaki‖² 3D</td><td class="diff">IL</td><td>IL</td><td>IL</td><td>IL</td><td>IL</td></tr>
+<tr><td>Action smoothness</td><td class="c">−1.0</td><td colspan="7">IL di semua model</td></tr>
+<tr><td>Air time variance</td><td class="c">−1.0</td><td colspan="7">IL di semua model</td></tr>
+<tr><td>Base motion</td><td class="c">−2.0</td><td colspan="7">IL di semua model</td></tr>
+<tr><td>Base orientation</td><td class="c">−3.0</td><td colspan="7">IL di semua model</td></tr>
+<tr><td>Joint acc</td><td class="c">−1e−4</td><td colspan="7">IL di semua model</td></tr>
+<tr><td>Joint pos</td><td class="c">−0.7</td><td colspan="7">IL di semua model</td></tr>
+<tr><td>Joint torque</td><td class="c">−5e−4</td><td colspan="7">IL di semua model</td></tr>
+<tr><td>Joint vel</td><td class="c">−1e−2</td><td colspan="7">IL di semua model</td></tr>
+<tr><td><b>Wall contact</b> (baru)</td><td class="c">−5.0</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td class="diff">jumlah bagian badan/kaki yang menyentuh</td></tr>
+</table></div>
+
+<h3>Setelan lain per model</h3>
+<div class="scroll"><table>
+<tr><th>Setelan</th><th>rl_vslam_v0</th><th>Literal</th><th>paper-isaaclab-reward-reproduce</th><th>Speed fix</th><th>Turn fix</th><th>Walls</th><th>WallsSoft</th></tr>
+<tr><td>Obs</td><td>245 (depth 64×48)</td><td class="diff">353 (depth 80×60)</td><td>353</td><td>353</td><td>353</td><td>353</td><td>353</td></tr>
+<tr><td>Terrain</td><td>paper</td><td>paper</td><td>paper</td><td class="diff">obstacles</td><td>obstacles</td><td class="diff">walls</td><td>walls</td></tr>
+<tr><td>Terminate saat kontak</td><td>badan / kaki</td><td>badan / kaki</td><td>badan / kaki</td><td>badan / kaki</td><td>badan / kaki</td><td>badan / kaki</td><td class="diff">hanya kalau jatuh (miring &gt; 57° atau tinggi &lt; 0.2 m)</td></tr>
+<tr><td>Perintah diam</td><td>5 %</td><td>5 %</td><td>5 %</td><td class="diff">10 %</td><td>10 %</td><td>10 %</td><td>10 %</td></tr>
+<tr><td>PPO</td><td>yaml lama (clip aksi ±1, critic share, normalisasi)</td><td>yaml lama</td><td class="diff">setelan Spot Isaac Lab</td><td>sama</td><td>sama</td><td>sama</td><td>sama</td></tr>
+<tr><td>Epoch</td><td>—</td><td>6000</td><td>20000</td><td>8000</td><td>8000</td><td>+2600, +2000 (fine-tune)</td><td>+2000 (fine-tune)</td></tr>
+<tr><td>Reward akhir</td><td>—</td><td>—</td><td>413</td><td>179</td><td>161</td><td>112 → 136</td><td>?</td></tr>
+</table></div>
+<p class="muted">Angka reward akhir tidak bisa dibandingkan antar model: reward-nya berubah (lebih ketat).</p>
+
+<h3>PPO: lama vs sekarang</h3>
+<div class="scroll"><table>
+<tr><th>Setelan</th><th>Lama (rl_vslam_v0, literal)</th><th>Sekarang (Isaac Lab Spot)</th></tr>
+<tr><td>Clip aksi</td><td>[−1, 1]</td><td>tidak ada</td></tr>
+<tr><td>Actor / critic</td><td>satu badan</td><td>terpisah</td></tr>
+<tr><td>Normalisasi obs / value</td><td>on / on</td><td>off / off</td></tr>
+<tr><td>Learning rate</td><td>5e-4 adaptif</td><td>1e-3 adaptif, KL 0.01</td></tr>
+<tr><td>Rollout / epoch / minibatch</td><td>48 / 4 / 256</td><td>24 / 5 / 3072</td></tr>
+<tr><td>Entropy</td><td>0.002</td><td>0.0025</td></tr>
+<tr><td>γ, λ, clip</td><td colspan="2">0.99, 0.95, 0.2 (sama)</td></tr>
+<tr><td>Jaringan</td><td colspan="2">[512, 256, 128] ELU (Table 4)</td></tr>
+</table></div>
+
+<h2 id="obs">5. Observasi low level (353 dim)</h2>
+<p>Urutan ini penting: model yang sudah dilatih bergantung pada urutannya.</p>
+<div class="scroll"><table>
+<tr><th>#</th><th>Term</th><th class="c">Dim</th><th>Isi</th></tr>
+<tr><td>1</td><td><code>base_lin_vel</code></td><td class="c">3</td><td>kecepatan linear badan (frame badan)</td></tr>
+<tr><td>2</td><td><code>base_ang_vel</code></td><td class="c">3</td><td>kecepatan sudut badan</td></tr>
+<tr><td>3</td><td><code>projected_gravity</code></td><td class="c">3</td><td>arah gravitasi di frame badan (kemiringan)</td></tr>
+<tr><td>4</td><td><code>joint_pos</code></td><td class="c">12</td><td>posisi sendi relatif ke posisi default</td></tr>
+<tr><td>5</td><td><code>joint_vel</code></td><td class="c">12</td><td>kecepatan sendi</td></tr>
+<tr><td>6</td><td><code>actions</code></td><td class="c">12</td><td>aksi step sebelumnya</td></tr>
+<tr><td>7</td><td><code>velocity_commands</code></td><td class="c">3</td><td>perintah vx, vy (selalu 0), ωz</td></tr>
+<tr><td>8</td><td><code>camera_depth</code></td><td class="c">300</td><td>depth 80×60, di-clamp 0–5 m, avg-pool 4×4 → 15×20, dinormalisasi ke [−1, 1]</td></tr>
+<tr><td>9</td><td><code>camera_depth_stats</code></td><td class="c">5</td><td>rata-rata kiri, tengah, kanan; minimum depan; selisih kiri−kanan</td></tr>
+<tr><th></th><th>Total</th><th class="c">353</th><th>48 proprioseptif + 305 depth</th></tr>
+</table></div>
+<p class="muted">rl_vslam_v0: depth 64×48 → 16×12 = 192 dim, total 245.</p>
+
+<h2 id="action">6. Action dan cfg penting</h2>
+<div class="cards">
+  <div class="card"><b>Action</b>12 target posisi sendi (semua sendi Spot). Target = posisi default + 0.2 × aksi. Paper: "scaled by 0.2, offset dari default, 25 Hz". Tidak di-clip di model paper ke atas.</div>
+  <div class="card"><b>Perintah (commands)</b>vx 0–1 m/s, vy = 0, ωz ±0.4 rad/s. Diacak ulang tiap 4–8 s. Sama dengan rentang aksi high level.</div>
+  <div class="card"><b>Waktu</b>sim dt 0.002 s, decimation 20 → kontrol 25 Hz. Episode 20 s. Kamera depth tiap 0.04 s.</div>
+  <div class="card"><b>Kamera</b>Pinhole, focal 10, aperture 22, clip 0.1–10 m, 0.4 m di depan badan, menghadap depan.</div>
+  <div class="card"><b>Randomisasi</b>gesekan 0.3–1.0, massa badan ±2.5 kg, reset posisi ±0.5 m dan yaw acak, dorongan tiap 10–15 s (±0.5 m/s).</div>
+  <div class="card"><b>Terminate</b>timeout, keluar terrain, dan (kecuali WallsSoft) badan atau kaki menyentuh sesuatu dengan gaya &gt; 1 N.</div>
+  <div class="card"><b>Curriculum</b>level terrain naik kalau robot berjalan cukup jauh (kecuali Rough: semua level dari awal).</div>
+  <div class="card"><b>Terrain</b>paper: 5×5 tile 8 m, 70 % datar, 30 % kasar 1–3 cm. Obstacles: +30 % tile tiang 1–2 m. Walls: +25 % tile dinding 2–7 m panjang, 2.5–6 m tinggi.</div>
+</div>
+
+<h2 id="hasil">7. Hasil singkat (gait_check, 8 env × 10 s)</h2>
+<div class="scroll"><table>
+<tr><th>Model</th><th>vx 0 / 0.25 / 0.5 / 0.75 / 1.0</th><th>Belok ±0.4 (lantai)</th><th>Belok ±0.4 (Map A)</th></tr>
+<tr><td>rl_vslam_v0</td><td>— / 0.22 / 0.46 / 0.62 / 0.81</td><td>0.26 / −0.30</td><td>—</td></tr>
+<tr><td>Literal</td><td>0 / 0 / 0 / 0 / 0</td><td>0.01 / 0.00</td><td>—</td></tr>
+<tr><td>paper-isaaclab-reward-reproduce</td><td class="bad">0.54 / 0.59 / 0.62 / 0.65 / 0.69</td><td class="good">0.38 / −0.40</td><td>—</td></tr>
+<tr><td>Speed fix</td><td class="good">0.05 / 0.31 / 0.51 / 0.73 / 0.99</td><td>0.30 / −0.16</td><td class="bad">0.03 / −0.02</td></tr>
+<tr><td>Turn fix</td><td class="good">— / 0.25 / 0.52 / 0.79 / 1.04</td><td>0.37 / −0.31</td><td class="bad">0.04 / −0.03</td></tr>
+<tr><td>Walls fine-tune 2</td><td class="good">— / 0.30 / 0.51 / 0.77 / 1.02</td><td>0.24 / −0.36</td><td class="bad">−0.12 / −0.08</td></tr>
+<tr><td>WallsSoft</td><td colspan="3" class="muted">menunggu training</td></tr>
+</table></div>
+<p>Tes high level (SB3 lama) + Walls fine-tune 2 di Map A: high level menyuruh putar di tempat, low level tidak berputar, robot diam di pojok start selama 1500 step.</p>
+
+<h2 id="penting">8. Hal yang perlu kamu ketahui</h2>
+<div class="note bad"><b>Noise observasi sebenarnya tidak ada.</b> <code>enable_corruption = True</code>, tapi tidak ada term observasi yang punya <code>noise=</code>. Jadi semua model dilatih dengan observasi bersih. Isaac Lab Spot asli menambahkan noise pada proprioseptif. Ini relevan untuk perbandingan 3 (depth noise) dan untuk sim-to-real.</div>
+<div class="note"><b>Term "visual wall" justru memberi reward, bukan penalti.</b> Eq. 5 = −min(depth), bobot −0.1, jadi hasilnya +0.1 × jarak terdekat. Di ruang terbuka robot dapat bonus tetap; dekat dinding bonusnya hilang. Ditambah open space seeker (bonus kalau maju ke ruang terbuka), dua term ini mungkin ikut membuat robot "malas" bergerak dekat dinding.</div>
+<div class="note"><b>Dengan terrain paper, term depth tidak berguna.</b> Kamera cuma melihat lantai, jadi term dinding dan open space hampir konstan. Karena itu model paper tidak pernah belajar dari dinding, dan model kita butuh terrain obstacles/walls.</div>
+<div class="note"><b>Budget training tidak sama.</b> paper-isaaclab-reward-reproduce 20000 epoch, Speed/Turn fix 8000, Walls/WallsSoft fine-tune. Reward datar setelah ~8000, jadi pengaruhnya kecil, tapi sebutkan di paper.</div>
+<div class="note"><b>Model WallsSoft adalah rangkaian fine-tune</b>: turn fix (8000) → walls (10000) → walls tinggi (12000) → WallsSoft (14000). Kalau perlu dijelaskan "dilatih dari nol", ini harus ditulis jujur.</div>
+<div class="note"><b>Jebakan checkpoint saat resume.</b> Di run yang dilanjutkan, <code>spot_paper_ppo.pth</code> disimpan di awal (reward terbaik versi awal). Selalu pakai file <code>last_..._ep_N_...pth</code>.</div>
+<div class="note"><b>Model literal tidak bisa di-load di kode sekarang</b> (jaringan beda: critic terpisah, tanpa normalizer). Untuk menjalankan ulang harus checkout commit lama. Hasilnya sudah dicatat di <code>docs/low_level_reward.md</code>.</div>
+<div class="note"><b>rl_vslam_v0 diam-diam memotong area statistik depth.</b> Region statistik ditulis untuk 80×60, tapi gambarnya 64×48, jadi area kanan terpotong.</div>
+<div class="note info"><b>Start Map A di pojok.</b> Dengan yaw acak, gambar depth sering penuh dinding ~2 m. Di sinilah low level gagal belok. Tes Map A paling penting untuk WallsSoft.</div>
+<div class="note info"><b>Perintah tidak pernah mundur atau ke samping</b> (vx 0–1, vy = 0). Robot tidak bisa mundur dari pojok; satu-satunya jalan keluar adalah berputar di tempat.</div>
+<div class="note info"><b>Satu Isaac Sim saja.</b> RAM 15 GB: training + Isaac Sim kedua = OOM. Semua run lewat <code>flock /tmp/laptop_heavy.lock</code>.</div>
+</main>
+</body>
+</html>
