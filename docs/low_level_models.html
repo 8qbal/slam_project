@@ -118,10 +118,6 @@ li { margin: 4px 0; }
   <defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" style="color:var(--muted)"/></marker></defs>
   <style>.arr2{stroke:var(--muted);stroke-width:1.4;fill:none;marker-end:url(#ah2)}</style>
   <!-- row 1 -->
-  <rect class="box" x="10" y="20" width="200" height="78" rx="8"/>
-  <text x="110" y="42" text-anchor="middle" font-weight="600">rl_vslam_v0</text>
-  <text x="110" y="60" text-anchor="middle" class="muted">09-30 · model lama kamu</text>
-  <text x="110" y="78" text-anchor="middle" class="muted">245 dim, depth 64×48</text>
   <rect class="box b" x="270" y="20" width="220" height="78" rx="8"/>
   <text x="380" y="42" text-anchor="middle" font-weight="600">Old paper</text>
   <text x="380" y="60" text-anchor="middle" class="muted">10-05_16-01-15 · 6000 ep</text>
@@ -130,7 +126,6 @@ li { margin: 4px 0; }
   <text x="670" y="42" text-anchor="middle" font-weight="600">paper-isaaclab-reward-reproduce</text>
   <text x="670" y="60" text-anchor="middle" class="muted">10-08_11-08-43 · 20000 ep</text>
   <text x="670" y="78" text-anchor="middle" class="muted">jalan bagus, speed selalu ~0.6</text>
-  <path class="arr2" d="M210,59 H265"/><text x="238" y="50" text-anchor="middle" class="muted">353 dim</text>
   <path class="arr2" d="M490,59 H545"/><text x="518" y="50" text-anchor="middle" class="muted">Isaac Lab</text>
   <!-- down to row 2 -->
   <path class="arr2" d="M670,98 V130 H130 V155"/>
@@ -184,47 +179,46 @@ li { margin: 4px 0; }
 <tr><td>Rough</td><td>Terrain lain, reward sama dengan WallsSoft</td><td><code>Spot-Paper-Rough-v0</code></td><td class="bad">belum</td></tr>
 <tr><td>WallsSoft + noise</td><td>Depth noise (perbandingan 3)</td><td>belum dibuat</td><td class="bad">belum</td></tr>
 </table></div>
-<p class="muted">rl_vslam_v0 (model lama kamu) tetap disimpan sebagai baseline di <code>baselines/rl_vslam_v0/</code>, tapi bukan bagian dari 5 model ini.</p>
 
 <h2 id="reward">4. Tabel perbandingan reward</h2>
 <p>Bobot sama di semua model (Table 3 paper), kecuali yang ditandai. Kolom kuning = berbeda dari kolom sebelumnya. "Isaac Lab" = fungsi reward Spot bawaan Isaac Lab (<code>isaaclab_tasks/contrib/velocity/config/spot/mdp</code>).</p>
 <div class="scroll"><table>
-<tr><th>Term</th><th class="c">Bobot</th><th>rl_vslam_v0 (lama)</th><th>Old paper</th><th>paper-isaaclab-reward-reproduce</th><th>Speed fix</th><th>Turn fix</th><th>Walls</th><th>WallsSoft</th></tr>
-<tr><td>Linear velocity</td><td class="c">5.0</td><td>Isaac Lab, σ = 1.0</td><td class="diff">exp(−‖e‖²/1), kuadrat</td><td class="diff">Isaac Lab, σ = 1.0</td><td class="diff">Isaac Lab, <b>σ = 0.25</b></td><td>σ = 0.25</td><td>σ = 0.25</td><td>σ = 0.25</td></tr>
-<tr><td>Angular velocity</td><td class="c">5.0</td><td>Isaac Lab, σ = 2.0</td><td>Isaac Lab, σ = 2.0</td><td>Isaac Lab, σ = 2.0</td><td>σ = 2.0</td><td class="diff"><b>σ = 0.5</b></td><td>σ = 0.5</td><td>σ = 0.5</td></tr>
-<tr><td>Gait</td><td class="c">12.0</td><td>Isaac Lab GaitReward, aktif &gt; 0.5 m/s</td><td class="diff">indikator biner pola trot</td><td class="diff">Isaac Lab GaitReward, &gt; 0.5 m/s</td><td class="diff">aktif <b>hanya kalau ada perintah</b></td><td>sama</td><td>sama</td><td>sama</td></tr>
-<tr><td>Air time</td><td class="c">5.0</td><td>Isaac Lab, &gt; 0.5 m/s</td><td>Isaac Lab</td><td>Isaac Lab, &gt; 0.5 m/s</td><td class="diff">hanya kalau ada perintah</td><td>sama</td><td>sama</td><td>sama</td></tr>
-<tr><td>Foot clearance</td><td class="c">0.5</td><td>Isaac Lab (exp, target 0.1 m)</td><td class="diff">Σ max(0, h − 0.1), tak terbatas</td><td class="diff">Isaac Lab</td><td>Isaac Lab</td><td>Isaac Lab</td><td>Isaac Lab</td><td>Isaac Lab</td></tr>
-<tr><td>Open space seeker</td><td class="c">0.5</td><td>vx × rata-rata depth depan</td><td>sama</td><td>sama</td><td>sama</td><td>sama</td><td>sama</td><td>sama</td></tr>
-<tr><td>Visual wall</td><td class="c">−0.1</td><td>(0.6 − jarak terdekat)², kuadrat</td><td class="diff">Eq. 5: −min(depth)</td><td>Eq. 5</td><td>Eq. 5</td><td>Eq. 5</td><td>Eq. 5</td><td>Eq. 5</td></tr>
-<tr><td>Foot slip</td><td class="c">−0.5</td><td>Isaac Lab (kecepatan kaki planar)</td><td class="diff">Σ‖v_kaki‖² 3D</td><td class="diff">Isaac Lab</td><td>Isaac Lab</td><td>Isaac Lab</td><td>Isaac Lab</td><td>Isaac Lab</td></tr>
-<tr><td>Action smoothness</td><td class="c">−1.0</td><td colspan="7">Isaac Lab di semua model</td></tr>
-<tr><td>Air time variance</td><td class="c">−1.0</td><td colspan="7">Isaac Lab di semua model</td></tr>
-<tr><td>Base motion</td><td class="c">−2.0</td><td colspan="7">Isaac Lab di semua model</td></tr>
-<tr><td>Base orientation</td><td class="c">−3.0</td><td colspan="7">Isaac Lab di semua model</td></tr>
-<tr><td>Joint acc</td><td class="c">−1e−4</td><td colspan="7">Isaac Lab di semua model</td></tr>
-<tr><td>Joint pos</td><td class="c">−0.7</td><td colspan="7">Isaac Lab di semua model</td></tr>
-<tr><td>Joint torque</td><td class="c">−5e−4</td><td colspan="7">Isaac Lab di semua model</td></tr>
-<tr><td>Joint vel</td><td class="c">−1e−2</td><td colspan="7">Isaac Lab di semua model</td></tr>
-<tr><td><b>Wall contact</b> (baru)</td><td class="c">−5.0</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td class="diff">jumlah bagian badan/kaki yang menyentuh</td></tr>
+<tr><th>Term</th><th class="c">Bobot</th><th>Old paper</th><th>paper-isaaclab-reward-reproduce</th><th>Speed fix</th><th>Turn fix</th><th>Walls</th><th>WallsSoft</th></tr>
+<tr><td>Linear velocity</td><td class="c">5.0</td><td>exp(−‖e‖²/1), kuadrat</td><td class="diff">Isaac Lab, σ = 1.0</td><td class="diff">Isaac Lab, <b>σ = 0.25</b></td><td>σ = 0.25</td><td>σ = 0.25</td><td>σ = 0.25</td></tr>
+<tr><td>Angular velocity</td><td class="c">5.0</td><td>Isaac Lab, σ = 2.0</td><td>Isaac Lab, σ = 2.0</td><td>σ = 2.0</td><td class="diff"><b>σ = 0.5</b></td><td>σ = 0.5</td><td>σ = 0.5</td></tr>
+<tr><td>Gait</td><td class="c">12.0</td><td>indikator biner pola trot</td><td class="diff">Isaac Lab GaitReward, &gt; 0.5 m/s</td><td class="diff">aktif <b>hanya kalau ada perintah</b></td><td>sama</td><td>sama</td><td>sama</td></tr>
+<tr><td>Air time</td><td class="c">5.0</td><td>Isaac Lab</td><td>Isaac Lab, &gt; 0.5 m/s</td><td class="diff">hanya kalau ada perintah</td><td>sama</td><td>sama</td><td>sama</td></tr>
+<tr><td>Foot clearance</td><td class="c">0.5</td><td>Σ max(0, h − 0.1), tak terbatas</td><td class="diff">Isaac Lab</td><td>Isaac Lab</td><td>Isaac Lab</td><td>Isaac Lab</td><td>Isaac Lab</td></tr>
+<tr><td>Open space seeker</td><td class="c">0.5</td><td>vx × rata-rata depth depan</td><td>sama</td><td>sama</td><td>sama</td><td>sama</td><td>sama</td></tr>
+<tr><td>Visual wall</td><td class="c">−0.1</td><td>Eq. 5: −min(depth)</td><td>Eq. 5</td><td>Eq. 5</td><td>Eq. 5</td><td>Eq. 5</td><td>Eq. 5</td></tr>
+<tr><td>Foot slip</td><td class="c">−0.5</td><td>Σ‖v_kaki‖² 3D</td><td class="diff">Isaac Lab</td><td>Isaac Lab</td><td>Isaac Lab</td><td>Isaac Lab</td><td>Isaac Lab</td></tr>
+<tr><td>Action smoothness</td><td class="c">−1.0</td><td colspan="6">Isaac Lab di semua model</td></tr>
+<tr><td>Air time variance</td><td class="c">−1.0</td><td colspan="6">Isaac Lab di semua model</td></tr>
+<tr><td>Base motion</td><td class="c">−2.0</td><td colspan="6">Isaac Lab di semua model</td></tr>
+<tr><td>Base orientation</td><td class="c">−3.0</td><td colspan="6">Isaac Lab di semua model</td></tr>
+<tr><td>Joint acc</td><td class="c">−1e−4</td><td colspan="6">Isaac Lab di semua model</td></tr>
+<tr><td>Joint pos</td><td class="c">−0.7</td><td colspan="6">Isaac Lab di semua model</td></tr>
+<tr><td>Joint torque</td><td class="c">−5e−4</td><td colspan="6">Isaac Lab di semua model</td></tr>
+<tr><td>Joint vel</td><td class="c">−1e−2</td><td colspan="6">Isaac Lab di semua model</td></tr>
+<tr><td><b>Wall contact</b> (baru)</td><td class="c">−5.0</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td class="diff">jumlah bagian badan/kaki yang menyentuh</td></tr>
 </table></div>
 
 <h3>Setelan lain per model</h3>
 <div class="scroll"><table>
-<tr><th>Setelan</th><th>rl_vslam_v0</th><th>Old paper</th><th>paper-isaaclab-reward-reproduce</th><th>Speed fix</th><th>Turn fix</th><th>Walls</th><th>WallsSoft</th></tr>
-<tr><td>Obs</td><td>245 (depth 64×48)</td><td class="diff">353 (depth 80×60)</td><td>353</td><td>353</td><td>353</td><td>353</td><td>353</td></tr>
-<tr><td>Terrain</td><td>paper</td><td>paper</td><td>paper</td><td class="diff">obstacles</td><td>obstacles</td><td class="diff">walls</td><td>walls</td></tr>
-<tr><td>Terminate saat kontak</td><td>badan / kaki</td><td>badan / kaki</td><td>badan / kaki</td><td>badan / kaki</td><td>badan / kaki</td><td>badan / kaki</td><td class="diff">hanya kalau jatuh (miring &gt; 57° atau tinggi &lt; 0.2 m)</td></tr>
-<tr><td>Perintah diam</td><td>5 %</td><td>5 %</td><td>5 %</td><td class="diff">10 %</td><td>10 %</td><td>10 %</td><td>10 %</td></tr>
-<tr><td>PPO</td><td>yaml lama (clip aksi ±1, critic share, normalisasi)</td><td>yaml lama</td><td class="diff">setelan Spot Isaac Lab</td><td>sama</td><td>sama</td><td>sama</td><td>sama</td></tr>
-<tr><td>Epoch</td><td>—</td><td>6000</td><td>20000</td><td>8000</td><td>8000</td><td>+2600, +2000 (fine-tune)</td><td>+2000 (fine-tune)</td></tr>
-<tr><td>Reward akhir</td><td>—</td><td>—</td><td>413</td><td>179</td><td>161</td><td>112 → 136</td><td>?</td></tr>
+<tr><th>Setelan</th><th>Old paper</th><th>paper-isaaclab-reward-reproduce</th><th>Speed fix</th><th>Turn fix</th><th>Walls</th><th>WallsSoft</th></tr>
+<tr><td>Obs</td><td>353 (depth 80×60)</td><td>353</td><td>353</td><td>353</td><td>353</td><td>353</td></tr>
+<tr><td>Terrain</td><td>paper</td><td>paper</td><td class="diff">obstacles</td><td>obstacles</td><td class="diff">walls</td><td>walls</td></tr>
+<tr><td>Terminate saat kontak</td><td>badan / kaki</td><td>badan / kaki</td><td>badan / kaki</td><td>badan / kaki</td><td>badan / kaki</td><td class="diff">hanya kalau jatuh (miring &gt; 57° atau tinggi &lt; 0.2 m)</td></tr>
+<tr><td>Perintah diam</td><td>5 %</td><td>5 %</td><td class="diff">10 %</td><td>10 %</td><td>10 %</td><td>10 %</td></tr>
+<tr><td>PPO</td><td>yaml lama</td><td class="diff">setelan Spot Isaac Lab</td><td>sama</td><td>sama</td><td>sama</td><td>sama</td></tr>
+<tr><td>Epoch</td><td>6000</td><td>20000</td><td>8000</td><td>8000</td><td>+2600, +2000 (fine-tune)</td><td>+2000 (fine-tune)</td></tr>
+<tr><td>Reward akhir</td><td>—</td><td>413</td><td>179</td><td>161</td><td>112 → 136</td><td>?</td></tr>
 </table></div>
 <p class="muted">Angka reward akhir tidak bisa dibandingkan antar model: reward-nya berubah (lebih ketat).</p>
 
 <h3>PPO: lama vs sekarang</h3>
 <div class="scroll"><table>
-<tr><th>Setelan</th><th>Lama (rl_vslam_v0, old paper)</th><th>Sekarang (Isaac Lab Spot)</th></tr>
+<tr><th>Setelan</th><th>Lama (old paper)</th><th>Sekarang (Isaac Lab Spot)</th></tr>
 <tr><td>Clip aksi</td><td>[−1, 1]</td><td>tidak ada</td></tr>
 <tr><td>Actor / critic</td><td>satu badan</td><td>terpisah</td></tr>
 <tr><td>Normalisasi obs / value</td><td>on / on</td><td>off / off</td></tr>
@@ -250,7 +244,6 @@ li { margin: 4px 0; }
 <tr><td>9</td><td><code>camera_depth_stats</code></td><td class="c">5</td><td>rata-rata kiri, tengah, kanan; minimum depan; selisih kiri−kanan</td></tr>
 <tr><th></th><th>Total</th><th class="c">353</th><th>48 proprioseptif + 305 depth</th></tr>
 </table></div>
-<p class="muted">rl_vslam_v0: depth 64×48 → 16×12 = 192 dim, total 245.</p>
 
 <h2 id="action">6. Action dan cfg penting</h2>
 <div class="cards">
@@ -267,7 +260,6 @@ li { margin: 4px 0; }
 <h2 id="hasil">7. Hasil singkat (gait_check, 8 env × 10 s)</h2>
 <div class="scroll"><table>
 <tr><th>Model</th><th>vx 0 / 0.25 / 0.5 / 0.75 / 1.0</th><th>Belok ±0.4 (lantai)</th><th>Belok ±0.4 (Map A)</th></tr>
-<tr><td>rl_vslam_v0</td><td>— / 0.22 / 0.46 / 0.62 / 0.81</td><td>0.26 / −0.30</td><td>—</td></tr>
 <tr><td>Old paper</td><td>0 / 0 / 0 / 0 / 0</td><td>0.01 / 0.00</td><td>—</td></tr>
 <tr><td>paper-isaaclab-reward-reproduce</td><td class="bad">0.54 / 0.59 / 0.62 / 0.65 / 0.69</td><td class="good">0.38 / −0.40</td><td>—</td></tr>
 <tr><td>Speed fix</td><td class="good">0.05 / 0.31 / 0.51 / 0.73 / 0.99</td><td>0.30 / −0.16</td><td class="bad">0.03 / −0.02</td></tr>
@@ -285,7 +277,6 @@ li { margin: 4px 0; }
 <div class="note"><b>Model WallsSoft adalah rangkaian fine-tune</b>: turn fix (8000) → walls (10000) → walls tinggi (12000) → WallsSoft (14000). Kalau perlu dijelaskan "dilatih dari nol", ini harus ditulis jujur.</div>
 <div class="note"><b>Jebakan checkpoint saat resume.</b> Di run yang dilanjutkan, <code>spot_paper_ppo.pth</code> disimpan di awal (reward terbaik versi awal). Selalu pakai file <code>last_..._ep_N_...pth</code>.</div>
 <div class="note"><b>Model old paper tidak bisa di-load di kode sekarang</b> (jaringan beda: critic terpisah, tanpa normalizer). Untuk menjalankan ulang harus checkout commit lama. Hasilnya sudah dicatat di <code>docs/low_level_reward.md</code>.</div>
-<div class="note"><b>rl_vslam_v0 diam-diam memotong area statistik depth.</b> Region statistik ditulis untuk 80×60, tapi gambarnya 64×48, jadi area kanan terpotong.</div>
 <div class="note info"><b>Start Map A di pojok.</b> Dengan yaw acak, gambar depth sering penuh dinding ~2 m. Di sinilah low level gagal belok. Tes Map A paling penting untuk WallsSoft.</div>
 <div class="note info"><b>Perintah tidak pernah mundur atau ke samping</b> (vx 0–1, vy = 0). Robot tidak bisa mundur dari pojok; satu-satunya jalan keluar adalah berputar di tempat.</div>
 <div class="note info"><b>Satu Isaac Sim saja.</b> RAM 15 GB: training + Isaac Sim kedua = OOM. Semua run lewat <code>flock /tmp/laptop_heavy.lock</code>.</div>
