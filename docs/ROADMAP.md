@@ -57,7 +57,7 @@ comes first. Details and result tables: `docs/low_level_reward.md`.
 
 | Policy | Role | Task / run | Status |
 | --- | --- | --- | --- |
-| Literal reward | the paper with Eqs. 2-6 taken literally (trots in place) | `spot_paper_ppo/2026-10-05_16-01-15` (no longer loads; old network) | done |
+| Old paper | the paper with Eqs. 2-6 taken literally (trots in place) | `spot_paper_ppo/2026-10-05_16-01-15` (no longer loads; old network) | done |
 | `paper-isaaclab-reward-reproduce` | the paper reproduction: Table 3 weights on Isaac Lab's Spot rewards, Isaac Lab PPO and defaults, paper terrain | `Spot-Paper-v0`, `spot_paper_ppo/2026-10-08_11-08-43` | done |
 | WallsSoft | ours, the main policy: speed and turn fixes, wall terrain, wall contact = penalty (no termination) | `Spot-Paper-WallsSoft-v0`, fine-tuned from `2026-10-12_01-26-58` ep 12000 | training |
 | Rough | ours, other terrain (Isaac Lab's Spot terrain), same reward as WallsSoft | `Spot-Paper-Rough-v0` | to train |
