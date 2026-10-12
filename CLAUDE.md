@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Talk simply.** Use short, plain sentences and avoid jargon and long explanations, unless the user asks for more detail.
 
+**Answer briefly.** Get to the point: no long intros, recaps or rambling. Use a few bullets or a small table at most.
+
 ## Project
 
 Isaac Lab 3.0 environments for running visual SLAM (ORB-SLAM3 over ROS 2, with Nav2) on the Boston Dynamics Spot
