@@ -103,6 +103,9 @@ Goal: shorter perception delay and less CPU than ORB-SLAM3.
 
 - [ ] IMU in simulation: Isaac Lab's `Imu` sensor on the body (or the camera mount), or a ZED camera through the
       Stereolabs Isaac Lab integration (stereo + IMU, as on the real camera). Pick one in the design note.
+- [ ] Later, optional (sim-to-real): low-level inputs from sensors instead of sim state (`docs/SYSTEM.md`): gyro and
+      gravity from the `Imu` sensor with bias / drift, base lin vel estimated or dropped, encoder delay. Changes the
+      observation, so the low level must be retrained.
 - [ ] First test cuVSLAM's own visual-inertial mode on the recorded data (evo, tracking failures, recovery).
 - [ ] Only then decide whether an extra Kalman filter is needed: which problem it solves (e.g. pose gaps when tracking
       is lost, delay between SLAM poses) and which measurements it fuses (SLAM pose, IMU, leg odometry). If yes,

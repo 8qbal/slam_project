@@ -38,6 +38,11 @@ flowchart LR
 | Goal | — | fixed start and goal per map (`assets/maps.py`) | none |
 | Net | [512, 256, 128] ELU | [256, 128] ELU | SB3 default [64, 64] |
 
+- **The low level reads no real sensors except depth.** Base lin/ang vel, gravity and joint pos/vel come straight
+  from the simulator state (as in the original code and Isaac Lab's Spot): no `Imu` sensor, no encoder model (delay,
+  resolution, bias, drift). Noise: uniform only (lin/ang vel ±0.1, gravity ±0.05, joint pos ±0.05, joint vel ±0.5;
+  in `rl_vslam_v0` and `Spot-Paper-WallsSoftNoise-v0`). Joint pos/vel are close to a real Spot's encoders; base lin
+  vel is the furthest from real (an IMU cannot give it; a real robot estimates it from IMU + leg odometry).
 - **The high level is trained without SLAM**: its pose is the GT pose in the start-pose frame plus small noise
   (condition A). ORB-SLAM3 is used only when evaluating (`Spot-Nav-*-Play-v0`). The pose source is one observation
   parameter (`pose_source="gt" | "slam"`), so conditions B/C are config changes.
