@@ -147,7 +147,9 @@ Question: can the robot learn to change how it moves when localization becomes u
 - [ ] Declare open3d 0.19.0, pandas and psutil in `pyproject.toml` (open3d 0.20 breaks TSDF).
 - [ ] Arena as a parameter (`warehouse` / `none` / USD path) instead of hard-coded `/World/Maze`.
 - [ ] Lighting: dome light 3000 + warehouse lights over-expose the camera; may hurt SLAM features.
-- [ ] Map A shows sky (no roof / open side?) in the SLAM camera: check `warehouse.usd`; fewer features for SLAM.
+- [x] Map A shows sky in the SLAM camera: not a missing roof (`warehouse.usd` has a roof and 9 m walls facing in);
+  the SLAM camera's far clip was 10 m, so the far walls and the roof were cut. SLAM cameras now clip at 100 m
+  (`SLAM_PINHOLE_CFG`; rl_vslam_v0 keeps 10 m). Earlier frame checks and replays used the 10 m clip.
 - [ ] Physics presets (PhysX / Newton) via Isaac Lab 3.0 `PresetCfg`. Verify RTX camera, ray casters, contact
       sensors and ROS 2 under Newton before claiming support.
 - [ ] ROS 2 topic prefixes and frame names are hard-coded in 13 places; keep them only in `Ros2ManagerCfg`.

@@ -15,6 +15,7 @@ from spot_vslam.assets import WAREHOUSE_USD_PATH
 from spot_vslam.slam import Ros2ManagerCfg
 
 from ...locomotion_env_cfg import (
+    CAMERA_PINHOLE_CFG,
     DEPTH_CAMERA_CFG,
     GROUND_MATERIAL_CFG,
     SLAM_CAMERA_CFG,
@@ -24,6 +25,7 @@ from ...locomotion_env_cfg import (
 
 V0_DEPTH_CAMERA_CFG = DEPTH_CAMERA_CFG.replace(height=48, width=64)
 V0_DEPTH_CAMERA_WITH_RGB_CFG = V0_DEPTH_CAMERA_CFG.replace(data_types=["rgb", "distance_to_image_plane"])
+V0_SLAM_CAMERA_CFG = SLAM_CAMERA_CFG.replace(spawn=CAMERA_PINHOLE_CFG)  # 10 m far clip, as the v0 tables were measured
 
 
 @configclass
@@ -33,7 +35,7 @@ class SpotV0EnvCfg(LocomotionEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.scene.train_camera = V0_DEPTH_CAMERA_CFG
-        self.scene.tilted_camera = SLAM_CAMERA_CFG
+        self.scene.tilted_camera = V0_SLAM_CAMERA_CFG
 
 
 @configclass
@@ -62,7 +64,7 @@ class SpotV0HighLevelEnvCfg_PLAY(SpotV0HighLevelEnvCfg):
         self.scene.num_envs = 1
         self.episode_length_s = 10000.0
         self.observations.policy.enable_corruption = False
-        self.scene.tilted_camera = SLAM_CAMERA_CFG.replace(update_period=0.01)
+        self.scene.tilted_camera = V0_SLAM_CAMERA_CFG.replace(update_period=0.01)
 
 
 @configclass

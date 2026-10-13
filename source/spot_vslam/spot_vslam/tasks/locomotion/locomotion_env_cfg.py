@@ -66,6 +66,9 @@ GROUND_MATERIAL_CFG = sim_utils.RigidBodyMaterialCfg(
 CAMERA_PINHOLE_CFG = sim_utils.PinholeCameraCfg(
     focal_length=10.0, focus_distance=400.0, horizontal_aperture=22.0, clipping_range=(0.1, 10.0)
 )
+SLAM_PINHOLE_CFG = CAMERA_PINHOLE_CFG.replace(clipping_range=(0.1, 100.0))
+"""SLAM cameras see the whole map: with a 10 m far clip the far walls and the roof of Map A are not rendered and
+the sky dome shows instead. Depth users cap the range themselves (cuVSLAM ``max_depth_m``, TSDF ``depth_max``)."""
 CAMERA_OFFSET_CFG = CameraCfg.OffsetCfg(pos=(0.4, 0.0, 0.0), rot=(0.5, -0.5, 0.5, -0.5), convention="ros")
 """Both cameras sit 0.4 m ahead of the body origin, looking forward (the stock spot.usd has no camera prim)."""
 
@@ -92,7 +95,7 @@ SLAM_CAMERA_CFG = CameraCfg(
     height=240,
     width=320,
     data_types=["rgb", "distance_to_image_plane"],
-    spawn=CAMERA_PINHOLE_CFG,
+    spawn=SLAM_PINHOLE_CFG,
     offset=CAMERA_OFFSET_CFG,
 )
 """320x240 RGB-D camera for ORB-SLAM3 (via ``Ros2Manager``) and TSDF mapping. The policy never reads it."""

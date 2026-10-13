@@ -146,7 +146,8 @@ period, `OdometryMode.Multicamera` with `rectified_stereo_camera=True`. Three bu
 | stereo, random start | 1.6-1.8 m | 2.9-3.5 m | 14-19° | 0-1 | 0.9 |
 | stereo, start facing the goal | 0.27 m | 0.56 m | 3.5° | 0 | 1.0 |
 
-The camera sees sky over Map A (no roof / open side in `warehouse.usd`?), which leaves fewer features.
+The camera sees sky over Map A, which leaves fewer features. Cause: the SLAM camera's far clip was 10 m, so walls and
+roof farther away were not rendered (the map has both). Fixed: SLAM cameras clip at 100 m (`SLAM_PINHOLE_CFG`).
 
 ## ORB-SLAM3 stereo (2026-10-13)
 
@@ -172,5 +173,5 @@ Sweep (th_depth 40-120, 1000-3000 features, FAST 20/7-10/4): more features and a
 stereo map at frame 0 (default: 16 frames, < 500 points) and lose tracking less often mid-run; accuracy stays at 1-8 m
 and varies more between identical runs than between settings. Every ORB-SLAM3 run loses tracking from about frame
 230 (right turn facing sky and empty floor) and starts a new map, whose origin the node cannot relate to the first
-one. Map A's open sky (no roof?) and plain floor hurt ORB features; fixing the scene would help both systems. The
+one. Map A's sky (the 10 m far clip, since fixed) and plain floor hurt ORB features; fixing the scene would help both systems. The
 Stereo-Play task has not run in the sim yet (OOM with other apps open).
