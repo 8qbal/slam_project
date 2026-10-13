@@ -785,6 +785,20 @@ nvtx = [
 ]
 
 [[package]]
+name = "cuvslam"
+version = "17.0.0+cu13"
+source = { url = "https://github.com/nvidia-isaac/cuVSLAM/releases/download/v17.0.0/cuvslam-17.0.0%2Bcu13-cp312-abi3-manylinux_2_39_x86_64.whl" }
+dependencies = [
+    { name = "pyyaml" },
+]
+wheels = [
+    { url = "https://github.com/nvidia-isaac/cuVSLAM/releases/download/v17.0.0/cuvslam-17.0.0%2Bcu13-cp312-abi3-manylinux_2_39_x86_64.whl", hash = "sha256:aa3c38640c806d879add44369eff3757a73695954c7edaa5ebfaceaca356fbb4" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pyyaml", specifier = ">=5.3.1" }]
+
+[[package]]
 name = "cycler"
 version = "0.12.1"
 source = { registry = "https://pypi.org/simple" }
@@ -3695,6 +3709,7 @@ name = "spot-vslam-dev"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "cuvslam", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "spot-vslam" },
 ]
 
@@ -3704,7 +3719,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "spot-vslam", editable = "source/spot_vslam" }]
+requires-dist = [
+    { name = "cuvslam", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", url = "https://github.com/nvidia-isaac/cuVSLAM/releases/download/v17.0.0/cuvslam-17.0.0%2Bcu13-cp312-abi3-manylinux_2_39_x86_64.whl" },
+    { name = "spot-vslam", editable = "source/spot_vslam" },
+]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pre-commit" }]
