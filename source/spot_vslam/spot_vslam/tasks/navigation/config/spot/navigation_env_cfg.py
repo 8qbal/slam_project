@@ -169,7 +169,9 @@ class SpotNavigationEnvCfg_CUVSLAM_PLAY(SpotNavigationEnvCfg_PLAY):
     def __post_init__(self):
         super().__post_init__()
         self.ros2 = None
-        self.scene.right_camera = SLAM_RIGHT_CAMERA_CFG
+        # same update period as the left camera (the Play scene renders it at 100 Hz), or every other pair mixes
+        # two instants
+        self.scene.right_camera = SLAM_RIGHT_CAMERA_CFG.replace(update_period=self.scene.tilted_camera.update_period)
         self.cuvslam = CuVslamManagerCfg(camera_name="tilted_camera", right_camera_name="right_camera")
 
 

@@ -90,8 +90,8 @@ Goal: shorter perception delay and less CPU than ORB-SLAM3.
       ORB-SLAM3, loop closure on, one tracker per env, pose + tracking state + feature count + track time.
       Tasks `Spot-Nav-Map{A,B}-cuVSLAM-Play-v0`.
 - [x] First run and frame check (`scripts/slam/cuvslam_frame_check.py`): pose follows GT in sign and scale.
-- [ ] Odometry jumps (2 single-frame jumps of 3-4 m in a 10 m drive on Map A, `docs/cuvslam.md` frame check 2):
-      find the cause before the benchmark.
+- [x] Odometry jumps (RGB-D, `docs/cuvslam.md` frame check 2): cause not found in RGB-D; switched to stereo (frame
+      check 3: 0.27 m mean error, no jumps). ORB-SLAM3 gets a stereo node too, for the same input.
 - [ ] Offline benchmark on the recorded data: ORB-SLAM3 vs. cuVSLAM with matched camera inputs and IMU use. evo
       ATE/RPE, tracking failures, recovery.
 - [ ] Online benchmark with the same fixed policy: total latency (image capture → pose used by the policy), SLAM
@@ -147,6 +147,7 @@ Question: can the robot learn to change how it moves when localization becomes u
 - [ ] Declare open3d 0.19.0, pandas and psutil in `pyproject.toml` (open3d 0.20 breaks TSDF).
 - [ ] Arena as a parameter (`warehouse` / `none` / USD path) instead of hard-coded `/World/Maze`.
 - [ ] Lighting: dome light 3000 + warehouse lights over-expose the camera; may hurt SLAM features.
+- [ ] Map A shows sky (no roof / open side?) in the SLAM camera: check `warehouse.usd`; fewer features for SLAM.
 - [ ] Physics presets (PhysX / Newton) via Isaac Lab 3.0 `PresetCfg`. Verify RTX camera, ray casters, contact
       sensors and ROS 2 under Newton before claiming support.
 - [ ] ROS 2 topic prefixes and frame names are hard-coded in 13 places; keep them only in `Ros2ManagerCfg`.

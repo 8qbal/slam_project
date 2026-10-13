@@ -1,5 +1,6 @@
 """Paper evaluation maps (references/main.pdf, Sec. 6), each with one fixed start and goal."""
 
+import math
 from dataclasses import dataclass
 
 from . import WAREHOUSE_SHELVES_USD_PATH, WAREHOUSE_USD_PATH
@@ -13,6 +14,11 @@ class PaperMap:
     start: tuple[float, float]
     goal: tuple[float, float]
     goal_radius: float
+
+    @property
+    def start_yaw(self) -> float:
+        """Heading at the start in evaluation: facing the goal (rad, map frame)."""
+        return math.atan2(self.goal[1] - self.start[1], self.goal[0] - self.start[0])
 
 
 PAPER_MAPS = {

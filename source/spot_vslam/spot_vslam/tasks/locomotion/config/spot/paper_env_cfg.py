@@ -5,6 +5,8 @@ The ``HighLevel`` configs are the low-level env under the paper's SB3 high-level
 (``spot_vslam.legacy.high_level.paper_vec_env``), on a paper map with its fixed start and goal.
 """
 
+import math
+
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
 from isaaclab.assets import AssetBaseCfg
@@ -259,6 +261,13 @@ class SpotPaperHighLevelEnvCfg_PLAY(SpotPaperEnvCfg_PLAY):
         self.scene.num_envs = 1
         self.scene.tilted_camera = SLAM_CAMERA_CFG.replace(update_period=0.01)
         use_paper_map(self, self.paper_map)
+        # Fixed start: at the map start, facing the goal, no push. Training's reset adds up to +-0.5 m, any heading
+        # and up to 1.5 m/s: the robot slid ~0.4 m before the first command, and some runs started facing out of the
+        # building (sky and empty floor), where SLAM has nothing to track (docs/cuvslam.md).
+        self.events.reset_base.params["pose_range"] = {}
+        self.events.reset_base.params["velocity_range"] = {}
+        yaw = PAPER_MAPS[self.paper_map].start_yaw
+        self.scene.robot.init_state.rot = (0.0, 0.0, math.sin(yaw / 2), math.cos(yaw / 2))  # xyzw
         # Table 9 counts collisions during a run (Map B: 0.4 per run at 100% success), so a bump must not end the
         # episode; load_high_level.py --paper counts body / leg contacts instead. A robot that falls times out.
         self.terminations.body_contact = None

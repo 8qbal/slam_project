@@ -69,6 +69,11 @@ class CuVslamManager:
         self.camera: Camera = env.scene.sensors[cfg.camera_name]
         self.stereo = cfg.right_camera_name is not None
         self.right_camera: Camera | None = env.scene.sensors[cfg.right_camera_name] if self.stereo else None
+        if self.stereo and self.right_camera.cfg.update_period != self.camera.cfg.update_period:
+            raise ValueError(
+                f"stereo cameras need the same update period, got {self.camera.cfg.update_period} (left) and"
+                f" {self.right_camera.cfg.update_period} (right)"
+            )
         self.rig = self._make_rig()
         self.trackers: list[cuvslam.Tracker | None] = [None] * self.num_envs
 

@@ -2,7 +2,8 @@
 
 Roadmap section 2. Goal: shorter perception delay and less CPU than ORB-SLAM3, with the same input so the benchmark
 is fair. Status (2026-10-10): manager and Play tasks run, frames are right (`scripts/slam/cuvslam_frame_check.py`).
-Loop closure is on. Open: the RGB-D odometry jumps several metres on single frames (frame check 2 below).
+Loop closure is on. Since 2026-10-13 the Play tasks run cuVSLAM in **stereo** (frame check 3 below): RGB-D
+odometry jumped metres on single frames (frame check 2).
 
 ## Same input as ORB-SLAM3
 
@@ -120,3 +121,29 @@ The new low level walks on Map A without falling, so the full 285-step drive (23
 
 Next: dump the RGB / depth frames around a jump (depth holes or far wall only? RGB and depth from the same render?)
 and try `max_depth_m`, grayscale input, or a lower camera rate.
+
+## Frame check 3: stereo (2026-10-13, low level WallsSoft `2026-10-12_12-50-26` ep 14000)
+
+RGB-D replays of the frame-check-2 drive (`--dump_frames`, cuVSLAM offline) ruled out: depth cut at 10 m (with depth
+to 40 m 96 % of tracked features have depth, still 35 jumps), RGB / depth one frame apart, wrong intrinsics (floor
+depth gives a steady camera height), exposure, floor reflections, grey input, motion model, denoising. Mono on the same
+images tracked without jumps, so the problem is in cuVSLAM's RGB-D path; we did not find it and switched to stereo,
+cuVSLAM's main mode and the ZED's.
+
+Stereo: `right_camera` (`SLAM_RIGHT_CAMERA_CFG`) 0.12 m to the right of `tilted_camera`, same intrinsics and update
+period, `OdometryMode.Multicamera` with `rectified_stereo_camera=True`. Three bugs on the way:
+
+- The right camera first kept the 10 Hz period while the Play scene renders the left one at 100 Hz: every other pair
+  mixed two instants (142 of 285 right frames stale). The manager now refuses different periods.
+- Play tasks reused the training reset: up to 1.5 m/s push at spawn (the robot slid ~0.4 m before the first command)
+  and a random heading, some runs facing out of the building (sky, empty floor). Play / evaluation now spawns at the
+  map start, facing the goal (`PaperMap.start_yaw`), without push. E0 was measured with the old random start.
+- With RTX anti-aliasing off the floor renders as per-pixel noise (DLSS hides it); keep the default DLSS.
+
+| Drive (285 steps, ~8 m, seed 0) | Mean xy error | Max | Yaw error | Jumps > 0.5 m | ms / frame |
+| --- | --- | --- | --- | --- | --- |
+| RGB-D, random start | 19.3 m | 32.7 m | 100° | 26 | 3.4 |
+| stereo, random start | 1.6-1.8 m | 2.9-3.5 m | 14-19° | 0-1 | 0.9 |
+| stereo, start facing the goal | 0.27 m | 0.56 m | 3.5° | 0 | 1.0 |
+
+The camera sees sky over Map A (no roof / open side in `warehouse.usd`?), which leaves fewer features.
