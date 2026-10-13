@@ -13,6 +13,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 from spot_vslam.assets import PAPER_MAP_SPACING, PAPER_MAPS
 
@@ -172,6 +173,27 @@ class SpotPaperWallsSoftEnvCfg(SpotPaperWallsEnvCfg):
             weight=-5.0,
             params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=["body", ".*leg"]), "threshold": 1.0},
         )
+
+
+@configclass
+class SpotPaperWallsSoftNoiseEnvCfg(SpotPaperWallsSoftEnvCfg):
+    """``Spot-Paper-WallsSoftNoise-v0``: WallsSoft with noise on every sensor (domain randomization, comparison 3).
+
+    Body velocity, gravity and joints get Isaac Lab's Spot observation noise; the depth image gets range noise,
+    missing pixels and edge dropout (``mdp.noisy_camera_depth_obs``). The two depth terms become one term with the same
+    305 values in the same order, so the observation stays 353-dim and WallsSoft checkpoints load.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        policy = self.observations.policy
+        policy.base_lin_vel.noise = Unoise(n_min=-0.1, n_max=0.1)
+        policy.base_ang_vel.noise = Unoise(n_min=-0.1, n_max=0.1)
+        policy.projected_gravity.noise = Unoise(n_min=-0.05, n_max=0.05)
+        policy.joint_pos.noise = Unoise(n_min=-0.05, n_max=0.05)
+        policy.joint_vel.noise = Unoise(n_min=-0.5, n_max=0.5)
+        policy.camera_depth.func = mdp.noisy_camera_depth_obs
+        policy.camera_depth_stats = None
 
 
 def use_paper_map(cfg: LocomotionEnvCfg, map_name: str):

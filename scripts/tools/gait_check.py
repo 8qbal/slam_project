@@ -5,10 +5,10 @@ rate, foot lift, body motion and the per-term reward (docs/low_level_reward.md).
     python scripts/tools/gait_check.py --task Spot-Vslam-Depth-v0 \
         --checkpoint baselines/rl_vslam_v0/policies/low_level/spot_rough_ppo.pth
 
-Envs 0-7 get fixed commands (CMDS / WZ); the first 50 steps (2 s) are skipped. "trot" = diagonal pairs in contact
-together and opposite to the other pair, "4-down" = all feet on the ground, "0-down" = all feet in the air,
-"swing dz" = mean per-foot height range, "|mu|>1" = share of policy outputs outside [-1, 1] (clipped only when the
-agent cfg clips).
+Envs 0-7 get fixed commands (CMDS / WZ; --turns: a left / right turn sweep on 24 envs); the first 50 steps (2 s)
+are skipped. "trot" = diagonal pairs in contact together and opposite to the other pair, "4-down" = all feet on the
+ground, "0-down" = all feet in the air, "swing dz" = mean per-foot height range, "|mu|>1" = share of policy outputs
+outside [-1, 1] (clipped only when the agent cfg clips). --noise keeps the task's observation noise on.
 """
 
 import argparse
@@ -21,6 +21,8 @@ parser.add_argument("--checkpoint", required=True)
 parser.add_argument("--steps", type=int, default=300)
 parser.add_argument("--no_maze", action="store_true", help="map tasks: drop the map (flat floor only)")
 parser.add_argument("--hide_maze", action="store_true", help="map tasks: keep the map colliders, hide it")
+parser.add_argument("--turns", action="store_true", help="left / right turn sweep, 3 envs each")
+parser.add_argument("--noise", action="store_true", help="keep the task's observation noise on (default: off)")
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 args.enable_cameras = True
@@ -36,10 +38,13 @@ from spot_vslam.tasks.navigation.mdp.actions import RlGamesPolicy
 
 CMDS = [0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 0.5, 0.5]  # vx per env, wz = 0 (last two: wz = +0.4 / -0.4)
 WZ = [0, 0, 0, 0, 0, 0, 0.4, -0.4]
+if args.turns:  # left / right symmetry: each (vx, wz) on 3 envs
+    pairs = [(vx, wz) for vx in (0.0, 0.5) for wz in (0.2, -0.2, 0.4, -0.4) for _ in range(3)]
+    CMDS, WZ = [p[0] for p in pairs], [p[1] for p in pairs]
 N = len(CMDS)
 
 cfg = parse_env_cfg(args.task, num_envs=N)
-cfg.observations.policy.enable_corruption = False
+cfg.observations.policy.enable_corruption = args.noise
 cfg.episode_length_s = 1000.0
 cfg.events.push_robot = None
 cfg.commands.base_velocity.resampling_time_range = (1e6, 1e6)
