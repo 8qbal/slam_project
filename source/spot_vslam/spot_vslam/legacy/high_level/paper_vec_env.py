@@ -16,15 +16,17 @@ contact). Distances for the reward use the ground-truth pose.
 """
 
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
 
 import gymnasium as gym
 import numpy as np
 import torch
 from stable_baselines3.common.vec_env.base_vec_env import VecEnvObs, VecEnvStepReturn
 
-from .high_level_vec_env import HighLevelEnvCfg, HighLevelIsaacVecEnv, quat_to_yaw
+from spot_vslam.utils import yaw_from_quat_xyzw
+
+from .high_level_vec_env import HighLevelEnvCfg, HighLevelIsaacVecEnv
 
 
 def wrap_to_pi(angle: torch.Tensor) -> torch.Tensor:
@@ -43,7 +45,7 @@ class PaperHighLevelEnvCfg(HighLevelEnvCfg):
     max_episode_hl_steps: int = 400
 
     # Fixed goal of the paper map in map coordinates (paper_cfg.PAPER_MAPS), used in training and evaluation.
-    goal_w: Optional[Tuple[float, float]] = None
+    goal_w: tuple[float, float] | None = None
     goal_radius: float = 1.0
 
     # Reward (not specified in the paper)
@@ -58,7 +60,7 @@ class PaperHighLevelEnvCfg(HighLevelEnvCfg):
 
 
 class PaperHighLevelIsaacVecEnv(HighLevelIsaacVecEnv):
-    def __init__(self, low_level_env, low_level_agent, cfg: Optional[PaperHighLevelEnvCfg] = None):
+    def __init__(self, low_level_env, low_level_agent, cfg: PaperHighLevelEnvCfg | None = None):
         super().__init__(low_level_env, low_level_agent, cfg or PaperHighLevelEnvCfg())
         if self.cfg.goal_w is None:
             raise ValueError("PaperHighLevelEnvCfg.goal_w must be set (see paper_cfg.PAPER_MAPS)")
@@ -77,16 +79,16 @@ class PaperHighLevelIsaacVecEnv(HighLevelIsaacVecEnv):
         self._body_ids, _ = contact_sensor.find_bodies("body")
 
     # ------------------------------------------------------------------ poses
-    def _gt_pose(self) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _gt_pose(self) -> tuple[torch.Tensor, torch.Tensor]:
         robot = self.env_unwrapped.scene["robot"].data
-        return robot.root_pos_w.torch[:, :2].clone(), quat_to_yaw(robot.root_quat_w.torch)
+        return robot.root_pos_w.torch[:, :2].clone(), yaw_from_quat_xyzw(robot.root_quat_w.torch)
 
     def _world_to_start(self, xy_w: torch.Tensor) -> torch.Tensor:
         d = xy_w - self.start_xy
         c, s = torch.cos(self.start_yaw), torch.sin(self.start_yaw)
         return torch.stack([c * d[:, 0] + s * d[:, 1], -s * d[:, 0] + c * d[:, 1]], dim=-1)
 
-    def _orb_pose(self) -> Optional[torch.Tensor]:
+    def _orb_pose(self) -> torch.Tensor | None:
         res = getattr(self.env_unwrapped, "orb_slam_res", None)
         if not self.cfg.use_orb_pose or not isinstance(res, dict):
             return None
@@ -215,7 +217,7 @@ class PaperHighLevelIsaacVecEnv(HighLevelIsaacVecEnv):
 
         rewards = reward_t.cpu().numpy().astype(np.float32)
         dones_np = done_t.cpu().numpy().astype(bool)
-        infos_out: List[Dict] = []
+        infos_out: list[dict] = []
         for i in range(self.num_envs):
             info_i = dict(info_mean, cmd_vx=float(cmd[i, 0].item()), cmd_wz=float(cmd[i, 2].item()))
             if dones_np[i]:

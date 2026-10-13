@@ -23,21 +23,13 @@ args_cli.enable_cameras = True
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-import gymnasium as gym
 import torch.nn as nn
-from rl_games.common import env_configurations, vecenv
-from rl_games.common.player import BasePlayer
-from rl_games.torch_runner import Runner
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback, CallbackList, CheckpointCallback
 from stable_baselines3.common.vec_env import VecMonitor
 
-from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
-
-from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
-
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
+from isaaclab_tasks.utils import get_checkpoint_path, load_cfg_from_registry
 
 import spot_vslam.tasks  # noqa: F401
 from spot_vslam.assets import PAPER_MAPS
@@ -45,8 +37,8 @@ from spot_vslam.legacy.high_level.high_level_vec_env import (
     HighLevelEnvCfg,
     HighLevelIsaacVecEnv,
 )
+from spot_vslam.legacy.high_level.low_level_runner import build_low_level as build_low_level_policy
 from spot_vslam.legacy.high_level.paper_vec_env import PaperHighLevelEnvCfg, PaperHighLevelIsaacVecEnv
-from spot_vslam.slam.ros2_manager import Ros2Manager
 
 
 class HighLevelTensorboardCallback(BaseCallback):
@@ -93,56 +85,15 @@ class HighLevelTensorboardCallback(BaseCallback):
 
 
 def build_low_level():
-    env_cfg = parse_env_cfg(
-        args_cli.low_level_task,
-        device="cuda:0",
-        num_envs=args_cli.num_envs,
-    )
-
-    agent_cfg = load_cfg_from_registry(args_cli.low_level_task, "rl_games_cfg_entry_point")
-    log_root = os.path.join("logs", "rl_games", agent_cfg["params"]["config"]["name"])
-
     if args_cli.checkpoint is None:
+        agent_cfg = load_cfg_from_registry(args_cli.low_level_task, "rl_games_cfg_entry_point")
+        log_root = os.path.join("logs", "rl_games", agent_cfg["params"]["config"]["name"])
         run_dir = agent_cfg["params"]["config"].get("full_experiment_name", ".*")
         checkpoint_file = f"{agent_cfg['params']['config']['name']}.pth"
         resume_path = get_checkpoint_path(log_root, run_dir, checkpoint_file, other_dirs=["nn"])
     else:
         resume_path = args_cli.checkpoint
-
-    print("[INFO] Loading low-level checkpoint:", resume_path)
-
-    rl_device = agent_cfg["params"]["config"]["device"]
-    clip_obs = agent_cfg["params"]["env"].get("clip_observations", float("inf"))
-    clip_actions = agent_cfg["params"]["env"].get("clip_actions", float("inf"))
-
-    env = gym.make(args_cli.low_level_task, cfg=env_cfg)
-    if isinstance(env.unwrapped, DirectMARLEnv):
-        env = multi_agent_to_single_agent(env)
-
-    env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions)
-
-    vecenv.register(
-        "IsaacRlgWrapper",
-        lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs),
-    )
-    env_configurations.register("rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env})
-
-    agent_cfg["params"]["load_checkpoint"] = True
-    agent_cfg["params"]["load_path"] = resume_path
-    agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
-
-    runner = Runner()
-    runner.load(agent_cfg)
-
-    agent: BasePlayer = runner.create_player()
-    agent.restore(resume_path)
-    agent.reset()
-
-    if getattr(env.unwrapped.cfg, "ros2", None) is not None:
-        env.unwrapped.ros2_manager = Ros2Manager(env.unwrapped.cfg.ros2, env.unwrapped)
-
-    print("[INFO] low-level num_envs =", env.unwrapped.num_envs)
-    return env, agent
+    return build_low_level_policy(args_cli.low_level_task, resume_path, args_cli.num_envs)
 
 
 def main():

@@ -55,20 +55,11 @@ args_cli.enable_cameras = True
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
-from rl_games.common import env_configurations, vecenv
-from rl_games.common.player import BasePlayer
-from rl_games.torch_runner import Runner
 from stable_baselines3 import PPO
 
-from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
-
-from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
-
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import load_cfg_from_registry, parse_env_cfg
 
 import spot_vslam.tasks  # noqa: F401
 from spot_vslam.assets import PAPER_MAPS
@@ -76,12 +67,13 @@ from spot_vslam.legacy.high_level.high_level_vec_env import (
     HighLevelEnvCfg,
     HighLevelIsaacVecEnv,
 )
+from spot_vslam.legacy.high_level.low_level_runner import build_low_level as build_low_level_policy
 from spot_vslam.legacy.high_level.paper_vec_env import PaperHighLevelEnvCfg, PaperHighLevelIsaacVecEnv
 from spot_vslam.slam.dense_map import (
     DenseMapManager,
     DenseMapManagerCfg,
 )
-from spot_vslam.slam.ros2_manager import Ros2Manager
+from spot_vslam.utils import yaw_from_quat_xyzw
 
 
 class OrbGtComparator:
@@ -115,20 +107,13 @@ class OrbGtComparator:
         c, s = np.cos(origin_xyyaw[2]), np.sin(origin_xyyaw[2])
         return np.array([c * dx + s * dy, -s * dx + c * dy, cls.wrap_to_pi(xyyaw[2] - origin_xyyaw[2])])
 
-    @staticmethod
-    def quat_xyzw_to_yaw(quat_xyzw: np.ndarray) -> float:
-        x, y, z, w = quat_xyzw
-        siny_cosp = 2.0 * (w * z + x * y)
-        cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
-        return np.arctan2(siny_cosp, cosy_cosp)
-
     def get_gt_xyyaw(self, env_unwrapped) -> np.ndarray:
         # 1. World position and quaternion of the robot base
         pos = env_unwrapped.scene["robot"].data.root_pos_w.torch[0].detach().cpu().numpy()
         quat = env_unwrapped.scene["robot"].data.root_quat_w.torch[0].detach().cpu().numpy()
 
         # 2. Base yaw (heading)
-        yaw = self.quat_xyzw_to_yaw(quat)
+        yaw = yaw_from_quat_xyzw(quat)
 
         # 3. Move the GT reference point from the robot center to the camera center:
         # the camera is 0.4 m ahead along the base x axis
@@ -203,54 +188,12 @@ class OrbGtComparator:
 
 
 def build_low_level():
-    env_cfg = parse_env_cfg(
-        args_cli.low_level_task,
-        device="cuda:0",
-        num_envs=args_cli.num_envs,
-    )
-    if args_cli.seed is not None:
-        env_cfg.seed = args_cli.seed
-
-    agent_cfg = load_cfg_from_registry(args_cli.low_level_task, "rl_games_cfg_entry_point")
-
     resume_path = os.path.expanduser(args_cli.low_level_checkpoint)
     if not os.path.isfile(resume_path):
         raise FileNotFoundError(f"Low-level checkpoint not found: {resume_path}")
-
-    print("[INFO] Loading low-level checkpoint:", resume_path)
-
-    rl_device = agent_cfg["params"]["config"]["device"]
-    clip_obs = agent_cfg["params"]["env"].get("clip_observations", float("inf"))
-    clip_actions = agent_cfg["params"]["env"].get("clip_actions", float("inf"))
-
-    env = gym.make(args_cli.low_level_task, cfg=env_cfg)
-    if isinstance(env.unwrapped, DirectMARLEnv):
-        env = multi_agent_to_single_agent(env)
-
-    env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions)
-
-    vecenv.register(
-        "IsaacRlgWrapper",
-        lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs),
+    return build_low_level_policy(
+        args_cli.low_level_task, resume_path, args_cli.num_envs, seed=args_cli.seed, ros2=not args_cli.no_ros2
     )
-    env_configurations.register("rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env})
-
-    agent_cfg["params"]["load_checkpoint"] = True
-    agent_cfg["params"]["load_path"] = resume_path
-    agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
-
-    runner = Runner()
-    runner.load(agent_cfg)
-
-    agent: BasePlayer = runner.create_player()
-    agent.restore(resume_path)
-    agent.reset()
-
-    if getattr(env.unwrapped.cfg, "ros2", None) is not None and not args_cli.no_ros2:
-        env.unwrapped.ros2_manager = Ros2Manager(env.unwrapped.cfg.ros2, env.unwrapped)
-
-    print("[INFO] low-level num_envs =", env.unwrapped.num_envs)
-    return env, agent
 
 
 def save_error_plots(
@@ -352,7 +295,7 @@ def save_performance_plots(csv_path, out_dir, suffix="", show_plot=False):
 
         # Merge the legends of both axes
         lines = line1 + line2 + line3
-        labels = [l.get_label() for l in lines]
+        labels = [line.get_label() for line in lines]
         axs[0].legend(lines, labels, loc="upper left")
     else:
         axs[0].legend(loc="upper left")
@@ -448,7 +391,8 @@ def main():
         vec_env = PaperHighLevelIsaacVecEnv(low_env, low_agent, hl_cfg)
         collisions = CollisionCounter(low_env.unwrapped)
         print(
-            f"[INFO] Paper map {map_name}: start {paper_map.start} -> goal {paper_map.goal} (r={paper_map.goal_radius} m)"
+            f"[INFO] Paper map {map_name}: start {paper_map.start} -> goal {paper_map.goal}"
+            f" (r={paper_map.goal_radius} m)"
         )
     else:
         hl_cfg = HighLevelEnvCfg(
@@ -585,7 +529,8 @@ def main():
                         collisions=collisions.count,
                     )
                     print(
-                        f"[NAV-TEST] {'SUCCESS' if success else 'FAIL'} at step {step + 1}, {collisions.count} collisions"
+                        f"[NAV-TEST] {'SUCCESS' if success else 'FAIL'} at step {step + 1},"
+                        f" {collisions.count} collisions"
                     )
                     break
 

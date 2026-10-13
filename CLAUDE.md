@@ -92,7 +92,7 @@ included) before and after: a trained policy must keep loading under its task id
 
 Assets (`SPOT_USD_PATH`, `WAREHOUSE_USD_PATH` in `spot_vslam/assets/__init__.py`) come from the local Isaac Sim
 asset pack via `$ISAACSIM_ASSET_ROOT`; the low-level locomotion checkpoint comes from `--checkpoint` or
-`$SPOT_VSLAM_LOW_LEVEL_CKPT`. Neither should be hardcoded back to machine-specific paths.
+`$SPOT_VSLAM_LOW_LEVEL_CKPT` (final ones are in `policies/`, e.g. `policies/walls_soft/model.pth`). Neither should be hardcoded back to machine-specific paths.
 
 ## Architecture
 
@@ -109,6 +109,7 @@ scripts/           README.md = run commands
   legacy/          old scripts nothing calls
 output/            git-ignored run outputs: checkpoints/high_level{,_paper}, tensorboard/, dense_map/, test results
 baselines/         frozen policy snapshots + results (rl_vslam_v0)
+policies/          final paper-version checkpoints (low levels, SB3 high level) + their yaml; README has sources
 references/        the paper (main.pdf), its bibliography, and paper-vs-code notes
 source/spot_vslam/
   config/          Isaac Sim extension manifest
@@ -123,7 +124,9 @@ source/spot_vslam/
       locomotion/  low level. config/spot/paper_env_cfg.py (353-dim), baseline_v0_env_cfg.py (245-dim, frozen)
       navigation/  high level, manager-based. mdp/actions.py runs the frozen low level (rl_games .pth)
       slam_test/   SLAM test env
-    legacy/        high_level/: SB3 wrappers (high_level_vec_env.py, paper_vec_env.py) for existing checkpoints
+    legacy/        high_level/: SB3 wrappers (high_level_vec_env.py, paper_vec_env.py) for existing checkpoints,
+                   low_level_runner.py (frozen rl_games low level for the SB3 scripts)
+    utils.py       shared helpers (yaw_from_quat_xyzw, step_obs_info)
 ```
 
 ### Env / manager wiring

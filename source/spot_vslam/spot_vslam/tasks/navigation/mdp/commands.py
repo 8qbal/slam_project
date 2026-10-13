@@ -16,14 +16,10 @@ from isaaclab.managers import CommandTerm, CommandTermCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import wrap_to_pi
 
+from spot_vslam.utils import yaw_from_quat_xyzw
+
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
-
-
-def yaw_from_quat_xyzw(q: torch.Tensor) -> torch.Tensor:
-    """Yaw of (x, y, z, w) quaternions (Isaac Lab 3.0 order)."""
-    x, y, z, w = q.unbind(dim=-1)
-    return torch.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
 
 
 class GoalCommand(CommandTerm):

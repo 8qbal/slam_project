@@ -1,22 +1,13 @@
-import math
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
 from stable_baselines3.common.vec_env import VecEnv
 from stable_baselines3.common.vec_env.base_vec_env import VecEnvObs, VecEnvStepReturn
 
-
-def quat_to_yaw(quat_xyzw: torch.Tensor) -> torch.Tensor:
-    x = quat_xyzw[:, 0]
-    y = quat_xyzw[:, 1]
-    z = quat_xyzw[:, 2]
-    w = quat_xyzw[:, 3]
-    siny_cosp = 2.0 * (w * z + x * y)
-    cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
-    return torch.atan2(siny_cosp, cosy_cosp)
+from spot_vslam.utils import yaw_from_quat_xyzw
 
 
 def get_camera_depth_stats_from_env(env_unwrapped, sensor_name: str = "train_camera") -> torch.Tensor:
@@ -52,7 +43,7 @@ def get_orb_pose_xyyaw_from_env(env_unwrapped) -> torch.Tensor:
 
     pos_xy = env_unwrapped.scene["robot"].data.root_pos_w.torch[:, :2].clone()
     quat = env_unwrapped.scene["robot"].data.root_quat_w.torch.clone()
-    yaw = quat_to_yaw(quat).unsqueeze(-1)
+    yaw = yaw_from_quat_xyzw(quat).unsqueeze(-1)
     pose = torch.cat([pos_xy, yaw], dim=-1)
 
     noise = torch.zeros_like(pose)
@@ -80,7 +71,7 @@ class CommandFilter:
         self.alpha = alpha
         self.cmd = torch.zeros((num_envs, 3), device=device)
 
-    def reset(self, env_ids: Optional[torch.Tensor] = None):
+    def reset(self, env_ids: torch.Tensor | None = None):
         if env_ids is None:
             self.cmd.zero_()
         else:
@@ -115,7 +106,9 @@ class FrozenLowLevelAgentAdapter:
 
         if base_obs.ndim == 1 and base_obs.numel() == self.num_envs * self.expected_obs_dim:
             base_obs = base_obs.view(self.num_envs, self.expected_obs_dim)
-        elif base_obs.ndim == 2 and base_obs.shape[0] == 1 and base_obs.shape[1] == self.num_envs * self.expected_obs_dim:
+        elif (
+            base_obs.ndim == 2 and base_obs.shape[0] == 1 and base_obs.shape[1] == self.num_envs * self.expected_obs_dim
+        ):
             base_obs = base_obs.view(self.num_envs, self.expected_obs_dim)
         elif base_obs.ndim == 2 and base_obs.shape == (self.num_envs, self.expected_obs_dim):
             pass
@@ -187,7 +180,7 @@ class HighLevelIsaacVecEnv(VecEnv):
     SB3 VecEnv adapter for one Isaac env with internal num_envs = N.
     """
 
-    def __init__(self, low_level_env, low_level_agent, cfg: Optional[HighLevelEnvCfg] = None):
+    def __init__(self, low_level_env, low_level_agent, cfg: HighLevelEnvCfg | None = None):
         self.env = low_level_env
         self.env_unwrapped = low_level_env.unwrapped
         self.cfg = cfg or HighLevelEnvCfg()
@@ -223,7 +216,7 @@ class HighLevelIsaacVecEnv(VecEnv):
 
         self._last_low_obs = None
         self._pending_actions = None
-        self.reset_infos: List[Dict] = [{} for _ in range(self.num_envs)]
+        self.reset_infos: list[dict] = [{} for _ in range(self.num_envs)]
 
     def _action_to_command(self, action: torch.Tensor) -> torch.Tensor:
         action = torch.clamp(action, -1.0, 1.0)
@@ -266,6 +259,7 @@ class HighLevelIsaacVecEnv(VecEnv):
         sensor_cfg_body_ids = None
         try:
             from isaaclab.managers import SceneEntityCfg
+
             sensor_cfg_body_ids = SceneEntityCfg("contact_forces", body_names=["body"]).body_ids
         except Exception:
             pass
@@ -277,8 +271,6 @@ class HighLevelIsaacVecEnv(VecEnv):
         forces_norm = torch.norm(current_forces, dim=-1)
         return torch.any(forces_norm > 1.0, dim=1).float()
 
-
-
     # def _compute_reward(self, action_cmd: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, float]]:
     #     # Displacement since the previous high-level step
     #     curr_pos_xy = self.env_unwrapped.scene["robot"].data.root_pos_w.torch[:, :2]
@@ -286,7 +278,7 @@ class HighLevelIsaacVecEnv(VecEnv):
 
     #     # Displacement along the robot's forward axis (current heading)
     #     quat = self.env_unwrapped.scene["robot"].data.root_quat_w.torch
-    #     yaw = quat_to_yaw(quat)
+    #     yaw = yaw_from_quat_xyzw(quat)
 
     #     forward_dir = torch.stack([torch.cos(yaw), torch.sin(yaw)], dim=-1)
     #     progress = torch.sum(delta_xy * forward_dir, dim=-1)
@@ -353,11 +345,15 @@ class HighLevelIsaacVecEnv(VecEnv):
     #         "reward_turn_term": float(turn_term.mean().item()),
     #     }
     #     return reward, info_mean
-    def _compute_reward(self, action_cmd: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, float]]:
-        progress = torch.clamp(
-            self.env_unwrapped.scene["robot"].data.root_lin_vel_b.torch[:, 0],
-            min=0.0,
-        ) * self.env_unwrapped.step_dt * self.cfg.hl_decimation
+    def _compute_reward(self, action_cmd: torch.Tensor) -> tuple[torch.Tensor, dict[str, float]]:
+        progress = (
+            torch.clamp(
+                self.env_unwrapped.scene["robot"].data.root_lin_vel_b.torch[:, 0],
+                min=0.0,
+            )
+            * self.env_unwrapped.step_dt
+            * self.cfg.hl_decimation
+        )
 
         stuck = (progress < self.cfg.stuck_dist_threshold).float()
         body_contact = self._body_contact_flag()
@@ -371,12 +367,7 @@ class HighLevelIsaacVecEnv(VecEnv):
         body_contact_term = -0.02 * body_contact
         turn_term = -0.005 * wz_abs
 
-        reward = (
-            progress_term
-            + stuck_term
-            + body_contact_term
-            + turn_term
-        )
+        reward = progress_term + stuck_term + body_contact_term + turn_term
 
         info_mean = {
             "progress": float(progress.mean().item()),
@@ -441,9 +432,7 @@ class HighLevelIsaacVecEnv(VecEnv):
             action_t = action_t.reshape(1, -1)
 
         if action_t.shape != (self.num_envs, self.act_dim):
-            raise ValueError(
-                f"Expected action shape ({self.num_envs}, {self.act_dim}), got {tuple(action_t.shape)}"
-            )
+            raise ValueError(f"Expected action shape ({self.num_envs}, {self.act_dim}), got {tuple(action_t.shape)}")
 
         self.hl_step_count += 1
         self.last_high_action[:] = action_t
@@ -492,7 +481,7 @@ class HighLevelIsaacVecEnv(VecEnv):
         rewards = reward_t.detach().cpu().numpy().astype(np.float32)
         dones = done_t.detach().cpu().numpy().astype(bool)
 
-        infos: List[Dict] = []
+        infos: list[dict] = []
         for i in range(self.num_envs):
             info_i = {}
 
@@ -518,19 +507,21 @@ class HighLevelIsaacVecEnv(VecEnv):
             #     "cmd_vx": float(cmd[i, 0].item()),
             #     "cmd_wz": float(cmd[i, 2].item()),
             # })
-            info_i.update({
-                "progress": reward_mean_info["progress"],
-                "stuck": reward_mean_info["stuck"],
-                "body_contact": reward_mean_info["body_contact"],
-                "wz_abs": reward_mean_info["wz_abs"],
-                "reward_step_mean": reward_mean_info["reward_step_mean"],
-                "reward_progress_term": reward_mean_info["reward_progress_term"],
-                "reward_stuck_term": reward_mean_info["reward_stuck_term"],
-                "reward_body_contact_term": reward_mean_info["reward_body_contact_term"],
-                "reward_turn_term": reward_mean_info["reward_turn_term"],
-                "cmd_vx": float(cmd[i, 0].item()),
-                "cmd_wz": float(cmd[i, 2].item()),
-            })
+            info_i.update(
+                {
+                    "progress": reward_mean_info["progress"],
+                    "stuck": reward_mean_info["stuck"],
+                    "body_contact": reward_mean_info["body_contact"],
+                    "wz_abs": reward_mean_info["wz_abs"],
+                    "reward_step_mean": reward_mean_info["reward_step_mean"],
+                    "reward_progress_term": reward_mean_info["reward_progress_term"],
+                    "reward_stuck_term": reward_mean_info["reward_stuck_term"],
+                    "reward_body_contact_term": reward_mean_info["reward_body_contact_term"],
+                    "reward_turn_term": reward_mean_info["reward_turn_term"],
+                    "cmd_vx": float(cmd[i, 0].item()),
+                    "cmd_wz": float(cmd[i, 2].item()),
+                }
+            )
 
             if dones[i]:
                 info_i["episode"] = {
@@ -569,5 +560,5 @@ class HighLevelIsaacVecEnv(VecEnv):
     def env_is_wrapped(self, wrapper_class, indices=None):
         return [False for _ in range(self.num_envs)]
 
-    def render(self, mode: Optional[str] = None):
+    def render(self, mode: str | None = None):
         return None

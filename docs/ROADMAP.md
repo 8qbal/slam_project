@@ -163,6 +163,9 @@ Question: can the robot learn to change how it moves when localization becomes u
 - [ ] Physics presets (PhysX / Newton) via Isaac Lab 3.0 `PresetCfg`. Verify RTX camera, ray casters, contact
       sensors and ROS 2 under Newton before claiming support.
 - [ ] ROS 2 topic prefixes and frame names are hard-coded in 13 places; keep them only in `Ros2ManagerCfg`.
+- [ ] Two ORB-SLAM3 pose subscribers: `Ros2Manager` (`env.orb_slam_res`) and `OrbSlamSubscriberManager` (slam_test
+      scripts) both subscribe to `orbslam/robot_pose`. Merge into one; the rl_vslam_v0 tables were measured through
+      `Ros2Manager`, so re-check them after.
 - [ ] `scripts/slam/test_nav2_loop.py` defaults to the unregistered task `Spot-test-hybrid`.
 - [ ] Low-level scenes keep a height scanner nothing reads; remove it with the next low-level retrain (it doesn't
       change the observation).

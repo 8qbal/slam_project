@@ -1,6 +1,5 @@
 """Publishes camera images / TF to ROS 2 and reads ORB-SLAM3 poses back into the env (``env.orb_slam_res``)."""
 
-import math
 import threading
 import time
 from collections.abc import Sequence
@@ -17,6 +16,8 @@ from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
 
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sensors import Camera
+
+from spot_vslam.utils import yaw_from_quat_xyzw
 
 
 def numpy_to_imgmsg(array: np.ndarray, encoding: str) -> Image:
@@ -203,11 +204,6 @@ class Ros2Manager:
 
             self.node.get_logger().info(f"Subscribed ORB topics for env {i}: {pose_topic}, {state_topic}")
 
-    def _quat_xyzw_to_yaw(self, x: float, y: float, z: float, w: float) -> float:
-        siny_cosp = 2.0 * (w * z + x * y)
-        cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
-        return math.atan2(siny_cosp, cosy_cosp)
-
     def _pose_callback(self, msg: PoseStamped, env_id: int):
         """Store /spot{i}/orbslam/robot_pose as [x, y, yaw]."""
         px = float(msg.pose.position.x)
@@ -218,7 +214,7 @@ class Ros2Manager:
         qz = float(msg.pose.orientation.z)
         qw = float(msg.pose.orientation.w)
 
-        yaw = self._quat_xyzw_to_yaw(qx, qy, qz, qw)
+        yaw = yaw_from_quat_xyzw((qx, qy, qz, qw))
 
         with self._orb_lock:
             self._orb_pose_xyyaw_cpu[env_id, 0] = px
