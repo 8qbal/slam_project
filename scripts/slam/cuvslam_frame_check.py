@@ -5,8 +5,8 @@ next to the ground-truth pose, both in the start frame. No high-level policy. De
     SPOT_VSLAM_LOW_LEVEL_CKPT=<low-level .pth> uv run scripts/slam/cuvslam_frame_check.py
 
 Phases (high-level steps of 0.08 s): stand, straight, turn left, turn right. x must grow forward, yaw must turn the
-same way as GT. Odometry and loop-closure poses are compared separately; trajectories go to
-output/cuvslam_frame_check/ (t x y yaw).
+same way as GT (--to_goal instead drives to the map goal on GT). Odometry and loop-closure poses are compared
+separately; trajectories go to output/cuvslam_frame_check/ (t x y yaw, and TUM files for evo).
 """
 
 import argparse
@@ -20,6 +20,8 @@ parser.add_argument("--no_loop_closure", action="store_true", help="cuVSLAM odom
 parser.add_argument("--clip_far", type=float, default=None, help="override the SLAM camera's far clipping distance (m)")
 parser.add_argument("--aa", default=None, help="RTX anti-aliasing for the cameras: Off, FXAA, DLSS, TAA, DLAA")
 parser.add_argument("--no_reflections", action="store_true", help="RTX reflections off (noisy shiny floor)")
+parser.add_argument("--to_goal", action="store_true", help="drive to the map goal on GT, not the phases")
+parser.add_argument("--max_steps", type=int, default=1500, help="--to_goal: give up after this many steps")
 parser.add_argument("--dump_frames", action="store_true", help="save every SLAM frame (RGB, depth, stamp) for replay")
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
@@ -85,38 +87,56 @@ print(
     f"{'step':>5} {'cmd vx wz':>10} | {'GT x':>6} {'y':>6} {'yaw':>6} | {'odom x':>6} {'y':>6} {'yaw':>6} |"
     f" {'loop x':>6} {'y':>6} {'yaw':>6} | ok feat  ms | z roll"
 )
-for n, vx, wz in PHASES:
+
+
+def commands():
+    """(vx, wz) per step: the fixed phases, or stand then drive to the goal on GT (same drive for every SLAM)."""
+    if not args.to_goal:
+        for n, vx, wz in PHASES:
+            yield from [(vx, wz)] * n
+        return
+    yield from [PHASES[0][1:]] * PHASES[0][0]
+    for _ in range(args.max_steps):
+        x, y, yaw = goal.gt_pose_start_frame()[0].tolist()
+        gx, gy = goal.command[0].tolist()
+        if math.hypot(gx - x, gy - y) < goal.cfg.goal_radius + 0.5:  # stop before goal_reached resets the env
+            return
+        err = math.atan2(gy - y, gx - x) - yaw
+        err = math.atan2(math.sin(err), math.cos(err))
+        yield 0.6 * max(0.0, math.cos(err)), max(-0.4, min(0.4, 1.0 * err))
+
+
+for vx, wz in commands():
     action = to_action(vx, wz).to(env.device)
-    for _ in range(n):
-        env.step(action)
-        step += 1
-        gt = goal.gt_pose_start_frame()[0].tolist()
-        # cuVSLAM, else ORB-SLAM3 (Play / Stereo-Play: pose and status only), else GT-Play (no SLAM)
-        res = getattr(env, "slam_res", None) or getattr(env, "orb_slam_res", None) or NO_SLAM
-        est = [res.get(k, torch.full((1, 3), float("nan")))[0].tolist() for k in EST]
-        ok = float(res["status"][0])
-        feat, ms = (float(res[k][0]) if k in res else float("nan") for k in ("num_features", "track_time_ms"))
-        rows.append((step, *gt, *est[0], *est[1], *est[2], ok, feat, ms))
-        if args.dump_frames:
-            out_cam = env.scene.sensors["tilted_camera"].data.output
-            frames["rgb"].append(out_cam["rgb"].torch[0, ..., :3].cpu().numpy())
-            frames["depth"].append(out_cam["distance_to_image_plane"].torch[0, ..., 0].cpu().numpy())
-            if stereo:
-                frames["rgb_right"].append(
-                    env.scene.sensors["right_camera"].data.output["rgb"].torch[0, ..., :3].cpu().numpy()
-                )
-            frames["stamp"].append(float(res["stamp_s"][0]) if "stamp_s" in res else step * env.step_dt)
-        if step % args.print_every == 0:
-            z = float(robot.data.root_pos_w.torch[0, 2])
-            qx, qy, qz, qw = robot.data.root_quat_w.torch[0].tolist()
-            roll = math.atan2(2 * (qw * qx + qy * qz), 1 - 2 * (qx * qx + qy * qy))
-            od, lc = est[1], est[2]
-            print(
-                f"{step:5d} {vx:4.1f} {wz:4.1f} | {gt[0]:6.2f} {gt[1]:6.2f} {math.degrees(gt[2]):6.1f} |"
-                f" {od[0]:6.2f} {od[1]:6.2f} {math.degrees(od[2]):6.1f} |"
-                f" {lc[0]:6.2f} {lc[1]:6.2f} {math.degrees(lc[2]):6.1f} | {ok:.0f} {feat:4.0f} {ms:5.1f}"
-                f" | {z:.2f} {math.degrees(roll):5.1f}"
+    env.step(action)
+    step += 1
+    gt = goal.gt_pose_start_frame()[0].tolist()
+    # cuVSLAM, else ORB-SLAM3 (Play / Stereo-Play: pose and status only), else GT-Play (no SLAM)
+    res = getattr(env, "slam_res", None) or getattr(env, "orb_slam_res", None) or NO_SLAM
+    est = [res.get(k, torch.full((1, 3), float("nan")))[0].tolist() for k in EST]
+    ok = float(res["status"][0])
+    feat, ms = (float(res[k][0]) if k in res else float("nan") for k in ("num_features", "track_time_ms"))
+    rows.append((step, *gt, *est[0], *est[1], *est[2], ok, feat, ms))
+    if args.dump_frames:
+        out_cam = env.scene.sensors["tilted_camera"].data.output
+        frames["rgb"].append(out_cam["rgb"].torch[0, ..., :3].cpu().numpy())
+        frames["depth"].append(out_cam["distance_to_image_plane"].torch[0, ..., 0].cpu().numpy())
+        if stereo:
+            frames["rgb_right"].append(
+                env.scene.sensors["right_camera"].data.output["rgb"].torch[0, ..., :3].cpu().numpy()
             )
+        frames["stamp"].append(float(res["stamp_s"][0]) if "stamp_s" in res else step * env.step_dt)
+    if step % args.print_every == 0:
+        z = float(robot.data.root_pos_w.torch[0, 2])
+        qx, qy, qz, qw = robot.data.root_quat_w.torch[0].tolist()
+        roll = math.atan2(2 * (qw * qx + qy * qz), 1 - 2 * (qx * qx + qy * qy))
+        od, lc = est[1], est[2]
+        print(
+            f"{step:5d} {vx:4.1f} {wz:4.1f} | {gt[0]:6.2f} {gt[1]:6.2f} {math.degrees(gt[2]):6.1f} |"
+            f" {od[0]:6.2f} {od[1]:6.2f} {math.degrees(od[2]):6.1f} |"
+            f" {lc[0]:6.2f} {lc[1]:6.2f} {math.degrees(lc[2]):6.1f} | {ok:.0f} {feat:4.0f} {ms:5.1f}"
+            f" | {z:.2f} {math.degrees(roll):5.1f}"
+        )
 
 t = torch.tensor(rows)
 gt_t = t[:, 1:4]
@@ -145,7 +165,13 @@ for j, name in enumerate(("gt",) + EST):
         for r in rows:
             x, y, yaw = r[1 + 3 * j : 4 + 3 * j]
             f.write(f"{r[0] * dt:.3f} {x:.4f} {y:.4f} {yaw:.4f}\n")
-print(f"wrote {out}/{{gt,pose,odom,slam}}.txt (t x y yaw)")
+    # TUM (t x y z qx qy qz qw) for evo
+    with open(f"{out}/{name.removesuffix('_xyyaw')}.tum", "w") as f:
+        for r in rows:
+            x, y, yaw = r[1 + 3 * j : 4 + 3 * j]
+            if not math.isnan(x):
+                f.write(f"{r[0] * dt:.3f} {x:.4f} {y:.4f} 0 0 0 {math.sin(yaw / 2):.6f} {math.cos(yaw / 2):.6f}\n")
+print(f"wrote {out}/{{gt,pose,odom,slam}}.txt (t x y yaw) and .tum (for evo)")
 if args.dump_frames:
     import numpy as np
 

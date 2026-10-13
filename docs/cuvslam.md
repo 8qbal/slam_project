@@ -173,5 +173,29 @@ Sweep (th_depth 40-120, 1000-3000 features, FAST 20/7-10/4): more features and a
 stereo map at frame 0 (default: 16 frames, < 500 points) and lose tracking less often mid-run; accuracy stays at 1-8 m
 and varies more between identical runs than between settings. Every ORB-SLAM3 run loses tracking from about frame
 230 (right turn facing sky and empty floor) and starts a new map, whose origin the node cannot relate to the first
-one. Map A's sky (the 10 m far clip, since fixed) and plain floor hurt ORB features; fixing the scene would help both systems. The
-Stereo-Play task has not run in the sim yet (OOM with other apps open).
+one. Map A's sky (the 10 m far clip, see below) and plain floor hurt ORB features.
+
+### Stereo in the sim, 100 m far clip (2026-10-13)
+
+With the 10 m far clip the SLAM camera rendered nothing past 10 m, so the far walls and the roof of Map A showed as
+sky. SLAM cameras now clip at 100 m (`SLAM_PINHOLE_CFG`); all numbers above used 10 m. Live runs in the sim (ORB-SLAM3
+node started first, binary run directly), low level `2026-10-12_12-50-26` ep 14000, start facing the goal:
+
+| Run | Tracked | Mean xy error | Final | Yaw error | Jumps > 0.5 m |
+| --- | --- | --- | --- | --- | --- |
+| Frame check (285 steps, ~10 m): cuVSLAM stereo | 100 % | 0.26 m | 0.44 m | 1.2° | 0 |
+| Frame check: ORB-SLAM3 stereo, 2 runs | 100 % | 0.74 / 0.75 m | 1.2 / 1.0 m | 11° | 0 |
+| `--to_goal` (559 steps, 26 m to the goal): cuVSLAM stereo | 100 % | 0.48 m | 1.1 m | 2.6° | 0 |
+| `--to_goal`: ORB-SLAM3 stereo, 2 runs | 97 % | 2.9 / 4.1 m | 5.2 / 7.1 m | 16 / 21° | 8 / 7 |
+
+evo on the `--to_goal` runs (TUM files written by the frame check; `uvx --from evo evo_ape tum gt.tum pose.tum`):
+
+| `--to_goal` | APE RMSE | APE RMSE, SE(3) aligned (`-a`) | RPE per 1 m | RPE yaw per 1 m |
+| --- | --- | --- | --- | --- |
+| cuVSLAM stereo | 0.57 m | 0.29 m | 0.13 m | 1.2° |
+| ORB-SLAM3 stereo, run 1 / 2 | 3.4 / 5.0 m | 2.0 / 2.3 m | 0.72 / 0.76 m | 4.1 / 3.6° |
+
+The sky is gone and ORB-SLAM3 no longer loses tracking on the short drive (0.74 m, was 1-8 m). On the long drive it
+keeps one map but drifts sideways by up to 6-8 m between x = 7 and 15 m (start frame), then comes back near the goal;
+cuVSLAM stays within 1.1 m. The drive is a P-controller on GT (`--to_goal`), not the high-level policy (none is trained
+on the new low level yet), so both systems see the same path.

@@ -92,6 +92,8 @@ Goal: shorter perception delay and less CPU than ORB-SLAM3.
 - [x] First run and frame check (`scripts/slam/cuvslam_frame_check.py`): pose follows GT in sign and scale.
 - [x] Odometry jumps (RGB-D, `docs/cuvslam.md` frame check 2): cause not found in RGB-D; switched to stereo (frame
       check 3: 0.27 m mean error, no jumps). ORB-SLAM3 gets a stereo node too, for the same input.
+- [x] First live comparison, stereo, one drive start → goal on Map A (`cuvslam_frame_check.py --to_goal`, evo;
+      `docs/cuvslam.md`): cuVSLAM APE 0.57 m, ORB-SLAM3 3.4-5.0 m. Still to do: more runs, Map B, IMU (below).
 - [ ] Offline benchmark on the recorded data: ORB-SLAM3 vs. cuVSLAM with matched camera inputs and IMU use. evo
       ATE/RPE, tracking failures, recovery.
 - [ ] Online benchmark with the same fixed policy: total latency (image capture → pose used by the policy), SLAM
