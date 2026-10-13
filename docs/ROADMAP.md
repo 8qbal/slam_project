@@ -43,6 +43,11 @@ Proposal items → sections: 1 cuVSLAM → 2; 2 benchmark (evo) → 2; 3 Kalman 
 - [x] Paper policies trained: low level `Spot-Paper-v0`, high level with GT pose (condition A).
 - [x] E0, the current system measured: latency, pose error, tracking failures, CPU/GPU, navigation (Table 9),
       GT vs. SLAM pose with TSDF on and off. TSDF only builds a map; it does not feed control.
+- [x] E0 redone 2026-10-13 (`output/paper_tables_e0_new/`): WallsSoft low level, same SB3 high level (trained on an
+      older low level), ORB-SLAM3 RGB-D, 100 m far clip, start facing the goal. Success A 0 → 40 %, B 0 → 60 %;
+      collisions 1 → 67 (A) / 39 (B); load unchanged (~6 FPS, +VSLAM +2 % CPU). Pose error 0.2 → 2-3.5 m: the old
+      robot barely moved (stuck at the start), the new successful runs drift 4-7 m over the full path. Redo with a
+      high level retrained on the new low level and with stereo SLAM; GPU and SLAM delay are still not logged.
 
 ## 1. Low level: fix the gait, then compare (proposal items 4, 7; paper comparisons 1-3)
 
