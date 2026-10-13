@@ -157,15 +157,20 @@ Camera2 and `Stereo.T_c1_c2` (identity rotation, 0.12 m along x); `Camera.type: 
 choice, but ORB-SLAM3 then segfaults printing its settings (null Camera2 calibration). Both nodes now drop the old
 origin on reset (roadmap section 4).
 
-First comparison: the 285 frames of frame check 3 (start facing the goal) replayed over ROS 2 to each node
-(0.1 s per frame), error after aligning to the first tracked frame:
+Replay of the 285 frames of frame check 3 (start facing the goal) over ROS 2 to each node, 0.1 s per frame, two runs
+each (ORB-SLAM3 is not deterministic); error on frames 0-229 after aligning GT to the first tracked frame. (A first
+version of this table was wrong: killed `ros2 run` wrappers had left up to 12 old nodes publishing on the same topic.)
 
-| Same frames | Poses | Mean xy error | Yaw error | Tracking failures |
+| Same frames | Tracked (0-229) | Mean xy error | Yaw error | After frame ~230 |
 | --- | --- | --- | --- | --- |
-| cuVSLAM stereo (in-process) | 285 | 0.27 m | 3.5° | 0 |
-| ORB-SLAM3 RGB-D | 214 | 1.09 m | 1.8° | 39 "Fail to track local map" |
-| ORB-SLAM3 stereo | 184 | 2.76 m | 12.5° | 181, 3 new maps |
+| cuVSLAM stereo (in-process) | 100 % | 0.27 m | 3.5° | tracked |
+| ORB-SLAM3 RGB-D, defaults | 93 % | 1.0 / 2.8 m | 2.2 / 19.6° | lost |
+| ORB-SLAM3 stereo, defaults (1000 features, FAST 20/7, th_depth 40) | 76 % | 2.2 / 2.3 m | 11-13° | lost |
+| ORB-SLAM3 stereo, new defaults (2000, FAST 12/5, th_depth 80) | 96-100 % | 2.3 / 4.0 m | 4-13° | lost |
 
-Not tuned yet: ORB-SLAM3 stereo treats points beyond `th_depth * baseline` = 4.8 m as far points (weak), and the
-floor gives few stereo matches. Try `th_depth` 80-100 and `n_features` 2000 before the benchmark. The Stereo-Play
-task has not run in the sim yet (OOM with other apps open).
+Sweep (th_depth 40-120, 1000-3000 features, FAST 20/7-10/4): more features and a lower FAST threshold start the
+stereo map at frame 0 (default: 16 frames, < 500 points) and lose tracking less often mid-run; accuracy stays at 1-8 m
+and varies more between identical runs than between settings. Every ORB-SLAM3 run loses tracking from about frame
+230 (right turn facing sky and empty floor) and starts a new map, whose origin the node cannot relate to the first
+one. Map A's open sky (no roof?) and plain floor hurt ORB features; fixing the scene would help both systems. The
+Stereo-Play task has not run in the sim yet (OOM with other apps open).

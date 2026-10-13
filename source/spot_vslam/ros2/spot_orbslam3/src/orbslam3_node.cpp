@@ -61,11 +61,15 @@ public:
     settings_out_ = declare_parameter<std::string>("settings_out", "/tmp/spot_orbslam3_settings.yaml");
     use_viewer_ = declare_parameter<bool>("use_viewer", false);
     max_depth_ = declare_parameter<double>("max_depth", 10.0);
-    n_features_ = declare_parameter<int>("n_features", 1000);
+    // stereo defaults from a sweep on Map A frames (docs/cuvslam.md): with 1000 features / FAST 20 the stereo map
+    // needed 16 frames to start (< 500 points) and lost tracking mid-run more often
+    n_features_ = declare_parameter<int>("n_features", kStereo ? 2000 : 1000);
     // stereo: the camera baseline (STEREO_BASELINE in locomotion_env_cfg.py); RGB-D: only sets the close / far
     // point threshold th_depth * baseline, as ORB-SLAM3's RGB-D examples do
     stereo_b_ = declare_parameter<double>("stereo_baseline", kStereo ? 0.12 : 0.08);
-    th_depth_ = declare_parameter<double>("th_depth", 40.0);
+    th_depth_ = declare_parameter<double>("th_depth", kStereo ? 80.0 : 40.0);
+    ini_th_fast_ = declare_parameter<int>("ini_th_fast", kStereo ? 12 : 20);
+    min_th_fast_ = declare_parameter<int>("min_th_fast", kStereo ? 5 : 7);
     if (vocab_.empty()) {
       RCLCPP_FATAL(get_logger(), "No vocabulary: set ORB_SLAM3_ROOT or the 'vocabulary' parameter");
       throw std::runtime_error("no vocabulary");
@@ -138,7 +142,8 @@ private:
       << "Stereo.ThDepth: " << th_depth_ << "\nStereo.b: " << stereo_b_ << "\n"
       << "RGBD.DepthMapFactor: 1.0\n"
       << "ORBextractor.nFeatures: " << n_features_ << "\nORBextractor.scaleFactor: 1.2\n"
-      << "ORBextractor.nLevels: 8\nORBextractor.iniThFAST: 20\nORBextractor.minThFAST: 7\n"
+      << "ORBextractor.nLevels: 8\nORBextractor.iniThFAST: " << ini_th_fast_
+      << "\nORBextractor.minThFAST: " << min_th_fast_ << "\n"
       << "Viewer.KeyFrameSize: 0.05\nViewer.KeyFrameLineWidth: 1.0\nViewer.GraphLineWidth: 0.9\n"
       << "Viewer.PointSize: 2.0\nViewer.CameraSize: 0.08\nViewer.CameraLineWidth: 3.0\n"
       << "Viewer.ViewpointX: 0.0\nViewer.ViewpointY: -0.7\nViewer.ViewpointZ: -1.8\nViewer.ViewpointF: 500.0\n";
@@ -252,7 +257,7 @@ private:
   std::string prefix_, vocab_, settings_out_;
   bool use_viewer_;
   double max_depth_, stereo_b_, th_depth_;
-  int n_features_;
+  int n_features_, ini_th_fast_, min_th_fast_;
 
   std::unique_ptr<ORB_SLAM3::System> slam_;
   std::atomic<bool> reset_requested_{false};
