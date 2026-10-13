@@ -24,6 +24,7 @@ from spot_vslam.tasks.locomotion.config.spot.paper_env_cfg import (
     SpotPaperHighLevelEnvCfg,
     SpotPaperHighLevelEnvCfg_PLAY,
 )
+from spot_vslam.tasks.locomotion.locomotion_env_cfg import SLAM_RIGHT_CAMERA_CFG
 
 from ... import mdp
 
@@ -161,14 +162,15 @@ class SpotNavigationEnvCfg_GT_PLAY(SpotNavigationEnvCfg_PLAY):
 
 @configclass
 class SpotNavigationEnvCfg_CUVSLAM_PLAY(SpotNavigationEnvCfg_PLAY):
-    """Like ``_PLAY`` but with in-process cuVSLAM (RGB-D, loop closure) instead of ROS 2 / ORB-SLAM3.
+    """Like ``_PLAY`` but with in-process cuVSLAM (stereo, loop closure) instead of ROS 2 / ORB-SLAM3.
 
     See docs/cuvslam.md."""
 
     def __post_init__(self):
         super().__post_init__()
         self.ros2 = None
-        self.cuvslam = CuVslamManagerCfg(camera_name="tilted_camera")
+        self.scene.right_camera = SLAM_RIGHT_CAMERA_CFG
+        self.cuvslam = CuVslamManagerCfg(camera_name="tilted_camera", right_camera_name="right_camera")
 
 
 @configclass

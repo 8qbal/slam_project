@@ -60,6 +60,9 @@ goal = env.command_manager.get_term("goal")
 
 rows = []  # step, GT (3), pose (3), odom (3), slam (3), ok, features, ms
 frames = {"rgb": [], "depth": [], "stamp": []}
+stereo = "right_camera" in env.scene.sensors
+if stereo:
+    frames["rgb_right"] = []
 step = 0
 robot = env.scene["robot"]
 print(
@@ -80,6 +83,10 @@ for n, vx, wz in PHASES:
             out_cam = env.scene.sensors["tilted_camera"].data.output
             frames["rgb"].append(out_cam["rgb"].torch[0, ..., :3].cpu().numpy())
             frames["depth"].append(out_cam["distance_to_image_plane"].torch[0, ..., 0].cpu().numpy())
+            if stereo:
+                frames["rgb_right"].append(
+                    env.scene.sensors["right_camera"].data.output["rgb"].torch[0, ..., :3].cpu().numpy()
+                )
             frames["stamp"].append(float(res["stamp_s"][0]) if "stamp_s" in res else step * env.step_dt)
         if step % args.print_every == 0:
             z = float(robot.data.root_pos_w.torch[0, 2])

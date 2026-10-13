@@ -97,6 +97,17 @@ SLAM_CAMERA_CFG = CameraCfg(
 )
 """320x240 RGB-D camera for ORB-SLAM3 (via ``Ros2Manager``) and TSDF mapping. The policy never reads it."""
 
+STEREO_BASELINE = 0.12
+"""Distance between the left (``SLAM_CAMERA_CFG``) and right SLAM camera in metres, as on a ZED 2."""
+
+SLAM_RIGHT_CAMERA_CFG = SLAM_CAMERA_CFG.replace(
+    prim_path="{ENV_REGEX_NS}/Robot/body/SlamRightCamera",
+    data_types=["rgb"],
+    offset=CAMERA_OFFSET_CFG.replace(pos=(0.4, -STEREO_BASELINE, 0.0)),  # body y points left
+)
+"""Right camera of the stereo pair: ``SLAM_CAMERA_CFG`` is the left one, this one sits ``STEREO_BASELINE`` to its
+right with the same intrinsics, orientation and update period, so the pair is rectified."""
+
 
 @configclass
 class SpotSceneCfg(InteractiveSceneCfg):
@@ -137,6 +148,7 @@ class SpotSceneCfg(InteractiveSceneCfg):
     )
     train_camera: CameraCfg = DEPTH_CAMERA_CFG
     tilted_camera: CameraCfg | None = None
+    right_camera: CameraCfg | None = None
 
 
 ##

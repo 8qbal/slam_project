@@ -1,8 +1,9 @@
-"""In-process cuVSLAM (PyCuVSLAM) on the SLAM camera, one tracker per env (docs/cuvslam.md).
+"""In-process cuVSLAM (PyCuVSLAM) on the SLAM cameras, one tracker per env (docs/cuvslam.md).
 
-Same input as ORB-SLAM3 (the RGB-D ``tilted_camera``), but no ROS 2: images go from the camera tensor straight to
-``Tracker.track()``. Results are written to ``env.slam_res`` with the keys of ``env.orb_slam_res`` plus quality
-signals, so ``robot_pose(pose_source="slam")`` can read either SLAM system.
+Stereo (left ``tilted_camera`` + ``right_camera``, cuVSLAM's main mode) or RGB-D (``tilted_camera`` alone, the ORB-SLAM3
+input). No ROS 2: images go from the camera tensors straight to ``Tracker.track()``. Results are written to
+``env.slam_res`` with the keys of ``env.orb_slam_res`` plus quality signals, so ``robot_pose(pose_source="slam")`` can
+read either SLAM system.
 """
 
 from __future__ import annotations
@@ -29,13 +30,17 @@ class CuVslamManagerCfg:
     """Config for :class:`CuVslamManager`."""
 
     camera_name: str = "tilted_camera"
-    """Scene name of the RGB-D camera (``rgb`` + ``distance_to_image_plane``)."""
+    """Scene name of the left / RGB-D camera (``rgb``, plus ``distance_to_image_plane`` in RGB-D mode)."""
+
+    right_camera_name: str | None = None
+    """Scene name of the right camera of a rectified stereo pair: set = stereo, None = RGB-D. RGB-D odometry jumped
+    metres on single frames in the warehouse, stereo is cuVSLAM's main mode and the ZED's (docs/cuvslam.md)."""
 
     loop_closure: bool = True
     """Run cuVSLAM's SLAM (loop closure) on top of odometry, like ORB-SLAM3. False = odometry only."""
 
     max_depth_m: float = 10.0
-    """Depth beyond this (and NaN / inf) is passed as 0 = no depth. Matches the camera clipping range."""
+    """RGB-D only: depth beyond this (and NaN / inf) is passed as 0 = no depth. Matches the camera clipping range."""
 
 
 class CuVslamManager:
@@ -62,6 +67,8 @@ class CuVslamManager:
         self.num_envs = env.num_envs
         self.device = env.device
         self.camera: Camera = env.scene.sensors[cfg.camera_name]
+        self.stereo = cfg.right_camera_name is not None
+        self.right_camera: Camera | None = env.scene.sensors[cfg.right_camera_name] if self.stereo else None
         self.rig = self._make_rig()
         self.trackers: list[cuvslam.Tracker | None] = [None] * self.num_envs
 
@@ -77,10 +84,19 @@ class CuVslamManager:
     # -- setup
 
     def _make_rig(self) -> cuvslam.Rig:
-        """Pinhole camera from the camera cfg; rig frame = robot body, so the pose is the body pose."""
+        """Pinhole camera(s) from the camera cfg; rig frame = robot body, so the pose is the body pose."""
+        cameras = [self._make_camera(self.camera)]
+        if self.stereo:
+            cameras.append(self._make_camera(self.right_camera))
         import cuvslam
 
-        cfg = self.camera.cfg
+        return cuvslam.Rig(cameras=cameras)
+
+    @staticmethod
+    def _make_camera(sensor: Camera) -> cuvslam.Camera:
+        import cuvslam
+
+        cfg = sensor.cfg
         spawn = cfg.spawn
         fx = fy = spawn.focal_length / spawn.horizontal_aperture * cfg.width  # square pixels
         offset = cfg.offset
@@ -88,24 +104,33 @@ class CuVslamManager:
             raise ValueError(
                 f"cuVSLAM needs the camera offset in the 'ros' (optical) convention, got {offset.convention}"
             )
-        camera = cuvslam.Camera(
+        return cuvslam.Camera(
             size=[cfg.width, cfg.height],
             principal=[cfg.width / 2.0, cfg.height / 2.0],
             focal=[fx, fy],
             # Isaac Lab 3.0 quaternions are xyzw, as cuVSLAM's
             rig_from_camera=cuvslam.Pose(rotation=list(offset.rot), translation=list(offset.pos)),
         )
-        return cuvslam.Rig(cameras=[camera])
 
     def _make_tracker(self) -> cuvslam.Tracker:
         import cuvslam
 
-        odom_cfg = cuvslam.Tracker.OdometryConfig(
-            odometry_mode=cuvslam.Tracker.OdometryMode.RGBD,
-            rgbd_settings=cuvslam.Tracker.OdometryRGBDSettings(depth_scale_factor=self.DEPTH_SCALE, depth_camera_id=0),
-            enable_observations_export=True,
-            enable_landmarks_export=False,
-        )
+        if self.stereo:
+            odom_cfg = cuvslam.Tracker.OdometryConfig(
+                odometry_mode=cuvslam.Tracker.OdometryMode.Multicamera,
+                rectified_stereo_camera=True,
+                enable_observations_export=True,
+                enable_landmarks_export=False,
+            )
+        else:
+            odom_cfg = cuvslam.Tracker.OdometryConfig(
+                odometry_mode=cuvslam.Tracker.OdometryMode.RGBD,
+                rgbd_settings=cuvslam.Tracker.OdometryRGBDSettings(
+                    depth_scale_factor=self.DEPTH_SCALE, depth_camera_id=0
+                ),
+                enable_observations_export=True,
+                enable_landmarks_export=False,
+            )
         slam_cfg = cuvslam.Tracker.SlamConfig() if self.cfg.loop_closure else None
         return cuvslam.Tracker(self.rig, odom_cfg, slam_cfg)
 
@@ -118,17 +143,26 @@ class CuVslamManager:
         if not new:
             return
         rgb = output["rgb"].torch[..., :3]
-        depth = output["distance_to_image_plane"].torch.squeeze(-1)
-        depth = torch.nan_to_num(depth, nan=0.0, posinf=0.0, neginf=0.0)
-        depth = torch.where(depth > self.cfg.max_depth_m, torch.zeros_like(depth), depth)
-        depth_mm = (depth * self.DEPTH_SCALE).round().clamp(0, 65535).to(torch.int32).to(torch.uint16)
+        if self.stereo:
+            # same update period as the left camera, so both render the same sim instant
+            right = self.right_camera.data.output["rgb"].torch[..., :3]
+        else:
+            depth = output["distance_to_image_plane"].torch.squeeze(-1)
+            depth = torch.nan_to_num(depth, nan=0.0, posinf=0.0, neginf=0.0)
+            depth = torch.where(depth > self.cfg.max_depth_m, torch.zeros_like(depth), depth)
+            depth_mm = (depth * self.DEPTH_SCALE).round().clamp(0, 65535).to(torch.int32).to(torch.uint16)
 
         for i in new:
             if self.trackers[i] is None:
                 self.trackers[i] = self._make_tracker()
             stamp_ns = int(round(float(stamps[i]) * 1e9))
             t0 = time.perf_counter()
-            odom, slam_pose = self.trackers[i].track(stamp_ns, [rgb[i].contiguous()], depths=[depth_mm[i].contiguous()])
+            if self.stereo:
+                odom, slam_pose = self.trackers[i].track(stamp_ns, [rgb[i].contiguous(), right[i].contiguous()])
+            else:
+                odom, slam_pose = self.trackers[i].track(
+                    stamp_ns, [rgb[i].contiguous()], depths=[depth_mm[i].contiguous()]
+                )
             self.track_time_ms[i, 0] = (time.perf_counter() - t0) * 1e3
             self.stamp_s[i] = stamps[i]
 
