@@ -40,6 +40,9 @@ def numpy_to_imgmsg(array: np.ndarray, encoding: str) -> Image:
 @dataclass
 class Ros2ManagerCfg:
     camera_name: str
+    right_camera_name: str | None = None
+    """Right camera of a stereo pair: also published on ``camera/right/image_raw`` with the left image's stamp (for
+    ``orbslam3_stereo_node``)."""
     topic_prefix: str = "/spot"
     frame_id: str = "camera_link"
     base_frame_id: str = "base_link"
@@ -77,8 +80,15 @@ class Ros2Manager:
             self.node.get_logger().error(f"Camera sensor '{self.cfg.camera_name}' not found")
             raise
 
+        self.right_camera: Camera | None = None
+        if self.cfg.right_camera_name is not None:
+            self.right_camera = self.env.scene.sensors[self.cfg.right_camera_name]
+            if self.right_camera.cfg.update_period != self.camera.cfg.update_period:
+                raise ValueError("stereo cameras need the same update period")
+
         self.intrinsic_matrices = None
         self.rgb_pubs = {}
+        self.right_pubs = {}
         self.depth_pubs = {}
         self.rgb_info_pubs = {}
         self.depth_info_pubs = {}
@@ -121,6 +131,8 @@ class Ros2Manager:
             self.rgb_pubs[i] = self.node.create_publisher(Image, f"{prefix}/camera/image_raw", qos_profile)
             self.rgb_info_pubs[i] = self.node.create_publisher(CameraInfo, f"{prefix}/camera/camera_info", qos_profile)
             self.depth_pubs[i] = self.node.create_publisher(Image, f"{prefix}/camera/depth", qos_profile)
+            if self.right_camera is not None:
+                self.right_pubs[i] = self.node.create_publisher(Image, f"{prefix}/camera/right/image_raw", qos_profile)
             self.depth_info_pubs[i] = self.node.create_publisher(
                 CameraInfo, f"{prefix}/camera/depth/camera_info", qos_profile
             )
@@ -274,6 +286,7 @@ class Ros2Manager:
 
         try:
             rgb_tensors = self.camera.data.output["rgb"].torch
+            right_tensors = self.right_camera.data.output["rgb"].torch if self.right_camera is not None else None
             depth_tensors = None
             available_keys = self.camera.data.output.keys()
 
@@ -303,7 +316,7 @@ class Ros2Manager:
             odom_frame_ids.append(f"{prefix}/{self.cfg.odom_frame_id}")
 
         self._publish_odom_tf(odom_frame_ids, base_frame_ids, stamp)
-        self.publish_data(rgb_tensors, depth_tensors, clean_frame_ids, stamp)
+        self.publish_data(rgb_tensors, depth_tensors, clean_frame_ids, stamp, right_tensors)
 
         rclpy.spin_once(self.node, timeout_sec=0.0)
         self._sync_orb_results_to_env()
@@ -334,7 +347,7 @@ class Ros2Manager:
 
         self.tf_broadcaster.sendTransform(transforms)
 
-    def publish_data(self, rgb_tensors, depth_tensors, frame_ids, stamp):
+    def publish_data(self, rgb_tensors, depth_tensors, frame_ids, stamp, right_tensors=None):
         if self.intrinsic_matrices is None:
             self._compute_intrinsics()
 
@@ -348,6 +361,12 @@ class Ros2Manager:
             rgb_msg.header.stamp = stamp
             rgb_msg.header.frame_id = frame_ids[i]
             self.rgb_pubs[i].publish(rgb_msg)
+
+            if right_tensors is not None:
+                right_msg = numpy_to_imgmsg(right_tensors[i, ..., :3].cpu().numpy().astype(np.uint8), encoding="rgb8")
+                right_msg.header.stamp = stamp
+                right_msg.header.frame_id = frame_ids[i]
+                self.right_pubs[i].publish(right_msg)
 
             # CameraInfo
             K = self.intrinsic_matrices[i]

@@ -32,21 +32,28 @@ find_library(ORB_SLAM3_LIB ORB_SLAM3 PATHS ${ORB_SLAM3_ROOT}/lib NO_DEFAULT_PATH
 find_library(DBOW2_LIB DBoW2 PATHS ${ORB_SLAM3_ROOT}/Thirdparty/DBoW2/lib NO_DEFAULT_PATH REQUIRED)
 find_library(G2O_LIB g2o PATHS ${ORB_SLAM3_ROOT}/Thirdparty/g2o/lib NO_DEFAULT_PATH REQUIRED)
 
-add_executable(orbslam3_rgbd_node src/orbslam3_rgbd_node.cpp)
-target_include_directories(orbslam3_rgbd_node PRIVATE
-  ${ORB_SLAM3_ROOT}
-  ${ORB_SLAM3_ROOT}/include
-  ${ORB_SLAM3_ROOT}/include/CameraModels
-  ${ORB_SLAM3_ROOT}/Thirdparty/Sophus
-  ${EIGEN3_INCLUDE_DIR}
-  ${Pangolin_INCLUDE_DIRS}
-  ${OpenCV_INCLUDE_DIRS})
-target_link_libraries(orbslam3_rgbd_node
-  ${ORB_SLAM3_LIB} ${DBOW2_LIB} ${G2O_LIB} ${OpenCV_LIBS} ${Pangolin_LIBRARIES})
-# Classic RPATH (not RUNPATH) so the directories also apply to transitive deps such as libpango_windowing.
-target_link_options(orbslam3_rgbd_node PRIVATE -Wl,--disable-new-dtags)
-ament_target_dependencies(orbslam3_rgbd_node rclcpp sensor_msgs geometry_msgs std_msgs message_filters)
+# One source, two nodes: RGB-D and stereo (SPOT_ORBSLAM3_STEREO).
+function(add_orbslam3_node name)
+  add_executable(${name} src/orbslam3_node.cpp)
+  target_include_directories(${name} PRIVATE
+    ${ORB_SLAM3_ROOT}
+    ${ORB_SLAM3_ROOT}/include
+    ${ORB_SLAM3_ROOT}/include/CameraModels
+    ${ORB_SLAM3_ROOT}/Thirdparty/Sophus
+    ${EIGEN3_INCLUDE_DIR}
+    ${Pangolin_INCLUDE_DIRS}
+    ${OpenCV_INCLUDE_DIRS})
+  target_link_libraries(${name}
+    ${ORB_SLAM3_LIB} ${DBOW2_LIB} ${G2O_LIB} ${OpenCV_LIBS} ${Pangolin_LIBRARIES})
+  # Classic RPATH (not RUNPATH) so the directories also apply to transitive deps such as libpango_windowing.
+  target_link_options(${name} PRIVATE -Wl,--disable-new-dtags)
+  ament_target_dependencies(${name} rclcpp sensor_msgs geometry_msgs std_msgs message_filters)
+endfunction()
 
-install(TARGETS orbslam3_rgbd_node DESTINATION lib/${PROJECT_NAME})
+add_orbslam3_node(orbslam3_rgbd_node)
+add_orbslam3_node(orbslam3_stereo_node)
+target_compile_definitions(orbslam3_stereo_node PRIVATE SPOT_ORBSLAM3_STEREO)
+
+install(TARGETS orbslam3_rgbd_node orbslam3_stereo_node DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 ament_package()

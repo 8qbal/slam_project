@@ -147,3 +147,25 @@ period, `OdometryMode.Multicamera` with `rectified_stereo_camera=True`. Three bu
 | stereo, start facing the goal | 0.27 m | 0.56 m | 3.5° | 0 | 1.0 |
 
 The camera sees sky over Map A (no roof / open side in `warehouse.usd`?), which leaves fewer features.
+
+## ORB-SLAM3 stereo (2026-10-13)
+
+`orbslam3_stereo_node` (same source as `orbslam3_rgbd_node`, `src/orbslam3_node.cpp`, built with
+`SPOT_ORBSLAM3_STEREO`), `launch/orbslam3_stereo.launch.py`, tasks `Spot-Nav-Map{A,B}-Stereo-Play-v0` (`Ros2Manager`
+also publishes `camera/right/image_raw` with the left image's stamp). Settings: `Camera.type: PinHole` with Camera1 /
+Camera2 and `Stereo.T_c1_c2` (identity rotation, 0.12 m along x); `Camera.type: Rectified` would be the natural
+choice, but ORB-SLAM3 then segfaults printing its settings (null Camera2 calibration). Both nodes now drop the old
+origin on reset (roadmap section 4).
+
+First comparison: the 285 frames of frame check 3 (start facing the goal) replayed over ROS 2 to each node
+(0.1 s per frame), error after aligning to the first tracked frame:
+
+| Same frames | Poses | Mean xy error | Yaw error | Tracking failures |
+| --- | --- | --- | --- | --- |
+| cuVSLAM stereo (in-process) | 285 | 0.27 m | 3.5° | 0 |
+| ORB-SLAM3 RGB-D | 214 | 1.09 m | 1.8° | 39 "Fail to track local map" |
+| ORB-SLAM3 stereo | 184 | 2.76 m | 12.5° | 181, 3 new maps |
+
+Not tuned yet: ORB-SLAM3 stereo treats points beyond `th_depth * baseline` = 4.8 m as far points (weak), and the
+floor gives few stereo matches. Try `th_depth` 80-100 and `n_features` 2000 before the benchmark. The Stereo-Play
+task has not run in the sim yet (OOM with other apps open).

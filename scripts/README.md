@@ -12,6 +12,8 @@ source ~/orbslam3/ws/install/setup.bash
 export ORB_SLAM3_ROOT=~/orbslam3/ORB_SLAM3
 # start ORB-SLAM3 in a second terminal before playing a policy with SLAM
 ros2 launch source/spot_vslam/ros2/spot_orbslam3/launch/orbslam3_rgbd.launch.py robot_index:=0
+# or stereo (left + right image, tasks Spot-Nav-Map{A,B}-Stereo-Play-v0):
+# ros2 launch source/spot_vslam/ros2/spot_orbslam3/launch/orbslam3_stereo.launch.py robot_index:=0
 ```
 
 ## Paper policies

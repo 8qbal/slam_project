@@ -113,7 +113,7 @@ references/        the paper (main.pdf), its bibliography, and paper-vs-code not
 source/spot_vslam/
   config/          Isaac Sim extension manifest
   launch/          ROS 2 launch file + nav2_params.yaml
-  ros2/            orbslam3_rgbd_node (ORB-SLAM3 RGB-D wrapper, C++)
+  ros2/            orbslam3_rgbd_node / orbslam3_stereo_node (ORB-SLAM3 wrappers, C++, one source)
   spot_vslam/
     assets/        USD paths, spot.py (Spot cfg for slam_test), maps.py (PAPER_MAPS: start/goal per map)
     envs/          ManagerBasedRLEnv subclass with the ROS 2 / ORB-SLAM3 managers wired in
@@ -153,7 +153,7 @@ via `import_packages`). Task ids of trained policies never change.
 | `Spot-Paper-v0` / `-Play-v0` | `locomotion/config/spot/paper_env_cfg.py` (paper low level) |
 | `Spot-Paper-Rough-v0`, `Spot-Paper-Obstacles-v0` | same reward / PPO, other training terrain (Isaac Lab Spot terrain; pillars) |
 | `Spot-Paper-high-level-Map{A,B}-v0` / `-Play-v0` | same; low-level env under the SB3 high level |
-| `Spot-Nav-Map{A,B}-v0` / `-Play-v0` / `-GT-Play-v0` | `navigation/config/spot/navigation_env_cfg.py` (train: GT pose; Play: ORB-SLAM3 pose; GT-Play: GT pose, no ROS 2) |
+| `Spot-Nav-Map{A,B}-v0` / `-Play-v0` / `-Stereo-Play-v0` / `-cuVSLAM-Play-v0` / `-GT-Play-v0` | `navigation/config/spot/navigation_env_cfg.py` (train: GT pose; Play: ORB-SLAM3 RGB-D; Stereo-Play: ORB-SLAM3 stereo; cuVSLAM-Play: cuVSLAM stereo; GT-Play: GT pose, no ROS 2). Play tasks start at the map start facing the goal |
 | `Spot-Vslam-Depth-v0` / `-Play-v0` | `locomotion/config/spot/baseline_v0_env_cfg.py` (rl_vslam_v0 low level) |
 | `Spot-Vslam-high-level-v0` / `-Play-v0` / `-Warehouse-Play-v0` | same (rl_vslam_v0 SB3 high level; Warehouse = Map A, spawn (0, 0)) |
 | `Spot-test180-v0` | `slam_test/slam_test_env_cfg.py` |

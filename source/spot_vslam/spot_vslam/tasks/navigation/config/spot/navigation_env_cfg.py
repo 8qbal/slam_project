@@ -176,6 +176,17 @@ class SpotNavigationEnvCfg_CUVSLAM_PLAY(SpotNavigationEnvCfg_PLAY):
 
 
 @configclass
+class SpotNavigationEnvCfg_STEREO_PLAY(SpotNavigationEnvCfg_PLAY):
+    """Like ``_PLAY`` but ORB-SLAM3 in stereo (start ``orbslam3_stereo.launch.py``): the same left / right pair as
+    cuVSLAM in ``_CUVSLAM_PLAY``, for the SLAM comparison. ``_PLAY`` stays RGB-D (paper reproduction)."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.scene.right_camera = SLAM_RIGHT_CAMERA_CFG.replace(update_period=self.scene.tilted_camera.update_period)
+        self.ros2 = Ros2ManagerCfg(camera_name="tilted_camera", right_camera_name="right_camera", topic_prefix="/spot")
+
+
+@configclass
 class SpotNavigationEnvCfg_MAP_B(SpotNavigationEnvCfg):
     paper_map: str = "B"
 
@@ -192,4 +203,9 @@ class SpotNavigationEnvCfg_MAP_B_GT_PLAY(SpotNavigationEnvCfg_GT_PLAY):
 
 @configclass
 class SpotNavigationEnvCfg_MAP_B_CUVSLAM_PLAY(SpotNavigationEnvCfg_CUVSLAM_PLAY):
+    paper_map: str = "B"
+
+
+@configclass
+class SpotNavigationEnvCfg_MAP_B_STEREO_PLAY(SpotNavigationEnvCfg_STEREO_PLAY):
     paper_map: str = "B"

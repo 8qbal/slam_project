@@ -1,5 +1,6 @@
-"""Frame check for in-process cuVSLAM (docs/cuvslam.md): drive Spot on Map A with fixed commands and print the
-cuVSLAM pose next to the ground-truth pose, both in the start frame. No high-level policy, no ROS 2.
+"""Frame check for SLAM poses (docs/cuvslam.md): drive Spot on Map A with fixed commands and print the SLAM pose
+next to the ground-truth pose, both in the start frame. No high-level policy. Default task: in-process cuVSLAM
+(stereo). ORB-SLAM3: ``--task Spot-Nav-MapA-Stereo-Play-v0`` (or ``-Play-v0`` for RGB-D) with the node started first.
 
     SPOT_VSLAM_LOW_LEVEL_CKPT=<low-level .pth> uv run scripts/slam/cuvslam_frame_check.py
 
@@ -90,9 +91,11 @@ for n, vx, wz in PHASES:
         env.step(action)
         step += 1
         gt = goal.gt_pose_start_frame()[0].tolist()
-        res = getattr(env, "slam_res", None) or NO_SLAM  # GT-Play: no SLAM
+        # cuVSLAM, else ORB-SLAM3 (Play / Stereo-Play: pose and status only), else GT-Play (no SLAM)
+        res = getattr(env, "slam_res", None) or getattr(env, "orb_slam_res", None) or NO_SLAM
         est = [res.get(k, torch.full((1, 3), float("nan")))[0].tolist() for k in EST]
-        ok, feat, ms = float(res["status"][0]), float(res["num_features"][0]), float(res["track_time_ms"][0])
+        ok = float(res["status"][0])
+        feat, ms = (float(res[k][0]) if k in res else float("nan") for k in ("num_features", "track_time_ms"))
         rows.append((step, *gt, *est[0], *est[1], *est[2], ok, feat, ms))
         if args.dump_frames:
             out_cam = env.scene.sensors["tilted_camera"].data.output
