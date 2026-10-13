@@ -61,7 +61,7 @@ comes first. Details and result tables: `docs/low_level_reward.md`.
 | `paper-isaaclab-reward-reproduce` | the paper reproduction: Table 3 weights on Isaac Lab's Spot rewards, Isaac Lab PPO and defaults, paper terrain | `Spot-Paper-v0`, `spot_paper_ppo/2026-10-08_11-08-43` | done |
 | WallsSoft | ours, the main policy: speed and turn fixes, wall terrain, wall contact = penalty (no termination) | `Spot-Paper-WallsSoft-v0`, fine-tuned from `2026-10-12_01-26-58` ep 12000 → `2026-10-12_12-50-26` ep 14000 | done (turns right weaker: 20-80 % of the command) |
 | Rough | ours, other terrain (Isaac Lab's Spot terrain), same reward as WallsSoft but contact ends the episode | `Spot-Paper-Rough-v0`, `2026-10-12_18-25-42` ep 12000 | done |
-| WallsSoft + noise | WallsSoft with noise on every sensor (comparison 3): Isaac Lab's Spot joint / IMU noise, depth range noise, missing pixels, edge dropout | `Spot-Paper-WallsSoftNoise-v0`, from the same ep 12000 | to train |
+| WallsSoft + noise | WallsSoft with noise on every sensor (comparison 3): Isaac Lab's Spot joint / IMU noise, depth range noise, missing pixels, edge dropout | `Spot-Paper-WallsSoftNoise-v0`, from the same ep 12000 → `2026-10-13_11-29-20` ep 14000 | done (tracks well with noise, drifts without; pitch rate ~2x WallsSoft; left turns now weaker) |
 
 `rl_vslam_v0` stays in the repo but is not used in our paper: the baseline is the numbers reported in the original
 paper (a rerun here would differ anyway), and the high level is retrained on the chosen low level.
