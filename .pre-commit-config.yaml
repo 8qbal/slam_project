@@ -15,9 +15,11 @@ repos:
     hooks:
       - id: check-added-large-files
         args: ["--maxkb=2000"]
+        exclude: ^(policies|baselines)/  # trained policies are kept in git on purpose
       - id: check-merge-conflict
       - id: check-toml
       - id: check-yaml
+        exclude: ^(policies|baselines)/  # env.yaml dumps hold python/tuple tags
       - id: end-of-file-fixer
       - id: trailing-whitespace
   - repo: https://github.com/codespell-project/codespell
