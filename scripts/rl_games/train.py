@@ -154,7 +154,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print(f"[INFO]: Loading model checkpoint from: {agent_cfg['params']['load_path']}")
         # rl_games restores the optimizer but restarts the adaptive lr at the config value (1e-3), ~40x the lr a
         # finished run ends at (~3e-5); the first updates then wreck the policy (WallsSoft resumed: falls within
-        # 1 s for 60+ epochs). Resume at the checkpoint's lr unless one is given (agent.params.config.learning_rate=).
+        # 1 s for 60+ epochs). Resume at the checkpoint's lr unless one is given
+        # (agent.params.config.learning_rate=...).
         if not any("learning_rate" in a for a in hydra_args):
             ckpt_lr = torch.load(resume_path, map_location="cpu", weights_only=False)["optimizer"]["param_groups"][0]
             agent_cfg["params"]["config"]["learning_rate"] = ckpt_lr["lr"]
