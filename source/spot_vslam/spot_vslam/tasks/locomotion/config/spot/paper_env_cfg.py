@@ -198,6 +198,28 @@ class SpotPaperWallsSoftNoiseEnvCfg(SpotPaperWallsSoftEnvCfg):
         policy.camera_depth_stats = None
 
 
+@configclass
+class SpotPaperWallsSoftSymEnvCfg(SpotPaperWallsSoftEnvCfg):
+    """``Spot-Paper-WallsSoftSym-v0``: WallsSoft plus a penalty on uneven trot diagonals (``diagonal_duty``).
+
+    Every paper-version policy limps: FL+HR are down 75 % of the cycle, FR+HL only 25 % (short stamps of the hind left
+    leg), and the gait reward does not see it. Fine-tuned from the WallsSoft checkpoint (same 353-dim obs).
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        # the limp (0.5) costs -2.5 per second, about a fifth of a full gait reward (12)
+        self.rewards.diagonal_duty = RewTerm(
+            func=mdp.diagonal_duty_penalty,
+            weight=-5.0,
+            params={
+                "sensor_cfg": SceneEntityCfg(
+                    "contact_forces", body_names=["fl_foot", "fr_foot", "hl_foot", "hr_foot"], preserve_order=True
+                )
+            },
+        )
+
+
 def use_paper_map(cfg: LocomotionEnvCfg, map_name: str):
     """Give every env its own copy of a paper map (``PAPER_MAPS``), with the robot at the map's start.
 

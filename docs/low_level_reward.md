@@ -199,6 +199,19 @@ Results (fill after training; one row per trained policy, one column group per e
 | rough | | | |
 | obstacles | wz −0.16 to right, vx ok, 0 resets | | vx ok, 0 resets |
 
+## Limp: uneven trot diagonals (2026-10-14)
+
+All four paper-version policies (paper reproduce, WallsSoft, Rough, WallsSoftNoise) limp: at 0.5 m/s FL and HR are on
+the ground 73-82 % of the cycle and carry 100-150 N, FR and HL only 19-28 % and 30-45 N. The hind left leg stamps down
+for ~0.12 s every ~0.45 s (its knee action has a second bump inside the swing), which shows as the leg twitching. The
+gait reward does not see it: it only asks one diagonal to be up while the other is down, so 75/25 earns it in full
+(~10 of 12), and `air_time_variance` (−1) costs only ~0.03.
+
+`Spot-Paper-WallsSoftSym-v0` = WallsSoft + `diagonal_duty` (`mdp.diagonal_duty_penalty`, weight −5): the difference in
+duty factor between the two diagonals, 0 for an even trot, ~0.42 for the WallsSoft limp (−1.85 per second on the
+`gait_check.py` commands). Fine-tuned from the WallsSoft checkpoint. Check: `gait_check.py` term `diagonal_duty` near 0,
+and the four feet each down ~50 %.
+
 ## Still open
 
 - Before: 81-92 % of policy outputs hit the [−1, 1] clip (both policies). The paper policy is now unclipped, like
@@ -211,5 +224,7 @@ Results (fill after training; one row per trained policy, one column group per e
 python scripts/rl_games/train.py --task Spot-Paper-v0 --num_envs 512 --cameras --max_iterations 8000  # ~5.5 h
 python scripts/rl_games/train.py --task Spot-Paper-Rough-v0 --num_envs 512 --cameras
 python scripts/rl_games/train.py --task Spot-Paper-Obstacles-v0 --num_envs 512 --cameras
+python scripts/rl_games/train.py --task Spot-Paper-WallsSoftSym-v0 --num_envs 512 --cameras \
+  --checkpoint policies/walls_soft/model.pth --max_iterations 16000  # fine-tune from WallsSoft ep 14000
 python scripts/tools/gait_check.py --task Spot-Paper-v0 --checkpoint logs/rl_games/spot_paper_ppo/<run>/nn/spot_paper_ppo.pth
 ```

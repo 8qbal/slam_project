@@ -20,6 +20,7 @@ __all__ = [
     "visual_wall_penalty",
     "open_space_seeker_reward",
     "wall_min_depth",
+    "diagonal_duty_penalty",
 ]
 
 
@@ -68,3 +69,24 @@ def wall_min_depth(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.
     depth = env.scene.sensors[sensor_cfg.name].data.output["distance_to_image_plane"].torch
     depth = torch.clamp(torch.nan_to_num(depth, nan=5.0, posinf=5.0, neginf=5.0), min=0.0, max=5.0)
     return -depth.flatten(start_dim=1).min(dim=1).values
+
+
+# -- gait symmetry
+
+
+def diagonal_duty_penalty(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Difference in duty factor (share of the last step cycle on the ground) between the two trot diagonals.
+
+    ``sensor_cfg.body_names`` must list the feet as (fl, fr, hl, hr). Isaac Lab's gait reward only asks one diagonal to
+    be down while the other is up, so a limp (FL+HR down 75 % of the cycle, FR+HL 25 %) earns it in full; all
+    paper-version policies learned that limp. 0 for an even trot, 0.5 for that limp. Only while a speed is commanded,
+    like the gait reward.
+    """
+    sensor = env.scene.sensors[sensor_cfg.name]
+    ids = [sensor.body_names.index(name) for name in sensor_cfg.body_names]
+    air = sensor.data.last_air_time.torch[:, ids]
+    contact = sensor.data.last_contact_time.torch[:, ids]
+    duty = contact / (air + contact).clamp(min=1e-6)
+    diff = ((duty[:, 0] + duty[:, 3]) - (duty[:, 1] + duty[:, 2])).abs() / 2.0
+    cmd = torch.linalg.norm(env.command_manager.get_command("base_velocity"), dim=1)
+    return torch.where(cmd > 0.0, diff, 0.0)
