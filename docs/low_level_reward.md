@@ -212,6 +212,19 @@ duty factor between the two diagonals, 0 for an even trot, ~0.42 for the WallsSo
 `gait_check.py` commands). Fine-tuned from the WallsSoft checkpoint. Check: `gait_check.py` term `diagonal_duty` near 0,
 and the four feet each down ~50 %.
 
+Result (`2026-10-14_22-23-23`, ep 14000 → 16000, lr resumed at 2.6e-5): limp reduced, not gone, and turning got worse.
+
+| | WallsSoft ep 14000 | WallsSoftSym ep 16000 |
+| --- | --- | --- |
+| down share FL+HR / FR+HL at 0.5 m/s | 74 / 27 % | 65 / 36 % |
+| same at 1.0 m/s | — | 69 / 31 % |
+| `diagonal_duty` (per s, `gait_check.py`) | −1.85 | ~−1.2 |
+| wz at vx 0.5, wz +0.4 / −0.4 | 0.37 / −0.28 | 0.09 / −0.14 |
+| resets (`gait_check.py`, 8 envs) | 0 | 1 |
+| training reward (end) | ~200 | ~170 |
+
+Not copied to `policies/`; WallsSoft stays the main low level.
+
 ## Still open
 
 - Before: 81-92 % of policy outputs hit the [−1, 1] clip (both policies). The paper policy is now unclipped, like
