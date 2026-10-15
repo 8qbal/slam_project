@@ -225,6 +225,15 @@ Result (`2026-10-14_22-23-23`, ep 14000 → 16000, lr resumed at 2.6e-5): limp r
 
 Not copied to `policies/`; WallsSoft stays the main low level.
 
+From scratch (`2026-10-15_01-42-09` to ep 8700, blew up at ep ~8750; resumed with `nan_guard` as
+`2026-10-15_17-39-13` to ep 14000): reward ~160, episodes ~430 steps, no blow-up. It found a different exploit: all
+four feet move together, 1 of every 3 control steps (8.3 Hz) in the air with a 3 cm lift (`gait_check.py`: trot 0 %,
+4-down 33 %, swing dz 0.03 m). Equal 0.04 s air / 0.08 s contact times on every foot satisfy the gait reward
+(9.4 of 12) and `diagonal_duty` (−0.1), so the policy shuffles instead of trotting. Speed tracking is good (vx within
+0.1 m/s; wz 0.30-0.35 for ±0.4 at 0.5 m/s, some envs only ~0.1), turning in place does not work (wz < 0.1),
+wall contact is low (−0.04). Not adopted. A trot needs a minimum air time per step (e.g. `air_time` threshold) or a
+gait-phase reference, not only matching contact times.
+
 ## Still open
 
 - Before: 81-92 % of policy outputs hit the [−1, 1] clip (both policies). The paper policy is now unclipped, like
