@@ -204,7 +204,17 @@ class SpotPaperWallsSoftSymEnvCfg(SpotPaperWallsSoftEnvCfg):
 
     Every paper-version policy limps: FL+HR are down 75 % of the cycle, FR+HL only 25 % (short stamps of the hind left
     leg), and the gait reward does not see it. Fine-tuned from the WallsSoft checkpoint (same 353-dim obs).
+
+    ``nan_guard`` and the ``sim_blowup`` termination: the from-scratch run blew up at ep ~8750 (reward -1e10, then NaN
+    weights). Likely cause: the unclipped actions grew (ep 8700 already feeds |action| > 100 back as observation) and
+    ``action_smoothness`` squares them. A blown-up env now ends at once, and rewards / observations are made finite
+    and clipped. Checked on WallsSoft and ep 8700 (256 envs, 1000 steps): ``sim_blowup`` never fires; normal maxima
+    are 5 m/s, 21 rad/s, 63 rad/s joint velocity, 2.7 reward per step.
     """
+
+    nan_guard: bool = True
+    nan_guard_reward: float = 10.0  # per step; a normal step is < 1
+    nan_guard_obs: float = 100.0  # normal |obs| < 30 (joint velocities)
 
     def __post_init__(self):
         super().__post_init__()
@@ -218,6 +228,7 @@ class SpotPaperWallsSoftSymEnvCfg(SpotPaperWallsSoftEnvCfg):
                 )
             },
         )
+        self.terminations.sim_blowup = DoneTerm(func=mdp.sim_blowup)
 
 
 def use_paper_map(cfg: LocomotionEnvCfg, map_name: str):

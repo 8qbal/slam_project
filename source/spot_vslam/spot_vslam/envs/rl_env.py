@@ -9,6 +9,10 @@ step/reset logic and only adds two optional managers, created from the env cfg:
 
 All are updated every env step right after the command manager and before interval events and
 observations, so observation terms can read the latest SLAM pose.
+
+With ``cfg.nan_guard = True`` (``Spot-Paper-WallsSoftSym-v0``), ``step`` also replaces non-finite rewards and
+observations by 0 and clips them (rewards to +-``nan_guard_reward``, observations to +-``nan_guard_obs``), so one
+env whose physics blew up cannot poison the PPO update.
 """
 
 from __future__ import annotations
@@ -71,6 +75,17 @@ class ManagerBasedRLEnv(BaseManagerBasedRLEnv):
             self.slam_subscriber_manager.update(dt=dt)
         if self.cuvslam_manager:
             self.cuvslam_manager.update(dt=dt)
+
+    def step(self, action: torch.Tensor):
+        obs, rew, terminated, truncated, extras = super().step(action)
+        if getattr(self.cfg, "nan_guard", False):
+            lim = self.cfg.nan_guard_reward
+            rew = torch.nan_to_num(rew, nan=0.0, posinf=lim, neginf=-lim).clamp_(-lim, lim)
+            lim = self.cfg.nan_guard_obs
+            for name, val in obs.items():
+                if isinstance(val, torch.Tensor):
+                    obs[name] = torch.nan_to_num(val, nan=0.0, posinf=lim, neginf=-lim).clamp_(-lim, lim)
+        return obs, rew, terminated, truncated, extras
 
     def _reset_idx(self, env_ids: Sequence[int] | torch.Tensor):
         super()._reset_idx(env_ids)
