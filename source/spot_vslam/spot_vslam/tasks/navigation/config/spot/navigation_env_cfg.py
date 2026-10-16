@@ -28,7 +28,9 @@ from spot_vslam.tasks.locomotion.locomotion_env_cfg import SLAM_RIGHT_CAMERA_CFG
 
 from ... import mdp
 
-LOW_LEVEL_TASK = "Spot-Paper-v0"
+LOW_LEVEL_TASK = "Spot-Paper-WallsSoftMirrorTurn-v0"
+"""Task of the frozen low level (its rl_games agent cfg builds the network): ``policies/walls_soft_mirror_turn`` (no
+limp, turns in place). All paper low levels share the 353-dim obs and network, so any of their checkpoints loads."""
 LOW_LEVEL_DECIMATION = 20  # physics steps per low-level action (25 Hz)
 HIGH_LEVEL_DECIMATION = 2  # low-level steps per high-level action (12.5 Hz, Table 6)
 HL_DT = 0.002 * LOW_LEVEL_DECIMATION * HIGH_LEVEL_DECIMATION

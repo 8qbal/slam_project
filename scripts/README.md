@@ -25,7 +25,7 @@ python scripts/rl_games/play.py  --task Spot-Paper-Play-v0 --cameras --checkpoin
 
 # 2. High level (manager-based, 16 envs, ~500k steps). The frozen low level comes from SPOT_VSLAM_LOW_LEVEL_CKPT.
 #    Output: logs/rl_games/spot_navigation_ppo/<run>/nn/
-export SPOT_VSLAM_LOW_LEVEL_CKPT=<low-level .pth>
+export SPOT_VSLAM_LOW_LEVEL_CKPT=policies/walls_soft_mirror_turn/model.pth  # the low level LOW_LEVEL_TASK is set for
 python scripts/rl_games/train.py --task Spot-Nav-MapA-v0 --cameras
 
 # 3. Play the high level: with ORB-SLAM3 (start it first, see Setup) or with the GT pose
