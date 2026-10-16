@@ -248,6 +248,31 @@ Training reward fell from ~170 (ep 14500) to ~30 (ep 17000) while `wall_contact`
 
 Not adopted.
 
+### Fix: left-right mirror loss (`Spot-Paper-WallsSoftMirror-v0`, `policies/walls_soft_mirror/`)
+
+Spot in Isaac Sim is mirror-symmetric (link masses and centers of mass mirror exactly), so the limp is a learned
+symmetry break, not physics; all four policies share seed 42 and most share one ancestor. Following Mittal et al.,
+"Symmetry Considerations for Learning Task Symmetric Robot Policies" (ICRA 2024; Isaac Lab's ANYmal
+`RslRlSymmetryCfg`), PPO gets a mirror loss `|mu(M s) - M mu(s)|^2 + |V(M s) - V(s)|^2` (coefficient 1,
+`spot_vslam/rl_games_mirror.py`; mirror `M` in `tasks/locomotion/mdp/symmetry.py`, checked: involution, obs of a
+mirrored robot state = mirrored obs, forward kinematics of mirrored joints = mirrored feet, depth columns = left-right).
+Reward unchanged (WallsSoft). Fine-tuned from WallsSoft ep 14000 to 18000 (`2026-10-16_15-41-52`): the mirror action
+loss fell from 3.6 to 0.007 in ~400 epochs, the reward dipped and came back to ~195 (WallsSoft ~200).
+
+| | WallsSoft ep 14000 | WallsSoftMirror ep 18000 |
+| --- | --- | --- |
+| down share FL / FR / HL / HR at 0.5 m/s | 0.74 / 0.28 / 0.28 / 0.73 | 0.56 / 0.47 / 0.47 / 0.55 |
+| same at 1.0 m/s | — | 0.53 / 0.51 / 0.50 / 0.52 |
+| HL / HR knee action std, main frequency | 1.10 / 1.39, 2.2 Hz (+ 4.5 Hz bump on HL) | 1.40 / 1.37, 3.6 Hz |
+| step rate, swing height | 2.2-2.5 Hz, 10-13 cm | 3.5-3.8 Hz, 5-11 cm |
+| vx at 0.5 / 1.0 m/s | 0.53 / 0.96 | 0.47 / 0.76-0.88 |
+| wz at vx 0.5 for +-0.4 (`--turns`) | 0.27 / -0.29 | 0.21 / -0.40 |
+| wz at vx 0 for +-0.4 | 0.17 / -0.15 | 0.11 / -0.05 |
+| wall contact (`gait_check.py`) | -0.17 | 0.00 |
+
+Open: slower at 1 m/s and weaker turning in place; the turn sweep is not left-right equal although the policy is
+(walls / terrain differ per env).
+
 ## Still open
 
 - Before: 81-92 % of policy outputs hit the [−1, 1] clip (both policies). The paper policy is now unclipped, like
