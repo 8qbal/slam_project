@@ -268,6 +268,25 @@ class SpotPaperWallsSoftMirrorEnvCfg(SpotPaperWallsSoftEnvCfg):
         self.terminations.sim_blowup = DoneTerm(func=mdp.sim_blowup)
 
 
+@configclass
+class SpotPaperWallsSoftMirrorTurnEnvCfg(SpotPaperWallsSoftMirrorEnvCfg):
+    """``Spot-Paper-WallsSoftMirrorTurn-v0``: WallsSoftMirror with 20 % of the commands turning in place (vx = 0,
+    |wz| 0.1-0.4). Fine-tuned from ``policies/walls_soft_mirror`` (same obs, mirror loss on)."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        old = self.commands.base_velocity
+        self.commands.base_velocity = mdp.TurnInPlaceVelocityCommandCfg(
+            asset_name=old.asset_name,
+            resampling_time_range=old.resampling_time_range,
+            rel_standing_envs=old.rel_standing_envs,
+            rel_heading_envs=old.rel_heading_envs,
+            heading_command=old.heading_command,
+            debug_vis=old.debug_vis,
+            ranges=old.ranges,
+        )
+
+
 def use_paper_map(cfg: LocomotionEnvCfg, map_name: str):
     """Give every env its own copy of a paper map (``PAPER_MAPS``), with the robot at the map's start.
 
