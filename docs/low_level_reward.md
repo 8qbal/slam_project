@@ -234,6 +234,20 @@ four feet move together, 1 of every 3 control steps (8.3 Hz) in the air with a 3
 wall contact is low (−0.04). Not adopted. A trot needs a minimum air time per step (e.g. `air_time` threshold) or a
 gait-phase reference, not only matching contact times.
 
+`Spot-Paper-WallsSoftTrot-v0` (`foot_duty` −5, `short_swing` −30 per touchdown; `2026-10-16_09-01-40`, WallsSoft
+ep 14000 → 17000): a trot again (trot share 0.93-0.98, 2.2-2.4 Hz, no shuffle), limp smaller, turning not better.
+Training reward fell from ~170 (ep 14500) to ~30 (ep 17000) while `wall_contact` grew to −3.2.
+
+| | WallsSoft ep 14000 | WallsSoftTrot ep 17000 |
+| --- | --- | --- |
+| duty FL / FR / HL / HR at 0.5 m/s (sensor) | 0.71 / 0.24 / 0.24 / 0.69 | 0.60 / 0.33 / 0.37 / 0.59 |
+| FL / HR swing | 0.13 s | 0.19 s |
+| wz at vx 0 for +-0.2 / +-0.4 (`--turns`) | 0.00, -0.03 / 0.17, -0.15 | -0.04, -0.10 / 0.03, -0.10 |
+| wz at vx 0.5 for +-0.2 / +-0.4 | 0.17, -0.18 / 0.27, -0.29 | 0.01, -0.17 / 0.25, -0.32 |
+| `gait_check.py` | 0 resets | 0 resets; one 1 m/s env stuck hopping in place |
+
+Not adopted.
+
 ## Still open
 
 - Before: 81-92 % of policy outputs hit the [−1, 1] clip (both policies). The paper policy is now unclipped, like
