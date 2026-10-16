@@ -231,6 +231,26 @@ class SpotPaperWallsSoftSymEnvCfg(SpotPaperWallsSoftEnvCfg):
         self.terminations.sim_blowup = DoneTerm(func=mdp.sim_blowup)
 
 
+@configclass
+class SpotPaperWallsSoftTrotEnvCfg(SpotPaperWallsSoftSymEnvCfg):
+    """``Spot-Paper-WallsSoftTrot-v0``: WallsSoft (with the Sym task's ``nan_guard`` / ``sim_blowup``) asking for a
+    real trot instead of only even diagonals: every foot down ~50 % of its cycle (``foot_duty``) and each swing at
+    least 0.2 s (``short_swing``). ``diagonal_duty`` alone cost the fine-tune its turning and let the from-scratch run
+    shuffle at 8 Hz (docs/low_level_reward.md). Fine-tuned from the WallsSoft checkpoint (same 353-dim obs).
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.rewards.diagonal_duty = None
+        feet = SceneEntityCfg("contact_forces", body_names=".*_foot")
+        # gait_check.py, mean weighted value per step (gait = 10.4 / 9.4): WallsSoft limp (duty 0.73 / 0.31) -0.6 at
+        # weight -3 -> -1.0; the shuffle has duty ~0.5 (0.06 s air / 0.07 s contact) and is not caught here
+        self.rewards.foot_duty = RewTerm(func=mdp.foot_duty_penalty, weight=-5.0, params={"sensor_cfg": feet})
+        # one value per touchdown, not per second: the shuffle (8.3 touchdowns/s per foot, 0.06 s swings) -0.32 at
+        # weight -2 -> -4.8; the limp's 0.13 s FL / HR swings -0.02 -> -0.3
+        self.rewards.short_swing = RewTerm(func=mdp.short_swing_penalty, weight=-30.0, params={"sensor_cfg": feet})
+
+
 def use_paper_map(cfg: LocomotionEnvCfg, map_name: str):
     """Give every env its own copy of a paper map (``PAPER_MAPS``), with the robot at the map's start.
 

@@ -21,6 +21,8 @@ __all__ = [
     "open_space_seeker_reward",
     "wall_min_depth",
     "diagonal_duty_penalty",
+    "foot_duty_penalty",
+    "short_swing_penalty",
 ]
 
 
@@ -90,3 +92,33 @@ def diagonal_duty_penalty(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) ->
     diff = ((duty[:, 0] + duty[:, 3]) - (duty[:, 1] + duty[:, 2])).abs() / 2.0
     cmd = torch.linalg.norm(env.command_manager.get_command("base_velocity"), dim=1)
     return torch.where(cmd > 0.0, diff, 0.0)
+
+
+def foot_duty_penalty(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, target: float = 0.5) -> torch.Tensor:
+    """Mean distance of each foot's duty factor (share of its last step cycle on the ground) from ``target``.
+
+    A trot has every foot down half of the cycle. The WallsSoft limp (FL / HR 73 %, FR / HL 31 %) gives ~0.2; the 8 Hz
+    four-foot shuffle of the from-scratch Sym run has ~0.5 on every foot (``short_swing_penalty`` catches that).
+    Only while a speed is commanded.
+    """
+    sensor = env.scene.sensors[sensor_cfg.name]
+    air = sensor.data.last_air_time.torch[:, sensor_cfg.body_ids]
+    contact = sensor.data.last_contact_time.torch[:, sensor_cfg.body_ids]
+    duty = contact / (air + contact).clamp(min=1e-6)
+    dev = (duty - target).abs().mean(dim=1)
+    cmd = torch.linalg.norm(env.command_manager.get_command("base_velocity"), dim=1)
+    return torch.where(cmd > 0.0, dev, 0.0)
+
+
+def short_swing_penalty(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, min_air_time: float = 0.2) -> torch.Tensor:
+    """At each touchdown, how much shorter than ``min_air_time`` the swing was (summed over feet).
+
+    Without it, equal 0.04 s air / 0.08 s contact times on every foot satisfy the gait reward (the shuffle above).
+    Only while a speed is commanded.
+    """
+    sensor = env.scene.sensors[sensor_cfg.name]
+    touchdown = sensor.compute_first_contact(env.step_dt).torch[:, sensor_cfg.body_ids]
+    air = sensor.data.last_air_time.torch[:, sensor_cfg.body_ids]
+    short = (min_air_time - air).clamp(min=0.0) * touchdown.float()
+    cmd = torch.linalg.norm(env.command_manager.get_command("base_velocity"), dim=1)
+    return torch.where(cmd > 0.0, short.sum(dim=1), 0.0)
