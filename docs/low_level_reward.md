@@ -277,6 +277,18 @@ for +-0.4 0.33 / -0.29 (`gait_check.py`) and 0.17 / -0.20 (`--turns`), in place 
 Turning in place is weak in every policy because it is barely trained: commands draw vx from U(0, 1) and wz from
 U(-0.4, 0.4), and the 10 % standing envs get wz = 0, so vx ~ 0 with wz != 0 is rare.
 
+`Spot-Paper-WallsSoftMirrorTurn-v0` (20 % of resampled commands vx = 0, |wz| 0.1-0.4, `mdp.TurnInPlaceVelocityCommandCfg`;
+`2026-10-16_23-38-11`, ep 21000 → 24000, `policies/walls_soft_mirror_turn/`), mean of 3 envs per command:
+
+| wz command | ep 21000 in place | ep 24000 in place | ep 21000 at 0.5 m/s | ep 24000 at 0.5 m/s |
+| --- | --- | --- | --- | --- |
+| +0.2 / -0.2 | 0.01 / -0.01 | 0.09 / -0.09 | 0.09 / -0.14 | 0.03 (2 of 3 envs stuck) / -0.23 |
+| +0.4 / -0.4 | 0.13 / -0.06 | 0.60 / -0.30 (one env stuck) | 0.17 / -0.20 | 0.44 / -0.50 |
+
+Feet still down 49-54 % each, 1.8 Hz, vx 0.49 / 0.90 at 0.5 / 1.0 m/s, training reward ~230. Open: small in-place
+turns (0.2) still weak, 0.4 overshoots to ~0.55-0.6, and a few envs get stuck hopping (all four feet in the air
+35-42 %) against obstacles on the wall terrain.
+
 ## Still open
 
 - Before: 81-92 % of policy outputs hit the [−1, 1] clip (both policies). The paper policy is now unclipped, like

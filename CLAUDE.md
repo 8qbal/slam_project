@@ -156,7 +156,7 @@ via `import_packages`). Task ids of trained policies never change.
 | `Spot-Paper-v0` / `-Play-v0` | `locomotion/config/spot/paper_env_cfg.py` (paper low level) |
 | `Spot-Paper-Rough-v0`, `Spot-Paper-Obstacles-v0` | same reward / PPO, other training terrain (Isaac Lab Spot terrain; pillars) |
 | `Spot-Paper-Walls{,Soft,SoftNoise,SoftSym,SoftTrot}-v0` | wall terrain; Soft: contact costs instead of ending; Noise: sensor noise; Sym: + even-diagonal penalty; Trot: + per-foot duty and minimum swing time |
-| `Spot-Paper-WallsSoftMirror-v0` | WallsSoft + left-right mirror loss in PPO (`spot_vslam/rl_games_mirror.py`, agent `rl_games_paper_mirror_ppo_cfg.yaml`): no limp |
+| `Spot-Paper-WallsSoftMirror-v0` | WallsSoft + left-right mirror loss in PPO (`spot_vslam/rl_games_mirror.py`, agent `rl_games_paper_mirror_ppo_cfg.yaml`): no limp; `-MirrorTurn-v0`: + 20 % turn-in-place commands |
 | `Spot-Paper-high-level-Map{A,B}-v0` / `-Play-v0` | same; low-level env under the SB3 high level |
 | `Spot-Nav-Map{A,B}-v0` / `-Play-v0` / `-Stereo-Play-v0` / `-cuVSLAM-Play-v0` / `-GT-Play-v0` | `navigation/config/spot/navigation_env_cfg.py` (train: GT pose; Play: ORB-SLAM3 RGB-D; Stereo-Play: ORB-SLAM3 stereo; cuVSLAM-Play: cuVSLAM stereo; GT-Play: GT pose, no ROS 2). Play tasks start at the map start facing the goal |
 | `Spot-Vslam-Depth-v0` / `-Play-v0` | `locomotion/config/spot/baseline_v0_env_cfg.py` (rl_vslam_v0 low level) |
