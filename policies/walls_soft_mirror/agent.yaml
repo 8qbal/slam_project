@@ -30,7 +30,7 @@ params:
       regularizer:
         name: None
   load_checkpoint: true
-  load_path: /home/tkuai/slam_project/policies/walls_soft/model.pth
+  load_path: /home/tkuai/slam_project/policies/walls_soft_mirror/model.pth
   config:
     clip_actions: false
     name: spot_paper_ppo
@@ -50,12 +50,12 @@ params:
     normalize_advantage: true
     gamma: 0.99
     tau: 0.95
-    learning_rate: 2.6012294873748934e-05
+    learning_rate: 7.707346629258943e-06
     lr_schedule: adaptive
     schedule_type: legacy
     kl_threshold: 0.01
     score_to_win: 20000
-    max_epochs: 18000
+    max_epochs: 21000
     save_best_after: 100
     save_frequency: 50
     grad_norm: 1.0
@@ -70,4 +70,4 @@ params:
     seq_length: 4
     bounds_loss_coef: 0.0
     train_dir: /home/tkuai/slam_project/logs/rl_games/spot_paper_ppo
-    full_experiment_name: 2026-10-16_15-41-52
+    full_experiment_name: 2026-10-16_19-10-05

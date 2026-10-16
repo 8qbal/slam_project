@@ -270,8 +270,12 @@ loss fell from 3.6 to 0.007 in ~400 epochs, the reward dipped and came back to ~
 | wz at vx 0 for +-0.4 | 0.17 / -0.15 | 0.11 / -0.05 |
 | wall contact (`gait_check.py`) | -0.17 | 0.00 |
 
-Open: slower at 1 m/s and weaker turning in place; the turn sweep is not left-right equal although the policy is
-(walls / terrain differ per env).
+Continued to ep 21000 (`2026-10-16_19-10-05`, now in `policies/walls_soft_mirror/`): every foot down 48-53 % at
+0.5 and 1.0 m/s, 1.8 Hz steps with 9-12 cm swings (ep 18000: 3.6 Hz), vx 0.44 / 0.85 for 0.5 / 1.0 m/s, wz at vx 0.5
+for +-0.4 0.33 / -0.29 (`gait_check.py`) and 0.17 / -0.20 (`--turns`), in place 0.13 / -0.06, wall contact 0.
+
+Turning in place is weak in every policy because it is barely trained: commands draw vx from U(0, 1) and wz from
+U(-0.4, 0.4), and the 10 % standing envs get wz = 0, so vx ~ 0 with wz != 0 is rare.
 
 ## Still open
 
