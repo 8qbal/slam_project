@@ -1,0 +1,83 @@
+# Same as rl_games_paper_ppo_cfg.yaml plus a left-right mirror loss (spot_vslam/rl_games_mirror.py, the fix for the
+# limp, docs/low_level_reward.md). Keep the rest identical to the paper PPO so checkpoints move between the two.
+#
+# Low-level PPO for the paper policy (network: Table 4). The paper gives no low-level PPO settings, so these follow
+# Isaac Lab's Spot (isaaclab_tasks/contrib/velocity/config/spot/agents/rsl_rl_ppo_cfg.py, RSL-RL) mapped to rl_games:
+# no action clipping, separate actor / critic, no obs / value normalization, no reward scaling, default init.
+params:
+  seed: 42
+
+  # environment wrapper clipping: none (no clip_actions / clip_observations key = no clipping)
+  env: {}
+
+  algo:
+    name: a2c_continuous
+
+  model:
+    name: continuous_a2c_logstd
+
+  network:
+    name: actor_critic
+    separate: True
+    space:
+      continuous:
+        mu_activation: None
+        sigma_activation: None
+
+        mu_init:
+          name: default
+        sigma_init:
+          name: const_initializer
+          val: 0
+        fixed_sigma: True
+    mlp:
+      units: [512, 256, 128]
+      activation: elu
+      d2rl: False
+
+      initializer:
+        name: default
+      regularizer:
+        name: None
+
+  load_checkpoint: False # flag which sets whether to load the checkpoint
+  load_path: '' # path to the checkpoint to load
+
+  config:
+    clip_actions: False  # rl_games clamps to [-1, 1] otherwise
+    name: spot_paper_ppo
+    mirror_loss_coef: 1.0  # x (action MSE + value MSE) between mirrored and original states
+    env_name: rlgpu
+    device: 'cuda:0'
+    device_name: 'cuda:0'
+    multi_gpu: False
+    ppo: True
+    mixed_precision: False
+    normalize_input: False
+    normalize_value: False
+    value_bootstrap: True
+    num_actors: -1  # configured from the script (based on num_envs)
+    reward_shaper:
+      scale_value: 1.0
+    normalize_advantage: True
+    gamma: 0.99
+    tau: 0.95
+    learning_rate: 1e-3
+    lr_schedule: adaptive
+    schedule_type: legacy
+    kl_threshold: 0.01
+    score_to_win: 20000
+    max_epochs: 20000
+    save_best_after: 100
+    save_frequency: 50
+    grad_norm: 1.0
+    entropy_coef: 0.0025
+    truncate_grads: True
+    e_clip: 0.2
+    horizon_length: 24
+    minibatch_size: 3072  # 4 minibatches = num_envs * 24 / 4 (3072 for 512 envs; must divide num_envs * 24)
+    mini_epochs: 5
+    critic_coef: 1.0  # rl_games uses 0.5 * critic_coef * MSE; RSL-RL value_loss_coef 0.5 * MSE
+    clip_value: True
+    seq_length: 4
+    bounds_loss_coef: 0.0

@@ -24,6 +24,7 @@ def _register(task_id: str, env_cfg: str, agent_cfg: str):
 ##
 
 PAPER_AGENT = "rl_games_paper_ppo_cfg.yaml"
+PAPER_MIRROR_AGENT = "rl_games_paper_mirror_ppo_cfg.yaml"  # + left-right mirror loss
 _register("Spot-Paper-v0", "paper_env_cfg:SpotPaperEnvCfg", PAPER_AGENT)
 _register("Spot-Paper-Play-v0", "paper_env_cfg:SpotPaperEnvCfg_PLAY", PAPER_AGENT)
 # same reward and PPO, other training terrain
@@ -34,6 +35,7 @@ _register("Spot-Paper-WallsSoft-v0", "paper_env_cfg:SpotPaperWallsSoftEnvCfg", P
 _register("Spot-Paper-WallsSoftNoise-v0", "paper_env_cfg:SpotPaperWallsSoftNoiseEnvCfg", PAPER_AGENT)
 _register("Spot-Paper-WallsSoftSym-v0", "paper_env_cfg:SpotPaperWallsSoftSymEnvCfg", PAPER_AGENT)
 _register("Spot-Paper-WallsSoftTrot-v0", "paper_env_cfg:SpotPaperWallsSoftTrotEnvCfg", PAPER_AGENT)
+_register("Spot-Paper-WallsSoftMirror-v0", "paper_env_cfg:SpotPaperWallsSoftMirrorEnvCfg", PAPER_MIRROR_AGENT)
 # low-level env under the SB3 high-level wrapper, on paper Map A / B
 _register("Spot-Paper-high-level-MapA-v0", "paper_env_cfg:SpotPaperHighLevelEnvCfg", PAPER_AGENT)
 _register("Spot-Paper-high-level-MapA-Play-v0", "paper_env_cfg:SpotPaperHighLevelEnvCfg_PLAY", PAPER_AGENT)

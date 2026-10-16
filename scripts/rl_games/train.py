@@ -226,6 +226,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # create runner from rl-games
     observer = IsaacAlgoObserver() if args_cli.quiet_rewards else VerboseIsaacAlgoObserver(args_cli.reward_terms_every)
     runner = Runner(observer)
+    if agent_cfg["params"]["config"].get("mirror_loss_coef"):
+        # PPO + left-right mirror loss (spot_vslam/rl_games_mirror.py)
+        from spot_vslam.rl_games_mirror import register
+        from spot_vslam.tasks.locomotion.mdp.symmetry import mirror_spec
+
+        register(runner, mirror_spec(env.unwrapped))
+        print(f"[INFO]: Mirror loss on, coefficient {agent_cfg['params']['config']['mirror_loss_coef']}")
     runner.load(agent_cfg)
 
     # reset the agent and env

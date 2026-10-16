@@ -251,6 +251,23 @@ class SpotPaperWallsSoftTrotEnvCfg(SpotPaperWallsSoftSymEnvCfg):
         self.rewards.short_swing = RewTerm(func=mdp.short_swing_penalty, weight=-30.0, params={"sensor_cfg": feet})
 
 
+@configclass
+class SpotPaperWallsSoftMirrorEnvCfg(SpotPaperWallsSoftEnvCfg):
+    """``Spot-Paper-WallsSoftMirror-v0``: WallsSoft's env and reward, trained with a left-right mirror loss (agent
+    ``rl_games_paper_mirror_ppo_cfg.yaml``, ``spot_vslam/rl_games_mirror.py``) against the limp. No gait penalty:
+    those three attempts traded the limp for weaker turning or a shuffle (docs/low_level_reward.md). With the Sym
+    task's ``nan_guard`` and ``sim_blowup``.
+    """
+
+    nan_guard: bool = True
+    nan_guard_reward: float = 10.0
+    nan_guard_obs: float = 100.0
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.terminations.sim_blowup = DoneTerm(func=mdp.sim_blowup)
+
+
 def use_paper_map(cfg: LocomotionEnvCfg, map_name: str):
     """Give every env its own copy of a paper map (``PAPER_MAPS``), with the robot at the map's start.
 
