@@ -221,6 +221,45 @@ MAZE_TILES = 8
 """Maze tiles per side: 64 different mazes, each 21 x 21 m (7 x 7 cells of 3 m)."""
 
 
+def random_world_low_level(paper_map: str, sub_terrains: dict, tile_size: tuple[float, float], goal_distance):
+    """The low-level env of a navigation task on random terrain tiles: ``reset_in_maze`` picks a random tile, start
+    (any heading) and goal ``goal_distance`` (min, max) metres away at every reset. 8 x 8 tiles."""
+    cfg = SpotPaperHighLevelEnvCfg(paper_map=paper_map)
+    cfg.scene.maze = None
+    cfg.scene.terrain = TerrainImporterCfg(
+        prim_path="/World/ground",
+        terrain_type="generator",
+        terrain_generator=terrain_gen.TerrainGeneratorCfg(
+            size=tile_size,
+            border_width=0.0,
+            num_rows=MAZE_TILES,
+            num_cols=MAZE_TILES,
+            use_cache=False,
+            sub_terrains=sub_terrains,
+        ),
+        max_init_terrain_level=None,
+        collision_group=-1,
+        physics_material=GROUND_MATERIAL_CFG,
+        debug_vis=False,
+    )
+    cfg.scene.robot.init_state.pos = (0.0, 0.0, 0.6)
+    reset_base = cfg.events.reset_base
+    cfg.events.reset_base = EventTerm(
+        func=mdp.reset_in_maze,
+        mode="reset",
+        params={"goal_distance": goal_distance, "velocity_range": reset_base.params["velocity_range"]},
+    )
+    return cfg
+
+
+def _patches(radius: float, num: int = 64):
+    return {
+        mdp.maze.PATCHES: FlatPatchSamplingCfg(
+            num_patches=num, patch_radius=radius, max_height_diff=0.5, z_range=(-0.5, 0.5)
+        )
+    }
+
+
 @configclass
 class SpotNavigationMazeEnvCfg(SpotNavigationEnvCfg):
     """``Spot-Nav-Maze-v0``: training on random mazes with a random start and goal at every reset.
@@ -231,37 +270,31 @@ class SpotNavigationMazeEnvCfg(SpotNavigationEnvCfg):
     """
 
     def low_level_env_cfg(self):
-        cfg = SpotPaperHighLevelEnvCfg(paper_map=self.paper_map)
-        cfg.scene.maze = None
-        cfg.scene.terrain = TerrainImporterCfg(
-            prim_path="/World/ground",
-            terrain_type="generator",
-            terrain_generator=terrain_gen.TerrainGeneratorCfg(
-                size=(MAZE_TILE_SIZE, MAZE_TILE_SIZE),
-                border_width=0.0,
-                num_rows=MAZE_TILES,
-                num_cols=MAZE_TILES,
-                use_cache=False,
-                sub_terrains={
-                    "maze": mdp.MazeTerrainCfg(
-                        flat_patch_sampling={
-                            mdp.maze.PATCHES: FlatPatchSamplingCfg(
-                                num_patches=64, patch_radius=0.7, max_height_diff=0.5, z_range=(-0.5, 0.5)
-                            )
-                        }
-                    )
-                },
-            ),
-            max_init_terrain_level=None,
-            collision_group=-1,
-            physics_material=GROUND_MATERIAL_CFG,
-            debug_vis=False,
+        return random_world_low_level(
+            self.paper_map,
+            {"maze": mdp.MazeTerrainCfg(flat_patch_sampling=_patches(0.7))},
+            (MAZE_TILE_SIZE, MAZE_TILE_SIZE),
+            (6.0, 14.0),
         )
-        cfg.scene.robot.init_state.pos = (0.0, 0.0, 0.6)
-        reset_base = cfg.events.reset_base
-        cfg.events.reset_base = EventTerm(
-            func=mdp.reset_in_maze,
-            mode="reset",
-            params={"goal_distance": (6.0, 14.0), "velocity_range": reset_base.params["velocity_range"]},
+
+
+HALL_TILE_SIZE = (22.0, 32.0)
+"""Like the paper maps (20 x 30 m)."""
+
+
+@configclass
+class SpotNavigationHallEnvCfg(SpotNavigationEnvCfg):
+    """``Spot-Nav-Hall-v0``: random mazes (30 % of the tiles) and halls like Maps A / B (70 %): rows of long walls with
+    1.3-2.4 m doorways and free-standing shelves (``mdp.HallTerrainCfg``), goals 8-22 m away. Fine-tuned from the
+    ``Spot-Nav-Maze-v0`` policy: Maps A and B stay unseen, but their doorway-and-shelf layout is no longer new."""
+
+    def low_level_env_cfg(self):
+        return random_world_low_level(
+            self.paper_map,
+            {
+                "maze": mdp.MazeTerrainCfg(proportion=0.3, flat_patch_sampling=_patches(0.6, 96)),
+                "hall": mdp.HallTerrainCfg(proportion=0.7, flat_patch_sampling=_patches(0.6, 96)),
+            },
+            HALL_TILE_SIZE,
+            (8.0, 22.0),
         )
-        return cfg

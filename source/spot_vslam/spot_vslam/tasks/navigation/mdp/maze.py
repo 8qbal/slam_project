@@ -21,7 +21,7 @@ from isaaclab.utils.math import quat_from_euler_xyz, sample_uniform
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
-__all__ = ["MazeTerrainCfg", "maze_terrain", "reset_in_maze"]
+__all__ = ["HallTerrainCfg", "MazeTerrainCfg", "hall_terrain", "maze_terrain", "reset_in_maze"]
 
 PATCHES = "init_pos"
 """Key of the flat patches (free spots at least ``patch_radius`` from any wall) used for starts and goals."""
@@ -96,6 +96,86 @@ class MazeTerrainCfg(SubTerrainBaseCfg):
     wall_thickness: float = 0.3
     wall_height: float = 2.5
     """High enough to fill the depth image's upper rows, like the walls and shelves of the paper maps."""
+
+
+def hall_terrain(difficulty: float, cfg: HallTerrainCfg) -> tuple[list[trimesh.Trimesh], np.ndarray]:
+    """A hall like the paper maps (docs/DESIGN_DECISIONS.md): rows of long walls across the hall, each with one or two
+    doorways, plus free-standing shelves and boxes in the bands between the rows.
+
+    Map A and B are 20 x 30 m with five wall rows 6 m apart, each with a 1.74 m doorway (Map B adds 1.4 m wide shelves
+    that narrow the passages). Every shelf keeps ``clearance`` from walls and from each other, so the free space stays
+    connected for the robot.
+    """
+    sx, sy = cfg.size
+    rng = np.random.default_rng()
+    t, h = cfg.wall_thickness, cfg.wall_height
+
+    def box(size, center):
+        return trimesh.creation.box(size, trimesh.transformations.translation_matrix(center))
+
+    meshes = [box((sx, sy, 0.1), (sx / 2, sy / 2, -0.05))]
+    rects = []  # (x0, y0, x1, y1) of every wall and shelf, for the clearance test
+
+    def add(x0, y0, x1, y1, height):
+        meshes.append(box((x1 - x0, y1 - y0, height), ((x0 + x1) / 2, (y0 + y1) / 2, height / 2)))
+        rects.append((x0, y0, x1, y1))
+
+    add(0.0, 0.0, t, sy, h)
+    add(sx - t, 0.0, sx, sy, h)
+    add(0.0, 0.0, sx, t, h)
+    add(0.0, sy - t, sx, sy, h)
+
+    n_rows = int(rng.integers(cfg.num_rows[0], cfg.num_rows[1] + 1))
+    ys = np.linspace(0.0, sy, n_rows + 2)[1:-1] + rng.uniform(-0.8, 0.8, n_rows)
+    for y in ys:
+        n_doors = int(rng.choice([1, 1, 2]))
+        width = rng.uniform(*cfg.door_width)
+        centers = []
+        for _ in range(100):
+            c = rng.uniform(width, sx - width)
+            if all(abs(c - o) > width + 2.0 for o in centers):
+                centers.append(c)
+            if len(centers) == n_doors:
+                break
+        edges = [0.0] + [e for c in sorted(centers) for e in (c - width / 2, c + width / 2)] + [sx]
+        for a, b in zip(edges[::2], edges[1::2]):
+            if b - a > 0.05:
+                add(a, y - t, b, y + t, h)
+
+    n_shelves = int(rng.integers(cfg.num_shelves[0], cfg.num_shelves[1] + 1))
+    placed, c = 0, cfg.clearance
+    for _ in range(200 * max(n_shelves, 1)):
+        if placed == n_shelves:
+            break
+        width, length = rng.uniform(*cfg.shelf_width), rng.uniform(*cfg.shelf_length)
+        if rng.random() < 0.5:
+            width, length = length, width
+        x0, y0 = rng.uniform(0.0, sx - width), rng.uniform(0.0, sy - length)
+        if any(x0 - c < r[2] and x0 + width + c > r[0] and y0 - c < r[3] and y0 + length + c > r[1] for r in rects):
+            continue
+        add(x0, y0, x0 + width, y0 + length, rng.uniform(*cfg.shelf_height))
+        placed += 1
+    return meshes, np.array([sx / 2, sy / 2, 0.0])
+
+
+@configclass
+class HallTerrainCfg(SubTerrainBaseCfg):
+    """One tile = one hall with wall rows, doorways and shelves (see ``hall_terrain``)."""
+
+    function = hall_terrain
+
+    num_rows: tuple[int, int] = (3, 5)
+    """Wall rows across the hall."""
+    door_width: tuple[float, float] = (1.3, 2.4)
+    """Doorway width; the paper maps have 1.74 m."""
+    num_shelves: tuple[int, int] = (0, 4)
+    shelf_width: tuple[float, float] = (1.0, 1.6)
+    shelf_length: tuple[float, float] = (3.0, 10.0)
+    shelf_height: tuple[float, float] = (2.0, 6.0)
+    clearance: float = 1.0
+    """Free distance around every shelf; keeps the free space connected for the robot."""
+    wall_thickness: float = 0.3
+    wall_height: float = 6.0
 
 
 def reset_in_maze(
