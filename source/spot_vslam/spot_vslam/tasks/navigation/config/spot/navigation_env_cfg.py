@@ -9,12 +9,15 @@ evaluates with the ORB-SLAM3 pose, like the paper; ``_GT_PLAY`` evaluates with t
 
 from dataclasses import MISSING
 
+import isaaclab.terrains as terrain_gen
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.terrains import FlatPatchSamplingCfg, TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import GaussianNoiseCfg as Gnoise
 
@@ -24,7 +27,7 @@ from spot_vslam.tasks.locomotion.config.spot.paper_env_cfg import (
     SpotPaperHighLevelEnvCfg,
     SpotPaperHighLevelEnvCfg_PLAY,
 )
-from spot_vslam.tasks.locomotion.locomotion_env_cfg import SLAM_RIGHT_CAMERA_CFG
+from spot_vslam.tasks.locomotion.locomotion_env_cfg import GROUND_MATERIAL_CFG, SLAM_RIGHT_CAMERA_CFG
 
 from ... import mdp
 
@@ -211,3 +214,54 @@ class SpotNavigationEnvCfg_MAP_B_CUVSLAM_PLAY(SpotNavigationEnvCfg_CUVSLAM_PLAY)
 @configclass
 class SpotNavigationEnvCfg_MAP_B_STEREO_PLAY(SpotNavigationEnvCfg_STEREO_PLAY):
     paper_map: str = "B"
+
+
+MAZE_TILE_SIZE = 21.0
+MAZE_TILES = 8
+"""Maze tiles per side: 64 different mazes, each 21 x 21 m (7 x 7 cells of 3 m)."""
+
+
+@configclass
+class SpotNavigationMazeEnvCfg(SpotNavigationEnvCfg):
+    """``Spot-Nav-Maze-v0``: training on random mazes with a random start and goal at every reset.
+
+    The paper's training maze is lost, and training on Map A or B makes their evaluation a memory test. Here the
+    layout, start (any heading) and goal (6-14 m away in a straight line) change every episode; evaluate on the
+    paper maps. Goal radius 1 m (Map A's). Everything else, including the observation, is as in the map tasks.
+    """
+
+    def low_level_env_cfg(self):
+        cfg = SpotPaperHighLevelEnvCfg(paper_map=self.paper_map)
+        cfg.scene.maze = None
+        cfg.scene.terrain = TerrainImporterCfg(
+            prim_path="/World/ground",
+            terrain_type="generator",
+            terrain_generator=terrain_gen.TerrainGeneratorCfg(
+                size=(MAZE_TILE_SIZE, MAZE_TILE_SIZE),
+                border_width=0.0,
+                num_rows=MAZE_TILES,
+                num_cols=MAZE_TILES,
+                use_cache=False,
+                sub_terrains={
+                    "maze": mdp.MazeTerrainCfg(
+                        flat_patch_sampling={
+                            mdp.maze.PATCHES: FlatPatchSamplingCfg(
+                                num_patches=64, patch_radius=0.7, max_height_diff=0.5, z_range=(-0.5, 0.5)
+                            )
+                        }
+                    )
+                },
+            ),
+            max_init_terrain_level=None,
+            collision_group=-1,
+            physics_material=GROUND_MATERIAL_CFG,
+            debug_vis=False,
+        )
+        cfg.scene.robot.init_state.pos = (0.0, 0.0, 0.6)
+        reset_base = cfg.events.reset_base
+        cfg.events.reset_base = EventTerm(
+            func=mdp.reset_in_maze,
+            mode="reset",
+            params={"goal_distance": (6.0, 14.0), "velocity_range": reset_base.params["velocity_range"]},
+        )
+        return cfg

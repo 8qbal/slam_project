@@ -21,3 +21,13 @@ for _map, _suffix in (("A", ""), ("B", "_MAP_B")):
                 "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
             },
         )
+
+gym.register(
+    id="Spot-Nav-Maze-v0",  # random mazes, random start and goal; evaluate on the paper maps
+    entry_point="spot_vslam.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.navigation_env_cfg:SpotNavigationMazeEnvCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
+    },
+)

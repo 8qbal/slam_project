@@ -40,6 +40,9 @@ Proposal items → sections: 1 cuVSLAM → 2; 2 benchmark (evo) → 2; 3 Kalman 
       vs. `rl_vslam_v0` (no goal), documented in `docs/SYSTEM.md`.
 - [x] High level as a manager-based env (`Spot-Nav-*`): frozen low level in `LowLevelPolicyAction`, goal as a command
       term, pose as an observation term with `pose_source="gt" | "slam"`, rl_games trainer.
+- [ ] Map A / B training is a memory test (fixed start and goal). `Spot-Nav-Maze-v0`: 64 random mazes, random start
+      and goal per episode (`navigation/mdp/maze.py`). Map A run before (WallsSoftMirrorTurn low level, 2000 epochs):
+      74 % goal_reached on Map A itself. Still to do: train on the maze, evaluate on Map A / B (`-GT-Play`).
 - [x] Paper policies trained: low level `Spot-Paper-v0`, high level with GT pose (condition A).
 - [x] E0, the current system measured: latency, pose error, tracking failures, CPU/GPU, navigation (Table 9),
       GT vs. SLAM pose with TSDF on and off. TSDF only builds a map; it does not feed control.
