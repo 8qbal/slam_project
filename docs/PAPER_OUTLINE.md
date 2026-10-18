@@ -26,13 +26,13 @@ degrades.
 | C1 | The Isaac Lab Spot reward functions and PPO settings make the paper's low level walk; the literal Eqs. 2-6 make it trot in place | `docs/low_level_reward.md` (measurements table) | done |
 | C2 | A reward that matches air and contact times only per foot pair can be satisfied by a limp (75 / 25 diagonal duty). A left-right mirror loss removes it (each foot down 49-54 %) without changing the reward | `docs/low_level_reward.md`, "Limp" | done, one seed |
 | C3 | Turning in place is rarely commanded in the standard command ranges; 20 % turn-in-place commands fix it (wz 0.60 / -0.30 at +-0.4 in place) | same, `MirrorTurn` table | done, small turns still weak |
-| C4 | A high level trained on one fixed map memorizes its route (Map A model: 70 % on Map A, 0 % on Map B, 400-step protocol). Random mazes train a policy that does not | `Spot-Nav-Maze-v0`, E5 below | partly measured, **paper-protocol numbers TBD** |
+| C4 | A high level trained on one fixed map memorizes its route (Map A model: 100 % on Map A, 0 % on Map B). Random mazes train a policy that transfers: 100 % (fixed start) / 69 % (random start) on Map A, but only 20 % / 50 % on Map B | `Spot-Nav-Maze-v0`, E5 table below | measured; Map B not good enough yet |
 | C5 | cuVSLAM stereo drifts less than ORB-SLAM3 on the same drive (APE 0.57 m vs 3.4-5.0 m, one drive on Map A) | `docs/cuvslam.md` | one drive only |
 | C6 | Tracking-quality inputs let the high level adapt when SLAM degrades (A / B / C comparison) | `docs/ROADMAP.md` section 5 | **not started** (main experiment) |
 
 C1-C3 are low-level engineering results and can stand as one section or a short paper of their own. C6 is the main
 contribution and depends on C4 (a high level that reaches the goal with ground-truth pose) and on cuVSLAM running
-one tracker per training env (**untested**, `docs/cuvslam.md` open question).
+one tracker per training env (tested with 16 envs: works, 55 env-steps/s, 6.5 of 7.6 GiB GPU; `docs/cuvslam.md`).
 
 ## Section skeleton
 
@@ -70,12 +70,28 @@ one tracker per training env (**untested**, `docs/cuvslam.md` open question).
 | E2 | Low level: terrain | reward, PPO | paper / rough / obstacles / walls | speed error, turn, wall contact, resets | done (walls chosen) |
 | E3 | Low level: symmetry and turning | walls terrain | plain / diagonal penalty / foot-duty penalty / mirror loss / + turn commands | foot duty, swing time, wz at vx 0 and 0.5 | done, one seed each |
 | E4 | cuVSLAM vs ORB-SLAM3 | drive, cameras | SLAM system | APE (evo), tracking loss, delay, CPU / GPU | one drive, **more runs TBD** |
-| E5 | High level: training distribution | low level, PPO, reward | fixed Map A / random mazes | success, collisions, steps, time on A and B | **TBD** (see below) |
+| E5 | High level: training distribution | low level, PPO, reward | fixed Map A / random mazes | success, collisions, steps, time on A and B | first run done (table below); Map B fails |
 | E6 | High level: pose source (A / B / C) | low level, task, reward, budget | GT / SLAM / SLAM + quality inputs | Table 9 metrics under cuVSLAM and ORB-SLAM3 | not started |
 | E7 | System load (paper Tables 7-8) | | RL / + VSLAM / + TSDF | FPS, CPU, RAM, disk | script exists, rerun with new policies |
 
 E5 protocol follows the reproduced paper's Table 9: one run per trial, 3000 high-level steps, a contact is counted
 and does not end the run, success when the goal radius is reached (Map A 1 m, Map B 2 m), ground-truth pose first.
+Script: `scripts/tools/eval_nav_protocol.py`. Results (2026-10-19, ground-truth pose; "fixed start" = `-GT-Play`, a
+deterministic policy, so its 5 runs are nearly one run; "random start" = training start, 16 runs):
+
+| Policy (trained on) | Map | Start | Runs | Success | Collisions | Steps (failure = 3000) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Map A | A | fixed | 5 | 100 % | 0 | 357 |
+| Map A | B | fixed | 5 | 0 % | 520 | 3000 |
+| random mazes | A | fixed | 5 | 100 % | 0 | 428 |
+| random mazes | B | fixed | 5 | 20 % | 64 | 2475 |
+| random mazes | A | random | 16 | 69 % | 75 +- 137 | 1327 |
+| random mazes | B | random | 16 | 50 % | 34 +- 64 | 1711 |
+| *reproduced paper, SLAM pose* | A / B | fixed | 5 | *80 % / 100 %* | *0 / 0.4* | *1540 / 1228* |
+
+Reading: the maze policy transfers to Map A and fails on Map B's narrow shelf lanes (it gets stuck against shelves:
+hundreds of contacts in the failed runs). Condition A is therefore good enough on Map A, not yet on Map B. A 400-step
+test (the training length) was too short and is not comparable with Table 9.
 
 ## Configuration summary
 
@@ -131,15 +147,16 @@ and does not end the run, success when the goal radius is reached (Map A 1 m, Ma
 | Fig. 6 | Pose error over time, ORB-SLAM3 vs cuVSLAM | evo |
 | Tab. 1 | Low-level reward: literal vs Isaac Lab | `docs/low_level_reward.md` |
 | Tab. 2 | Gait symmetry: duty per foot and turn rates for each policy | same |
-| Tab. 3 | High-level training distribution (E5): success, collisions, steps, time | **TBD** |
+| Tab. 3 | High-level training distribution (E5): success, collisions, steps, time | table in the E5 section; Map B to redo |
 | Tab. 4 | A / B / C comparison with each SLAM (E6) | not started |
 | Tab. 5 | System load (E7) | script exists |
 
 ## Order of work
 
-1. E5: paper-protocol test of the maze policy on Maps A and B. If it passes, condition A is done.
-2. If it fails: make the maze closer to the maps (narrower, shelves like Map B, goals up to 26 m), retrain, retest.
-3. Test cuVSLAM with 4 / 8 / 16 envs (FPS, GPU memory, tracking status).
+1. E5: done once: Map A passes, Map B does not (20 % fixed start, 50 % random start).
+2. Make the maze closer to Map B (narrow shelf lanes, rows of shelves, goals up to 26 m), fine-tune from the current
+   maze policy, retest on A and B. Condition A is done when Map B is close to Map A.
+3. cuVSLAM with 16 envs: done, works (55 env-steps/s).
 4. SLAM in the loop for the finished high level (E4, then the pose-source part of E6).
 5. Train B and C, evaluate with cuVSLAM, ORB-SLAM3 and GT poses (E6).
 6. Write up; fill the TBD cells.

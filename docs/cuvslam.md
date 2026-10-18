@@ -75,7 +75,12 @@ Watch: cuVSLAM runs on the same GPU as Isaac Lab (8 GB laptop GPU). Measure GPU 
 ## Open questions
 
 - Does `track()` take RGB directly, or does it want grayscale? Check with a 10-frame test.
-- Is one tracker per env fine for 16+ envs (GPU memory)? Needed for training with SLAM (roadmap section 5).
+- Is one tracker per env fine for 16 envs (GPU memory)? Needed for training with SLAM (roadmap section 5). **Yes**
+  (2026-10-19, `scripts/slam/cuvslam_multi_env.py`, `-cuVSLAM-Play` scene, laptop 7.6 GiB GPU, robot walking at 0.5 m/s):
+  1 / 4 / 8 / 16 envs run at 6.9 / 22.6 / 37.3 / 55.5 env-steps/s, GPU memory 4.6 / 5.1 / 5.7 / 6.5 GiB, and every
+  tracker returns a pose (all 16 with 210-450 features). Training without SLAM runs at ~120 env-steps/s, so SLAM in
+  the loop costs about 2x. Not tested: 32+ envs (GPU memory is at 85 % with 16), a full training run, a camera
+  rate below the Play scene's 100 Hz.
 - Decided: loop closure on, to match ORB-SLAM3.
 
 ## First run (after training)
