@@ -149,6 +149,9 @@ Question: can the robot learn to change how it moves when localization becomes u
   - [ ] B: SLAM pose, no quality inputs (`pose_source="slam"`, with cuVSLAM).
   - [ ] C: SLAM pose + quality inputs.
 - [ ] Evaluate A, B, C with the same SLAM system and scenarios. A vs. B = training with SLAM; B vs. C = quality inputs.
+- [ ] Also evaluate B and C (trained with cuVSLAM) with ORB-SLAM3 poses (`-Play` / `-Stereo-Play`) and with GT poses, no
+      retraining: does a policy trained on one SLAM carry over to another? ORB-SLAM3 is not used for training: it
+      runs as one ROS 2 process for one robot, so it cannot give each of the parallel envs its own tracker.
 
 ## Engineering backlog
 
