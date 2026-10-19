@@ -26,7 +26,7 @@ degrades.
 | C1 | The Isaac Lab Spot reward functions and PPO settings make the paper's low level walk; the literal Eqs. 2-6 make it trot in place | `docs/low_level_reward.md` (measurements table) | done |
 | C2 | A reward that matches air and contact times only per foot pair can be satisfied by a limp (75 / 25 diagonal duty). A left-right mirror loss removes it (each foot down 49-54 %) without changing the reward | `docs/low_level_reward.md`, "Limp" | done, one seed |
 | C3 | Turning in place is rarely commanded in the standard command ranges; 20 % turn-in-place commands fix it (wz 0.60 / -0.30 at +-0.4 in place) | same, `MirrorTurn` table | done, small turns still weak |
-| C4 | A high level trained on one fixed map memorizes its route (Map A model: 100 % on Map A, 0 % on Map B). Random mazes train a policy that transfers: 100 % (fixed start) / 69 % (random start) on Map A, but only 20 % / 50 % on Map B | `Spot-Nav-Maze-v0`, E5 table below | measured; Map B not good enough yet |
+| C4 | A high level trained on one fixed map memorizes its route (Map A model: 100 % on Map A, 0 % on Map B). Random mazes train a policy that transfers: 100 % (fixed start) / 69-81 % (random start) on Map A, but only 20 % / 31-50 % on Map B | `Spot-Nav-Maze-v0`, E5 table below | measured; Map B not good enough yet |
 | C5 | cuVSLAM stereo drifts less than ORB-SLAM3 on the same drive (APE 0.57 m vs 3.4-5.0 m, one drive on Map A) | `docs/cuvslam.md` | one drive only |
 | C6 | Tracking-quality inputs let the high level adapt when SLAM degrades (A / B / C comparison) | `docs/ROADMAP.md` section 5 | **not started** (main experiment) |
 
@@ -87,10 +87,16 @@ deterministic policy, so its 5 runs are nearly one run; "random start" = trainin
 | random mazes | B | fixed | 5 | 20 % | 64 | 2475 |
 | random mazes | A | random | 16 | 69 % | 75 +- 137 | 1327 |
 | random mazes | B | random | 16 | 50 % | 34 +- 64 | 1711 |
+| mazes + halls (`Spot-Nav-Hall-v0`) | A | fixed | 5 | 100 % | 0 | 445 |
+| mazes + halls | B | fixed | 5 | 20 % | 136 | 2670 |
+| mazes + halls | A | random | 16 | 81 % | 47 +- 141 | 922 |
+| mazes + halls | B | random | 16 | 31 % | 100 +- 142 | 2213 |
 | *reproduced paper, SLAM pose* | A / B | fixed | 5 | *80 % / 100 %* | *0 / 0.4* | *1540 / 1228* |
 
-Reading: the maze policy transfers to Map A and fails on Map B's narrow shelf lanes (it gets stuck against shelves:
-hundreds of contacts in the failed runs). Condition A is therefore good enough on Map A, not yet on Map B. A 400-step
+Reading: both policies transfer to Map A (hall fine-tuning: 69 % -> 81 % with random start) and fail on Map B. The
+hall layout (wall rows with doorways, shelves, goals 8-22 m) did **not** fix Map B (random start 50 % -> 31 %, fixed
+start still 1 of 5), so the cause is not what the first guess said. Failed runs make hundreds of contacts, i.e. they
+stick somewhere; where is not yet known. Condition A is good enough on Map A, not on Map B. A 400-step
 test (the training length) was too short and is not comparable with Table 9.
 
 ## Configuration summary
@@ -154,8 +160,9 @@ test (the training length) was too short and is not comparable with Table 9.
 ## Order of work
 
 1. E5: done once: Map A passes, Map B does not (20 % fixed start, 50 % random start).
-2. Make the maze closer to Map B (narrow shelf lanes, rows of shelves, goals up to 26 m), fine-tune from the current
-   maze policy, retest on A and B. Condition A is done when Map B is close to Map A.
+2. Hall fine-tune (`Spot-Nav-Hall-v0`, 3300 epochs) done: A 81 %, B 31 % (random start). Next: find where the Map B
+   runs get stuck (final positions on the map top view, the doorway slots next to Shelf_1), then decide the fix.
+   Condition A is done when Map B is close to Map A.
 3. cuVSLAM with 16 envs: done, works (55 env-steps/s).
 4. SLAM in the loop for the finished high level (E4, then the pose-source part of E6).
 5. Train B and C, evaluate with cuVSLAM, ORB-SLAM3 and GT poses (E6).
