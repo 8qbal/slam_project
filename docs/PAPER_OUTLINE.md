@@ -91,6 +91,10 @@ deterministic policy, so its 5 runs are nearly one run; "random start" = trainin
 | mazes + halls | B | fixed | 5 | 20 % | 136 | 2670 |
 | mazes + halls | A | random | 16 | 81 % | 47 +- 141 | 922 |
 | mazes + halls | B | random | 16 | 31 % | 100 +- 142 | 2213 |
+| mazes + halls + racks (`Spot-Nav-HallRacks-v0`) | A | fixed | 5 | 100 % | 0 | 363 |
+| mazes + halls + racks | B | fixed | 5 | 0 % | 70 | 3000 |
+| mazes + halls + racks | A | random | 16 | 94 % | 22 +- 88 | 553 |
+| mazes + halls + racks | B | random | 16 | 62 % | 53 +- 94 | 1381 |
 | *reproduced paper, SLAM pose* | A / B | fixed | 5 | *80 % / 100 %* | *0 / 0.4* | *1540 / 1228* |
 
 Reading: both policies transfer to Map A (hall fine-tuning: 69 % -> 81 % with random start) and fail on Map B. The
@@ -100,7 +104,11 @@ start still 1 of 5), so the cause is not what the first guess said. Cause (traje
 y = 3 doorway (x -1.1..0.6, y 1.6..4.7), 2 stick against the pallet bin near the start. Map B's `Shelf_1` is an open
 rack (482 collision meshes: boards 1.08 m wide from z = 0.96 m up, upright frames every 4 m), so crossing the
 doorways means walking under the shelf, a squeeze that no training world contains. The successful runs (5 of 16)
-make it through. Condition A is good enough on Map A, not on Map B. A 400-step
+make it through. Open racks (`Spot-Nav-HallRacks-v0`, boards from 0.85-1.1 m, 0.86-1.26 m between the posts) raised
+Map B from 31 % to 62 % (random start) and Map A to 94 %, but the fixed start still sticks (0 of 5), always inside
+the rack between y = 3 and 6 (`docs/img/mapB_racks_policy_trajectories.png`; all 9 failed runs of the trajectory
+test end at x -1.0..-0.1, y 2.7..6.0). Cause found in the USD: Map B's rack posts are 0.2 m wide with 0.6 m between
+them, narrower than our racks (0.86-1.26 m). Condition A is good enough on Map A, close on Map B (random start). A 400-step
 test (the training length) was too short and is not comparable with Table 9.
 
 ## Configuration summary
@@ -164,10 +172,10 @@ test (the training length) was too short and is not comparable with Table 9.
 ## Order of work
 
 1. E5: done once: Map A passes, Map B does not (20 % fixed start, 50 % random start).
-2. Hall fine-tune (`Spot-Nav-Hall-v0`, 3300 epochs) done: A 81 %, B 31 % (random start). Failure found: the policy
-   gets stuck in the shelf squeeze at Map B's y = 3 doorway. Next: add open racks (boards at 0.96 m, upright frames
-   every 4 m, ~0.9 m between them) to the hall tiles and fine-tune again, or keep Map B as an out-of-distribution
-   test like the paper's Map C. Condition A is done when Map B is close to Map A.
+2. Hall (3300 epochs): A 81 %, B 31 %. HallRacks (2200 epochs): A 94 %, B 62 % (random start); fixed start on B
+   still 0 of 5. Next: racks with Map B's real opening (0.6-1.1 m between 0.2 m posts, new task id), fine-tune again,
+   or keep Map B as an out-of-distribution test like the paper's Map C. Condition A is done when Map B is close to
+   Map A.
 3. cuVSLAM with 16 envs: done, works (55 env-steps/s).
 4. SLAM in the loop for the finished high level (E4, then the pose-source part of E6).
 5. Train B and C, evaluate with cuVSLAM, ORB-SLAM3 and GT poses (E6).

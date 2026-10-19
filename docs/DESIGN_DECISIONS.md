@@ -60,6 +60,7 @@ guess are listed again at the end. Outline of the paper: `docs/PAPER_OUTLINE.md`
 
 | Item | Problem | What would settle it |
 | --- | --- | --- |
+| Rack opening (0.86-1.26 m between the posts) | Guess. Map B's posts are 0.2 m wide with 0.6 m between them, so ours are looser; the racks policy sticks inside Map B's rack (9 of 9 failed runs) | A tight-rack version (0.6-1.1 m, 0.2 m posts) fine-tuned from `nav_hall_racks` |
 | Maze and hall parameters (cell size, openings, doorway width, shelves, goal distance) | Picked by guess. Both transfer to Map A (69-81 % random start) and not to Map B (31-50 %); the hall version, built to look like the maps, did not help B | Done: 9 of 11 failed Map B runs end stuck in the center shelf at the y = 3 doorway. `Shelf_1` is an open rack (boards from z = 0.96 m, upright frames every 4 m), so the route goes under it. Next world version needs racks like that, or Map B becomes an out-of-distribution test |
 | High-level reward weights | Ours, not from the paper; no sweep | A small sweep, or state it as a design choice |
 | No observation normalization in the high level | SB3's default, but pose and goal values reach 26 m; an input far outside the training range can hurt | Test with normalization on, same budget |

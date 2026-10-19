@@ -15,6 +15,7 @@ The `rl_vslam_v0` policies are in `baselines/rl_vslam_v0/policies/`. Policy role
 | `nav_map_a/` | rl_games high level trained on Map A (fixed start and goal), GT pose; low level `walls_soft_mirror_turn` | `Spot-Nav-MapA-v0` | `2026-10-18_01-23-40` ep 340 → `2026-10-18_11-48-30` ep 2000 |
 | `nav_maze/` | high level trained on 64 random mazes, random start and goal 6-14 m | `Spot-Nav-Maze-v0` | `2026-10-18_16-44-48`, ep 2000 |
 | `nav_hall/` | `nav_maze` fine-tuned on mazes (30 %) + halls with wall rows and shelves (70 %), goals 8-22 m | `Spot-Nav-Hall-v0` | `2026-10-19_00-56-16`, ep 2000 → 5300 |
+| `nav_hall_racks/` | `nav_hall` fine-tuned with open racks in 40 % of the hall doorways (walk under them) | `Spot-Nav-HallRacks-v0` | `2026-10-19_11-52-33`, ep 5300 → 7500 |
 | `high_level_paper_sb3/` | SB3 high level (9-dim obs with goal), trained on an older paper low level, before 2026-10-07 | `Spot-Paper-high-level-Map{A,B}-*` | `output/checkpoints/high_level_paper/high_level_policy.zip` |
 
 Each low-level folder has `model.pth` (rl_games) and the run's `agent.yaml` / `env.yaml`. Use them as
@@ -33,4 +34,5 @@ f652c193098072ce8a2a918ff95e5a8409815c2d3ef1818df8ae24bd7195afa6  walls_soft_mir
 1157b901816aa93a91c502f77ab08f1820e84a3519930b0ad1aed375fb1949ef  nav_map_a/model.pth
 a3943747d03b7949cbc49a63a41ac74d9cfcf21cfd8ec6ea3871b5c66b0cbcf5  nav_maze/model.pth
 e0ff24a78f1236fd3f1d56529d232912f1c02d2289c81dc0de21cb566e341626  nav_hall/model.pth
+87394652ebe14c66595b1373d9e422ca5524188fb6000ed35dc5d4ca05ff1274  nav_hall_racks/model.pth
 ```
