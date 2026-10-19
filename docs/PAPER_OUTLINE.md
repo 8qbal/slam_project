@@ -125,11 +125,19 @@ Table 9 protocol, fixed start facing the goal (`-GT-Play`, `-cuVSLAM-Play`), 5 r
 On Map A the SLAM pose costs nothing (same success, same steps, error under 0.4 m). On Map B GT is already stuck in the
 rack, so the extra failures cannot be blamed on SLAM; but the four failed cuVSLAM runs also have 3.6-12.8 m error with
 a pose still reported every step (`status` = 1), a case where a returned pose is not healthy tracking
-(`docs/ROADMAP.md` section 5). ORB-SLAM3 RGB-D, Map A, one smoke run (not the full 5): the robot walks 25 m but ends 4.4 m sideways of the goal and
-stops (policy thinks it is near the goal). SLAM error 0.5 m in x but about 0.25 m of lateral error per metre driven
-(6.7 m max), 4 new ORB-SLAM3 maps, pose lost 3 % of steps: success 0 %, 0 collisions. This fits the earlier long-drive
-numbers in `docs/cuvslam.md` (ORB-SLAM3 2-5 m) and is the reason cuVSLAM is the main SLAM here. Full 5-run Table 9 with
-ORB-SLAM3: `scripts/tools/run_nav_protocol_orbslam.sh`.
+(`docs/ROADMAP.md` section 5). ORB-SLAM3 RGB-D, 5 runs per map, ORB-SLAM3 restarted for every run (2026-10-20,
+`scripts/tools/run_nav_protocol_orbslam.sh`):
+
+| Pose source | Map | Success | Collisions | Steps | SLAM position error, mean per run (m) | Steps without a pose |
+| --- | --- | --- | --- | --- | --- | --- |
+| ORB-SLAM3 RGB-D | A | 0 % | 0 | 3000 | 5.9 / 5.9 / 6.2 / 10.9 / 5.9 (max 6.6-27.9) | 0.7 % (run 4: 11 %) |
+| ORB-SLAM3 RGB-D | B | 100 % | 0.2 | 398 | 3.9 (max 7.1-7.2) | 5 % |
+
+Map A: the robot walks 25 m but stops about 4 m sideways of the goal. The SLAM error is 0.25 m sideways per metre
+driven, so the policy believes it is near the goal. Map B: all 5 runs reach the goal, although the pose error is
+3.9 m, and GT pose fails on the same start (stuck in the rack). So the wrong pose changes the route and, by chance,
+avoids the rack: success on Map B with ORB-SLAM3 is not evidence of good tracking. The five runs are almost identical
+(deterministic policy, fixed start), so they are one sample, not five. Paper (ORB-SLAM3): A 80 %, B 100 %.
 
 ## Configuration summary
 
