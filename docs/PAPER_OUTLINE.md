@@ -111,6 +111,22 @@ test end at x -1.0..-0.1, y 2.7..6.0). Cause found in the USD: Map B's rack post
 them, narrower than our racks (0.86-1.26 m). Condition A is good enough on Map A, close on Map B (random start). A 400-step
 test (the training length) was too short and is not comparable with Table 9.
 
+## Pose source: GT vs SLAM (E6 part, condition A policy `nav_hall_racks`)
+
+Table 9 protocol, fixed start facing the goal (`-GT-Play`, `-cuVSLAM-Play`), 5 runs, 3000 steps, 2026-10-19:
+
+| Pose source | Map | Success | Collisions | Steps | SLAM position error, mean per run (m) | Steps without a pose |
+| --- | --- | --- | --- | --- | --- | --- |
+| GT | A | 100 % | 0 | 363 | | |
+| cuVSLAM stereo | A | 100 % | 0 | 363 | 0.20-0.39 (max 1.0) | 0 % |
+| GT | B | 0 % | 70 | 3000 | | |
+| cuVSLAM stereo | B | 20 % | 28 | 2472 | 0.28 / 4.1 / 3.7 / 3.6 / 12.8 (max 14.6) | 0 % |
+
+On Map A the SLAM pose costs nothing (same success, same steps, error under 0.4 m). On Map B GT is already stuck in the
+rack, so the extra failures cannot be blamed on SLAM; but the four failed cuVSLAM runs also have 3.6-12.8 m error with
+a pose still reported every step (`status` = 1), a case where a returned pose is not healthy tracking
+(`docs/ROADMAP.md` section 5). ORB-SLAM3 not measured yet.
+
 ## Configuration summary
 
 ### Low level (`Spot-Paper-WallsSoftMirrorTurn-v0`, `policies/walls_soft_mirror_turn/`)
