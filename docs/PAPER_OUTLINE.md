@@ -125,7 +125,11 @@ Table 9 protocol, fixed start facing the goal (`-GT-Play`, `-cuVSLAM-Play`), 5 r
 On Map A the SLAM pose costs nothing (same success, same steps, error under 0.4 m). On Map B GT is already stuck in the
 rack, so the extra failures cannot be blamed on SLAM; but the four failed cuVSLAM runs also have 3.6-12.8 m error with
 a pose still reported every step (`status` = 1), a case where a returned pose is not healthy tracking
-(`docs/ROADMAP.md` section 5). ORB-SLAM3 not measured yet.
+(`docs/ROADMAP.md` section 5). ORB-SLAM3 RGB-D, Map A, one smoke run (not the full 5): the robot walks 25 m but ends 4.4 m sideways of the goal and
+stops (policy thinks it is near the goal). SLAM error 0.5 m in x but about 0.25 m of lateral error per metre driven
+(6.7 m max), 4 new ORB-SLAM3 maps, pose lost 3 % of steps: success 0 %, 0 collisions. This fits the earlier long-drive
+numbers in `docs/cuvslam.md` (ORB-SLAM3 2-5 m) and is the reason cuVSLAM is the main SLAM here. Full 5-run Table 9 with
+ORB-SLAM3: `scripts/tools/run_nav_protocol_orbslam.sh`.
 
 ## Configuration summary
 

@@ -89,7 +89,7 @@ while not finished.all() and t < a.max_steps:
     reached = u.termination_manager.get_term("goal_reached").bool() & ~finished
     success |= reached
     steps = torch.where(reached, torch.full_like(steps, t), steps)
-    slam = getattr(u, "slam_res", None)
+    slam = getattr(u, "slam_res", None) or getattr(u, "orb_slam_res", None)  # cuVSLAM or ORB-SLAM3
     if slam is not None:  # position error of the SLAM pose against ground truth, both in the start frame
         e = (slam["pose_xyyaw"][:, :2] - cmd.gt_pose_start_frame()[:, :2]).norm(dim=1)
         live = ~finished & ~dones.bool()
@@ -98,6 +98,10 @@ while not finished.all() and t < a.max_steps:
         err_n += live.float()
         lost += (live & (slam["status"].flatten() < 0.5)).float()
     finished |= dones.bool()
+    if slam is not None and t % 100 == 0 and n == 1:  # one-env trace: where GT and SLAM disagree
+        g, q = cmd.gt_pose_start_frame()[0], slam["pose_xyyaw"][0]
+        ok = float(slam["status"].flatten()[0])
+        print(f"PROTO trace {t}: gt ({g[0]:.1f}, {g[1]:.1f}) slam ({q[0]:.1f}, {q[1]:.1f}) status {ok:.0f}", flush=True)
     if t % 500 == 0:
         print(f"PROTO step {t}: finished {int(finished.sum())}/{n}, success {int(success.sum())}", flush=True)
 sec = steps * u.step_dt
@@ -117,7 +121,7 @@ print(
     "coll",
     collisions.int().tolist(),
 )
-if getattr(u, "slam_res", None) is not None:
+if (getattr(u, "slam_res", None) or getattr(u, "orb_slam_res", None)) is not None:
     print(
         "PROTO SLAM mean error",
         [round(v, 2) for v in (err_sum / err_n.clamp(min=1)).tolist()],
