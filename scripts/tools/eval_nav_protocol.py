@@ -1,11 +1,15 @@
 """Table 9 protocol on a high-level checkpoint: one run per env, up to 3000 HL steps, contacts counted (not ending the
 run), success = goal reached. Prints success, collisions, steps and time per run.
 
-Ground-truth pose; use ``Spot-Nav-Map{A,B}-GT-Play-v0`` (fixed start facing the goal, deterministic, so the runs are
-nearly identical) or ``Spot-Nav-Map{A,B}-v0`` (training start: random heading, +-0.5 m, a push) with ``--num_envs 16``.
+Ground-truth pose by default; use ``Spot-Nav-Map{A,B}-GT-Play-v0`` (fixed start facing the goal, deterministic, so
+the runs are nearly identical) or ``Spot-Nav-Map{A,B}-v0`` (training start: random heading, +-0.5 m, a push) with
+``--num_envs 16``.
 
     SPOT_VSLAM_LOW_LEVEL_CKPT=policies/walls_soft_mirror_turn/model.pth \
         uv run python scripts/tools/eval_nav_protocol.py --task Spot-Nav-MapA-GT-Play-v0 --checkpoint <high-level .pth>
+
+With ``Spot-Nav-Map{A,B}-cuVSLAM-Play-v0`` the high level gets the cuVSLAM pose, and the script also prints the position
+error against ground truth (start frame) and the share of steps without a valid pose.
 """
 
 import argparse
@@ -67,6 +71,11 @@ collisions = torch.zeros(n, device=u.device)
 finished = torch.zeros(n, dtype=torch.bool, device=u.device)
 success = torch.zeros(n, dtype=torch.bool, device=u.device)
 steps = torch.full((n,), float(a.max_steps), device=u.device)
+cmd = u.command_manager.get_term("goal")
+err_sum = torch.zeros(n, device=u.device)
+err_max = torch.zeros(n, device=u.device)
+err_n = torch.zeros(n, device=u.device)
+lost = torch.zeros(n, device=u.device)
 t = 0
 while not finished.all() and t < a.max_steps:
     with torch.inference_mode():
@@ -80,6 +89,14 @@ while not finished.all() and t < a.max_steps:
     reached = u.termination_manager.get_term("goal_reached").bool() & ~finished
     success |= reached
     steps = torch.where(reached, torch.full_like(steps, t), steps)
+    slam = getattr(u, "slam_res", None)
+    if slam is not None:  # position error of the SLAM pose against ground truth, both in the start frame
+        e = (slam["pose_xyyaw"][:, :2] - cmd.gt_pose_start_frame()[:, :2]).norm(dim=1)
+        live = ~finished & ~dones.bool()
+        err_sum += torch.where(live, e, torch.zeros_like(e))
+        err_max = torch.where(live, torch.maximum(err_max, e), err_max)
+        err_n += live.float()
+        lost += (live & (slam["status"].flatten() < 0.5)).float()
     finished |= dones.bool()
     if t % 500 == 0:
         print(f"PROTO step {t}: finished {int(finished.sum())}/{n}, success {int(success.sum())}", flush=True)
@@ -100,5 +117,14 @@ print(
     "coll",
     collisions.int().tolist(),
 )
+if getattr(u, "slam_res", None) is not None:
+    print(
+        "PROTO SLAM mean error",
+        [round(v, 2) for v in (err_sum / err_n.clamp(min=1)).tolist()],
+        "max error",
+        [round(v, 2) for v in err_max.tolist()],
+        "steps without a pose",
+        [round(v, 3) for v in (lost / err_n.clamp(min=1)).tolist()],
+    )
 env.close()
 app.close()
