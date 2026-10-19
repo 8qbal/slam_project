@@ -127,9 +127,12 @@ def hall_terrain(difficulty: float, cfg: HallTerrainCfg) -> tuple[list[trimesh.T
 
     n_rows = int(rng.integers(cfg.num_rows[0], cfg.num_rows[1] + 1))
     ys = np.linspace(0.0, sy, n_rows + 2)[1:-1] + rng.uniform(-0.8, 0.8, n_rows)
-    for y in ys:
+    racks = []  # (row y, door center, rack width)
+    for k, y in enumerate(ys):
         n_doors = int(rng.choice([1, 1, 2]))
         width = rng.uniform(*cfg.door_width)
+        rack_w = rng.uniform(*cfg.rack_width) if rng.random() < cfg.rack_prob else 0.0
+        width = max(width, rack_w + 0.3) if rack_w else width  # a rack leaves 0.15 m beside it
         centers = []
         for _ in range(100):
             c = rng.uniform(width, sx - width)
@@ -137,10 +140,34 @@ def hall_terrain(difficulty: float, cfg: HallTerrainCfg) -> tuple[list[trimesh.T
                 centers.append(c)
             if len(centers) == n_doors:
                 break
+        if rack_w:
+            racks.append((k, y, centers[0], rack_w, width))
         edges = [0.0] + [e for c in sorted(centers) for e in (c - width / 2, c + width / 2)] + [sx]
         for a, b in zip(edges[::2], edges[1::2]):
             if b - a > 0.05:
                 add(a, y - t, b, y + t, h)
+
+    # open racks standing in a doorway, like Map B's shelves: boards from ``rack_board_height`` up, so the robot walks
+    # between the upright frames and under the boards. A rack ends ``clearance`` before the next wall row.
+    edges_y = [t + cfg.clearance] + [v for y in ys for v in (y - t - cfg.clearance, y + t + cfg.clearance)]
+    edges_y.append(sy - t - cfg.clearance)
+    for k, y, c, rack_w, door_w in racks:
+        y0 = max(edges_y[2 * k], y - rng.uniform(2.0, 7.0))  # not into the previous row's clearance
+        y1 = min(edges_y[2 * k + 3], y + rng.uniform(2.0, 7.0))  # nor the next row's
+        if y1 - y0 < 4.0:
+            continue
+        slack = max((door_w - rack_w) / 2 - 0.05, 0.0)
+        x0 = c - rack_w / 2 + rng.uniform(-slack, slack)
+        board_h = rng.uniform(*cfg.rack_board_height)
+        for i in range(3):  # three boards, 1.3 m apart
+            z0 = board_h + 1.3 * i
+            meshes.append(box((rack_w, y1 - y0, 0.3), (x0 + rack_w / 2, (y0 + y1) / 2, z0 + 0.15)))
+        top = board_h + 2.6 + 0.3
+        n_frames = max(2, int((y1 - y0) / rng.uniform(*cfg.rack_frame_spacing)) + 1)
+        for fy in np.linspace(y0 + 0.06, y1 - 0.06, n_frames):  # upright frames: two posts each
+            for fx in (x0 + 0.06, x0 + rack_w - 0.06):
+                meshes.append(box((0.12, 0.12, top), (fx, fy, top / 2)))
+        rects.append((x0, y0, x0 + rack_w, y1))
 
     n_shelves = int(rng.integers(cfg.num_shelves[0], cfg.num_shelves[1] + 1))
     placed, c = 0, cfg.clearance
@@ -174,6 +201,14 @@ class HallTerrainCfg(SubTerrainBaseCfg):
     shelf_height: tuple[float, float] = (2.0, 6.0)
     clearance: float = 1.0
     """Free distance around every shelf; keeps the free space connected for the robot."""
+    rack_prob: float = 0.0
+    """Chance per wall row that a doorway holds an open rack (0: none, as in ``Spot-Nav-Hall-v0``)."""
+    rack_width: tuple[float, float] = (1.1, 1.5)
+    """Rack width; the opening between the posts is 0.24 m less."""
+    rack_board_height: tuple[float, float] = (0.85, 1.1)
+    """Height of the lowest board: the robot walks under it (Map B: 0.96 m)."""
+    rack_frame_spacing: tuple[float, float] = (3.0, 5.0)
+    """Distance between upright frames (Map B: 4 m)."""
     wall_thickness: float = 0.3
     wall_height: float = 6.0
 

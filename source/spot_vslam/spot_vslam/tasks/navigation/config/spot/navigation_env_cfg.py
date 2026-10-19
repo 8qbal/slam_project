@@ -298,3 +298,21 @@ class SpotNavigationHallEnvCfg(SpotNavigationEnvCfg):
             HALL_TILE_SIZE,
             (8.0, 22.0),
         )
+
+
+@configclass
+class SpotNavigationHallRacksEnvCfg(SpotNavigationEnvCfg):
+    """``Spot-Nav-HallRacks-v0``: ``Spot-Nav-Hall-v0`` plus open racks standing in 40 % of the doorways, like Map B's
+    shelves (boards from 0.85-1.1 m up, upright frames every 3-5 m, 0.86-1.26 m between the posts): the robot has to
+    walk under them. Random width, height and length, not a copy of Map B. Fine-tuned from the Hall policy."""
+
+    def low_level_env_cfg(self):
+        return random_world_low_level(
+            self.paper_map,
+            {
+                "maze": mdp.MazeTerrainCfg(proportion=0.3, flat_patch_sampling=_patches(0.6, 96)),
+                "hall": mdp.HallTerrainCfg(proportion=0.7, rack_prob=0.4, flat_patch_sampling=_patches(0.6, 96)),
+            },
+            HALL_TILE_SIZE,
+            (8.0, 22.0),
+        )
