@@ -95,8 +95,12 @@ deterministic policy, so its 5 runs are nearly one run; "random start" = trainin
 
 Reading: both policies transfer to Map A (hall fine-tuning: 69 % -> 81 % with random start) and fail on Map B. The
 hall layout (wall rows with doorways, shelves, goals 8-22 m) did **not** fix Map B (random start 50 % -> 31 %, fixed
-start still 1 of 5), so the cause is not what the first guess said. Failed runs make hundreds of contacts, i.e. they
-stick somewhere; where is not yet known. Condition A is good enough on Map A, not on Map B. A 400-step
+start still 1 of 5), so the cause is not what the first guess said. Cause (trajectories of 16 random starts,
+`docs/img/mapB_hall_policy_trajectories.png`): 9 of the 11 failed runs end motionless inside the center shelf at the
+y = 3 doorway (x -1.1..0.6, y 1.6..4.7), 2 stick against the pallet bin near the start. Map B's `Shelf_1` is an open
+rack (482 collision meshes: boards 1.08 m wide from z = 0.96 m up, upright frames every 4 m), so crossing the
+doorways means walking under the shelf, a squeeze that no training world contains. The successful runs (5 of 16)
+make it through. Condition A is good enough on Map A, not on Map B. A 400-step
 test (the training length) was too short and is not comparable with Table 9.
 
 ## Configuration summary
@@ -160,9 +164,10 @@ test (the training length) was too short and is not comparable with Table 9.
 ## Order of work
 
 1. E5: done once: Map A passes, Map B does not (20 % fixed start, 50 % random start).
-2. Hall fine-tune (`Spot-Nav-Hall-v0`, 3300 epochs) done: A 81 %, B 31 % (random start). Next: find where the Map B
-   runs get stuck (final positions on the map top view, the doorway slots next to Shelf_1), then decide the fix.
-   Condition A is done when Map B is close to Map A.
+2. Hall fine-tune (`Spot-Nav-Hall-v0`, 3300 epochs) done: A 81 %, B 31 % (random start). Failure found: the policy
+   gets stuck in the shelf squeeze at Map B's y = 3 doorway. Next: add open racks (boards at 0.96 m, upright frames
+   every 4 m, ~0.9 m between them) to the hall tiles and fine-tune again, or keep Map B as an out-of-distribution
+   test like the paper's Map C. Condition A is done when Map B is close to Map A.
 3. cuVSLAM with 16 envs: done, works (55 env-steps/s).
 4. SLAM in the loop for the finished high level (E4, then the pose-source part of E6).
 5. Train B and C, evaluate with cuVSLAM, ORB-SLAM3 and GT poses (E6).
