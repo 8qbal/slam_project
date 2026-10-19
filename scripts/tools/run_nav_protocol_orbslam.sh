@@ -5,7 +5,7 @@
 # Usage (from the repo root):
 #   SPOT_VSLAM_LOW_LEVEL_CKPT=policies/walls_soft_mirror_turn/model.pth \
 #   HIGH_CKPT=policies/nav_hall_racks/model.pth bash scripts/tools/run_nav_protocol_orbslam.sh
-# Optional: MAPS="A B", TRIALS=5, MAX_STEPS=3000, VARIANT=Play (RGB-D) or Stereo-Play, OUT=output/nav_protocol_orbslam
+# Optional: MAPS="A B", TRIALS=5, MAX_STEPS=3000, EVAL_ARGS="--jitter_xy 0.5 --jitter_yaw 0.5" (random start; run number = seed), VARIANT=Play (RGB-D) or Stereo-Play, OUT=output/nav_protocol_orbslam
 cd "$(dirname "$0")/../.."
 source /opt/ros/jazzy/setup.bash
 source ~/orbslam3/ws/install/setup.bash
@@ -30,7 +30,7 @@ for map in $MAPS; do
     sleep 8
     echo "[$(date +%T)] map $map run $run"
     uv run --no-sync python scripts/tools/eval_nav_protocol.py --task "Spot-Nav-Map${map}-${VARIANT}-v0" \
-      --checkpoint "$HIGH_CKPT" --num_envs 1 --max_steps "${MAX_STEPS:-3000}" > "$log" 2>&1
+      --checkpoint "$HIGH_CKPT" --num_envs 1 --max_steps "${MAX_STEPS:-3000}" --run_seed "$run" ${EVAL_ARGS:-} > "$log" 2>&1
     echo "  exit=$?  $(grep -E '^PROTO (RESULT|SLAM)' "$log" | cut -c1-200)"
     kill -INT $lpid; sleep 5
     kill $(pgrep -x "$NODE") 2>/dev/null

@@ -139,6 +139,36 @@ driven, so the policy believes it is near the goal. Map B: all 5 runs reach the 
 avoids the rack: success on Map B with ORB-SLAM3 is not evidence of good tracking. The five runs are almost identical
 (deterministic policy, fixed start), so they are one sample, not five. Paper (ORB-SLAM3): A 80 %, B 100 %.
 
+### Random start (10 runs per cell, 2026-10-20)
+
+Start +-0.5 m in x and y, heading +-0.5 rad around the goal direction, no push; every run has its own start. Same
+starts for GT and cuVSLAM (seed 1, 10 envs); ORB-SLAM3 one run per seed 1-10, restarted each time. 3000 steps,
+`scripts/tools/eval_nav_protocol.py --jitter_xy 0.5 --jitter_yaw 0.5`. Policy `nav_hall_racks`.
+
+| Pose source | Map | Success | Collisions (mean) | Steps of successful runs | SLAM error, mean per run (m) |
+| --- | --- | --- | --- | --- | --- |
+| GT | A | 10/10 | 0 | 365 | |
+| cuVSLAM stereo | A | 10/10 | 0.2 | 364 | 0.17-0.47 |
+| ORB-SLAM3 RGB-D | A | 5/10 | 3.8 | 1382 (623-2940) | 7-22 |
+| GT | B | 4/10 | 41 | 785 (346-2091) | |
+| cuVSLAM stereo | B | 5/10 | 48 | 389 | 0.08-0.75 (successes), 1.7-15 (3 of 5 failures) |
+| ORB-SLAM3 RGB-D | B | 8/10 | 22.6 | 523 (416-1181) | 6.5-12.8 |
+
+Reading:
+
+- **cuVSLAM matches GT** on Map A (10/10, error under 0.5 m) and is equal or slightly better on Map B (5/10 vs 4/10;
+  with 10 runs that difference is noise). All 5 successful cuVSLAM runs on Map B have error under 0.8 m. Of the 5 failures,
+  3 have drift of 1.7-15 m and 2 have low error (0.08, 0.75 m): those fail the same way GT does, stuck in the
+  rack. So Map B failures have two causes, the rack and SLAM drift; only the second is a SLAM problem.
+- **ORB-SLAM3 RGB-D** has a large error everywhere (7-22 m on Map A: it opens new maps after losing track, so the pose
+  jumps back to the origin). Its successes on Map A (5/10) take 600-2900 steps and only follow by wandering with a wrong
+  pose, the same order as the paper's 1228-1540 steps. Its Map B success (8/10) is also luck: GT pose fails 6/10 on the
+  same starts. A success rate alone does not show good SLAM; the pose error must be reported with it.
+- The fixed-start ORB-SLAM3 result (A 0 %, B 100 %) was one sample. With random starts it is A 50 %, B 80 %, a different
+  picture from the 5 near-identical runs, so fixed-start numbers must not be used alone.
+- For the A / B / C experiment: the cuVSLAM status flag was 1 in every step, also in the drifting runs, so a quality
+  signal has to come from more than `status`.
+
 ## Configuration summary
 
 ### Low level (`Spot-Paper-WallsSoftMirrorTurn-v0`, `policies/walls_soft_mirror_turn/`)

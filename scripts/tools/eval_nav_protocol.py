@@ -8,6 +8,9 @@ the runs are nearly identical) or ``Spot-Nav-Map{A,B}-v0`` (training start: rand
     SPOT_VSLAM_LOW_LEVEL_CKPT=policies/walls_soft_mirror_turn/model.pth \
         uv run python scripts/tools/eval_nav_protocol.py --task Spot-Nav-MapA-GT-Play-v0 --checkpoint <high-level .pth>
 
+``--jitter_xy 0.5 --jitter_yaw 0.5 --run_seed N`` gives a random start (position and heading around the goal
+direction, no push) to any Play task, the same for GT, cuVSLAM and ORB-SLAM3.
+
 With ``Spot-Nav-Map{A,B}-cuVSLAM-Play-v0`` the high level gets the cuVSLAM pose, and the script also prints the position
 error against ground truth (start frame) and the share of steps without a valid pose.
 """
@@ -21,6 +24,9 @@ p.add_argument("--task")
 p.add_argument("--checkpoint")
 p.add_argument("--num_envs", type=int, default=5)
 p.add_argument("--max_steps", type=int, default=3000)
+p.add_argument("--run_seed", type=int, default=1)
+p.add_argument("--jitter_xy", type=float, default=0.0, help="Play tasks: random start offset, +-m in x and y")
+p.add_argument("--jitter_yaw", type=float, default=0.0, help="Play tasks: random start heading, +-rad around the goal")
 AppLauncher.add_app_launcher_args(p)
 a = p.parse_args()
 a.enable_cameras = True
@@ -39,7 +45,13 @@ from isaaclab_tasks.utils import load_cfg_from_registry, parse_env_cfg  # noqa: 
 import spot_vslam.tasks  # noqa: E402,F401
 
 cfg = parse_env_cfg(a.task, device="cuda:0", num_envs=a.num_envs)
-cfg.seed = 1
+cfg.seed = a.run_seed
+if a.jitter_xy > 0 or a.jitter_yaw > 0:  # random start for the fixed-start Play tasks (no push, so no velocity range)
+    cfg.events.reset_base.params["pose_range"] = {
+        "x": (-a.jitter_xy, a.jitter_xy),
+        "y": (-a.jitter_xy, a.jitter_xy),
+        "yaw": (-a.jitter_yaw, a.jitter_yaw),
+    }
 cfg.episode_length_s = (a.max_steps + 1) * 0.08  # timeout only after max_steps HL steps
 cfg.terminations.body_contact = None  # contacts are counted, not ending the run
 cfg.terminations.leg_contact = None
