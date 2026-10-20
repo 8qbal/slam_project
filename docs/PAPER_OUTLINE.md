@@ -190,6 +190,34 @@ independent, the scores pool all runs (a run that sits in a feature-poor corner 
 label is rare (3 % of the steps). So these are signs that the inputs carry information, not a proof that a policy can
 use them. Condition C gets three inputs: features, averaged features, gap (`mdp.slam_quality`).
 
+### A / B / C, first test (300 epochs, 2026-10-21)
+
+All three start from `nav_hall_racks` (epoch 7500); B and C train 300 more epochs in textured HallRacks worlds with one
+cuVSLAM stereo tracker per env (`Spot-Nav-HallRacks-cuVSLAM-v0`, `-Quality-v0`); A is `nav_hall_racks` itself (GT pose,
+no SLAM in training). Evaluation: cuVSLAM stereo pose, 16 random starts per map (same starts for all, seed 2), 3000
+steps, one seed per policy. "Error" = SLAM position error per run (m).
+
+| Policy | Map | Success | Collisions (mean) | Steps of successful runs | Error mean / median | Runs with error above 1.5 m |
+| --- | --- | --- | --- | --- | --- | --- |
+| A: GT pose | A | 16/16 | 0 | 369 | 0.31 / 0.28 | 0/16 |
+| B: SLAM pose | A | 14/16 | 46 | 444 | 0.56 / 0.47 | 0/16 |
+| C: SLAM pose + quality | A | 14/16 | 70 | 562 | 0.45 / 0.38 | 0/16 |
+| A | B | 7/16 | 23 | 414 | 3.48 / 1.00 | 7/16 |
+| B | B | 3/16 | 117 | 386 | 5.35 / 2.58 | 10/16 |
+| C | B | 7/16 | 167 | 440 | 0.67 / 0.28 | 3/16 |
+
+Reading (a first test, not a result):
+
+- Training with SLAM in the loop (B) did not help in 300 epochs: slightly worse than A on both maps. The difference
+  between 3/16, 7/16 and 7/16 is within what 16 runs and one seed can give.
+- C keeps the tracker healthier on Map B: 3 of 16 runs drift above 1.5 m (A: 7, B: 10) and the mean error is 0.67 m
+  (A 3.5, B 5.4). Success does not rise because most Map B failures are the rack (C has 167 collisions there).
+  This fits "quality inputs change how the robot moves so that tracking stays good", but it is one seed and one
+  300-epoch run; it needs the longer run and more seeds before it is a claim.
+- The first B attempt (plain grey worlds) failed because cuVSLAM could not track there: median pose error 8.8 m, 83 %
+  of the steps above 1.5 m. With the marble texture: 0.23 m, 5 %. A condition-B experiment needs a world the SLAM can
+  track in; check this first for any new training world.
+
 ## Configuration summary
 
 ### Low level (`Spot-Paper-WallsSoftMirrorTurn-v0`, `policies/walls_soft_mirror_turn/`)
