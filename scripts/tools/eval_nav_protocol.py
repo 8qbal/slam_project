@@ -25,6 +25,7 @@ p.add_argument("--checkpoint")
 p.add_argument("--num_envs", type=int, default=5)
 p.add_argument("--max_steps", type=int, default=3000)
 p.add_argument("--run_seed", type=int, default=1)
+p.add_argument("--trace_npz", default=None, help="save per-step SLAM error and quality signals (cuVSLAM) to this file")
 p.add_argument("--jitter_xy", type=float, default=0.0, help="Play tasks: random start offset, +-m in x and y")
 p.add_argument("--jitter_yaw", type=float, default=0.0, help="Play tasks: random start heading, +-rad around the goal")
 AppLauncher.add_app_launcher_args(p)
@@ -88,6 +89,7 @@ err_sum = torch.zeros(n, device=u.device)
 err_max = torch.zeros(n, device=u.device)
 err_n = torch.zeros(n, device=u.device)
 lost = torch.zeros(n, device=u.device)
+trace = {k: [] for k in ("err", "features", "odom_slam", "track_ms", "dist", "live")}
 t = 0
 while not finished.all() and t < a.max_steps:
     with torch.inference_mode():
@@ -109,6 +111,13 @@ while not finished.all() and t < a.max_steps:
         err_max = torch.where(live, torch.maximum(err_max, e), err_max)
         err_n += live.float()
         lost += (live & (slam["status"].flatten() < 0.5)).float()
+        if a.trace_npz and "num_features" in slam:
+            gap = (slam["odom_xyyaw"][:, :2] - slam["slam_xyyaw"][:, :2]).norm(dim=1)  # NaN until a loop closure pose
+            for k, v in zip(
+                trace,
+                (e, slam["num_features"].flatten(), gap, slam["track_time_ms"].flatten(), cmd.distance(), live.float()),
+            ):
+                trace[k].append(v.cpu().numpy())
     finished |= dones.bool()
     if slam is not None and t % 100 == 0 and n == 1:  # one-env trace: where GT and SLAM disagree
         g, q = cmd.gt_pose_start_frame()[0], slam["pose_xyyaw"][0]
@@ -142,5 +151,9 @@ if (getattr(u, "slam_res", None) or getattr(u, "orb_slam_res", None)) is not Non
         "steps without a pose",
         [round(v, 3) for v in (lost / err_n.clamp(min=1)).tolist()],
     )
+if a.trace_npz and trace["err"]:
+    import numpy as np
+
+    np.savez(a.trace_npz, **{k: np.stack(v) for k, v in trace.items()})  # each (steps, envs)
 env.close()
 app.close()

@@ -342,3 +342,14 @@ class SpotNavigationHallRacksCuVslamEnvCfg(SpotNavigationHallRacksEnvCfg):
         self.cuvslam = CuVslamManagerCfg(camera_name="tilted_camera", right_camera_name="right_camera")
         self.observations.policy.enable_corruption = False
         self.observations.policy.use_pose_source("slam")
+
+
+@configclass
+class SpotNavigationHallRacksCuVslamQualityEnvCfg(SpotNavigationHallRacksCuVslamEnvCfg):
+    """``Spot-Nav-HallRacks-cuVSLAM-Quality-v0``: condition C. Condition B plus three cuVSLAM quality inputs
+    (``mdp.slam_quality``: features, averaged features, odometry vs loop-closure gap), 12 inputs in all. The checkpoint
+    of ``Spot-Nav-HallRacks-v0`` has 9, so widen it first with ``scripts/tools/extend_checkpoint_obs.py --extra 3``."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.observations.policy.slam_quality = ObsTerm(func=mdp.slam_quality)  # last term: the new input columns

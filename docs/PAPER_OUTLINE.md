@@ -169,6 +169,27 @@ Reading:
 - For the A / B / C experiment: the cuVSLAM status flag was 1 in every step, also in the drifting runs, so a quality
   signal has to come from more than `status`.
 
+### Quality signals of cuVSLAM (E6, measured 2026-10-20)
+
+16 random-start runs per map with `nav_hall_racks`, cuVSLAM stereo, per-step trace
+(`eval_nav_protocol.py --trace_npz`, `scripts/tools/analyze_slam_quality.py`). Map B: 29 894 steps, mean error 5.1 m,
+54 % of the steps above 1.5 m; Map A: 5 886 steps, error 0.31 m, no step above 1.5 m. Score = AUROC over the Map A + B
+steps (0.5 = no information):
+
+| Signal | Error above 1.5 m now | Error grows by 0.5 m in the next 25 steps |
+| --- | --- | --- |
+| `status` (pose returned) | none: 1 in every step | none |
+| `num_features` | 0.61 | 0.78 |
+| `num_features`, mean of last 10 steps | 0.69 | 0.91 |
+| gap between odometry and loop-closure pose | 0.88 | 0.74 |
+| `track_time_ms` | 0.64 | 0.80 |
+
+Reading: the gap is the best sign that the pose is wrong now (healthy runs: gap about 0; wrong runs: median 0.85 m,
+90th percentile 10 m); the averaged feature count is the best early warning of drift. Limits: steps of one run are not
+independent, the scores pool all runs (a run that sits in a feature-poor corner counts many times), and the growth
+label is rare (3 % of the steps). So these are signs that the inputs carry information, not a proof that a policy can
+use them. Condition C gets three inputs: features, averaged features, gap (`mdp.slam_quality`).
+
 ## Configuration summary
 
 ### Low level (`Spot-Paper-WallsSoftMirrorTurn-v0`, `policies/walls_soft_mirror_turn/`)
