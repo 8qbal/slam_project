@@ -148,7 +148,11 @@ Question: can the robot learn to change how it moves when localization becomes u
 - [ ] Many envs with SLAM in the loop need one tracker per env (easier with in-process cuVSLAM).
 - [ ] Train three high-level policies with the same low level, task, reward and budget:
   - [ ] A: GT pose, no quality inputs (section 1's retrained high level).
-  - [ ] B: SLAM pose, no quality inputs (`pose_source="slam"`, with cuVSLAM).
+  - [ ] B: SLAM pose, no quality inputs (`pose_source="slam"`, with cuVSLAM). Task `Spot-Nav-HallRacks-cuVSLAM-v0`
+        (2026-10-20): HallRacks worlds, one cuVSLAM stereo tracker per env (16), fine-tuned from `policies/nav_hall_racks`
+        (epoch 7500). Smoke test: 5 epochs run, 62 fps (about 18 s per epoch, 2.4x slower than without SLAM), reward
+        -2 -> 29 (GT run: 32-35). First test: 300 epochs (`--max_iterations 7800`, about 1.5 h), then Table 9 with
+        random starts (`eval_nav_protocol.py --jitter_xy 0.5 --jitter_yaw 0.5`) against A.
   - [ ] C: SLAM pose + quality inputs.
 - [ ] Evaluate A, B, C with the same SLAM system and scenarios. A vs. B = training with SLAM; B vs. C = quality inputs.
 - [ ] Also evaluate B and C (trained with cuVSLAM) with ORB-SLAM3 poses (`-Play` / `-Stereo-Play`) and with GT poses, no

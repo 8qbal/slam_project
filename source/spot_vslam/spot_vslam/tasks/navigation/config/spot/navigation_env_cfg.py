@@ -27,7 +27,12 @@ from spot_vslam.tasks.locomotion.config.spot.paper_env_cfg import (
     SpotPaperHighLevelEnvCfg,
     SpotPaperHighLevelEnvCfg_PLAY,
 )
-from spot_vslam.tasks.locomotion.locomotion_env_cfg import GROUND_MATERIAL_CFG, SLAM_RIGHT_CAMERA_CFG
+from spot_vslam.tasks.locomotion.locomotion_env_cfg import (
+    DEPTH_CAMERA_WITH_RGB_CFG,
+    GROUND_MATERIAL_CFG,
+    SLAM_CAMERA_CFG,
+    SLAM_RIGHT_CAMERA_CFG,
+)
 
 from ... import mdp
 
@@ -316,3 +321,24 @@ class SpotNavigationHallRacksEnvCfg(SpotNavigationEnvCfg):
             HALL_TILE_SIZE,
             (8.0, 22.0),
         )
+
+
+@configclass
+class SpotNavigationHallRacksCuVslamEnvCfg(SpotNavigationHallRacksEnvCfg):
+    """``Spot-Nav-HallRacks-cuVSLAM-v0``: condition B of the A / B / C experiment.
+
+    ``Spot-Nav-HallRacks-v0`` with the pose from one in-process cuVSLAM stereo tracker per env instead of the ground
+    truth; reward, success and the goal command still use the true pose. No observation noise (the tracker has its
+    own). Fine-tuned from the ``Spot-Nav-HallRacks-v0`` policy (``policies/nav_hall_racks``). See docs/ROADMAP.md
+    section 5.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        # same cameras as the cuVSLAM Play tasks; an RGB-D camera in the scene needs the policy camera to render RGB too
+        self.scene.train_camera = DEPTH_CAMERA_WITH_RGB_CFG
+        self.scene.tilted_camera = SLAM_CAMERA_CFG.replace(update_period=0.01)
+        self.scene.right_camera = SLAM_RIGHT_CAMERA_CFG.replace(update_period=0.01)
+        self.cuvslam = CuVslamManagerCfg(camera_name="tilted_camera", right_camera_name="right_camera")
+        self.observations.policy.enable_corruption = False
+        self.observations.policy.use_pose_source("slam")

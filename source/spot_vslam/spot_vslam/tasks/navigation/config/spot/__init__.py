@@ -51,3 +51,13 @@ gym.register(
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
     },
 )
+
+gym.register(
+    id="Spot-Nav-HallRacks-cuVSLAM-v0",  # HallRacks with the cuVSLAM pose in the observation (condition B)
+    entry_point="spot_vslam.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.navigation_env_cfg:SpotNavigationHallRacksCuVslamEnvCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
+    },
+)
