@@ -9,6 +9,7 @@ evaluates with the ORB-SLAM3 pose, like the paper; ``_GT_PLAY`` evaluates with t
 
 from dataclasses import MISSING
 
+import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -18,6 +19,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.terrains import FlatPatchSamplingCfg, TerrainImporterCfg
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import GaussianNoiseCfg as Gnoise
 
@@ -221,6 +223,20 @@ class SpotNavigationEnvCfg_MAP_B_STEREO_PLAY(SpotNavigationEnvCfg_STEREO_PLAY):
     paper_map: str = "B"
 
 
+@configclass
+class SpotNavigationEnvCfg_CUVSLAM_QUALITY_PLAY(SpotNavigationEnvCfg_CUVSLAM_PLAY):
+    """``_CUVSLAM_PLAY`` with the 12-dim observation of condition C (``Spot-Nav-HallRacks-cuVSLAM-Quality-v0``)."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.observations.policy.slam_quality = ObsTerm(func=mdp.slam_quality)
+
+
+@configclass
+class SpotNavigationEnvCfg_MAP_B_CUVSLAM_QUALITY_PLAY(SpotNavigationEnvCfg_CUVSLAM_QUALITY_PLAY):
+    paper_map: str = "B"
+
+
 MAZE_TILE_SIZE = 21.0
 MAZE_TILES = 8
 """Maze tiles per side: 64 different mazes, each 21 x 21 m (7 x 7 cells of 3 m)."""
@@ -342,6 +358,14 @@ class SpotNavigationHallRacksCuVslamEnvCfg(SpotNavigationHallRacksEnvCfg):
         self.cuvslam = CuVslamManagerCfg(camera_name="tilted_camera", right_camera_name="right_camera")
         self.observations.policy.enable_corruption = False
         self.observations.policy.use_pose_source("slam")
+        # The plain grey terrain gives cuVSLAM nothing to track (median error 8.8 m, 83 % of the steps above 1.5 m on
+        # 2026-10-20; Map A: 0.3 m). Textured walls and floor; the policy sees depth only, so GT tasks keep the old
+        # look.
+        self.scene.terrain.visual_material = sim_utils.MdlFileCfg(
+            mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",
+            project_uvw=True,
+            texture_scale=(0.75, 0.9),
+        )
 
 
 @configclass

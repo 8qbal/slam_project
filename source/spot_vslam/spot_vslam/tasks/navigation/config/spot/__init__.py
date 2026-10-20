@@ -11,6 +11,7 @@ for _map, _suffix in (("A", ""), ("B", "_MAP_B")):
         ("-Stereo-Play", "_STEREO_PLAY"),  # ORB-SLAM3 stereo
         ("-GT-Play", "_GT_PLAY"),
         ("-cuVSLAM-Play", "_CUVSLAM_PLAY"),  # cuVSLAM stereo
+        ("-cuVSLAM-Quality-Play", "_CUVSLAM_QUALITY_PLAY"),  # cuVSLAM + quality inputs (condition C, 12-dim)
     ):
         gym.register(
             id=f"Spot-Nav-Map{_map}{_variant}-v0",

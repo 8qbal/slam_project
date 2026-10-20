@@ -153,6 +153,10 @@ Question: can the robot learn to change how it moves when localization becomes u
         (epoch 7500). Smoke test: 5 epochs run, 62 fps (about 18 s per epoch, 2.4x slower than without SLAM), reward
         -2 -> 29 (GT run: 32-35). First test: 300 epochs (`--max_iterations 7800`, about 1.5 h), then Table 9 with
         random starts (`eval_nav_protocol.py --jitter_xy 0.5 --jitter_yaw 0.5`) against A.
+        **First attempt failed (2026-10-20):** 300 epochs in the plain grey worlds gave Map A 7/16, Map B 4/16 (A policy
+        with cuVSLAM: 16/16, 7/16), and the policy also failed with GT pose. Cause: cuVSLAM could not track the plain
+        grey, dark walls (median error 8.8 m, 83 % of the steps above 1.5 m), so B trained on a wrong pose. Fix: textured
+        terrain and light in the B / C training tasks (median 0.23 m, 5 % above 1.5 m); GT tasks are unchanged.
   - [ ] C: SLAM pose + quality inputs. Task `Spot-Nav-HallRacks-cuVSLAM-Quality-v0` (12-dim: B's 9 + features, averaged
         features, odometry vs loop-closure gap; chosen from the measurement in `docs/PAPER_OUTLINE.md`, "Quality
         signals"). Start from the A checkpoint widened with zeros: `scripts/tools/extend_checkpoint_obs.py
