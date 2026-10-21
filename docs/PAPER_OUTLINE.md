@@ -226,13 +226,13 @@ crash resumed from epoch 8080). A is `nav_hall_racks` unchanged. Evaluation: cuV
 the 16-env evaluation was killed by the kernel (out of memory, 15 GB laptop): the 8-run cells use different starts.
 Raw logs: `output/full_{A,B,C}/` (git-ignored).
 
-| Policy | Map | Success (runs) | Collisions (mean) | Runs with SLAM error above 1.5 m | Median of per-run mean error (m) |
+| Policy | Map | Success (runs) | Collisions (mean) | Runs with SLAM error above 1.5 m | Median over runs of the per-run mean error (m) |
 | --- | --- | --- | --- | --- | --- |
-| A: GT pose in training | A | 31/32 (97 %) | 17 | 0/32 | 0.33 |
+| A: GT pose in training | A | 31/32 (97 %) | 17 | 0/32 | 0.38 |
 | B: cuVSLAM pose | A | 32/32 (100 %) | 0 | 0/32 | 0.29 |
-| C: cuVSLAM pose + quality inputs | A | 29/32 (91 %) | 45 | 1/32 | 0.30 |
-| A | B | 11/24 (46 %) | 28 | 10/24 | 0.60 |
-| B | B | 9/32 (28 %) | 71 | 16/32 | 2.8 |
+| C: cuVSLAM pose + quality inputs | A | 29/32 (91 %) | 45 | 1/32 | 0.34 |
+| A | B | 11/24 (46 %) | 28 | 10/24 | 0.77 |
+| B | B | 9/32 (28 %) | 71 | 16/32 | 2.1 |
 | C | B | 12/24 (50 %) | 41 | 9/24 | 0.30 |
 
 Fisher exact test on the Map B success counts (runs of one policy share the starts, so p is only a rough guide):
@@ -243,7 +243,7 @@ Reading:
 - **Map A is solved by all three** (91-100 %), with SLAM errors of about 0.3 m. The 91 % of C is 3 failures out of 32
   and not a difference worth a claim (p = 0.24 against B).
 - **Map B: training with SLAM and no quality signal (B) is the worst, 28 %**, and half of its runs drift above 1.5 m.
-  C is at the level of A (50 % vs 46 %) and has a median error of 0.30 m against 2.8 m for B. So the quality inputs
+  C is at the level of A (50 % vs 46 %) and has a median error of 0.30 m against 2.1 m for B (A: 0.77 m). So the quality inputs
   remove the loss that SLAM-in-the-loop training caused, but **do not beat the GT-trained policy**.
 - The 300-epoch reading (C had clearly fewer drifting runs than A: 3/16 against 7/16) did not hold with more
   training and more runs (C 9/24, A 10/24). Do not use the early numbers.
