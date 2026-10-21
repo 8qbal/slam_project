@@ -218,6 +218,39 @@ Reading (a first test, not a result):
   of the steps above 1.5 m. With the marble texture: 0.23 m, 5 %. A condition-B experiment needs a world the SLAM can
   track in; check this first for any new training world.
 
+### A / B / C, final (epoch 8800, 2026-10-21)
+
+B and C trained 1300 epochs in total after `nav_hall_racks` (epoch 7500 -> 8800; B: 300 + 1000, C: 300 + 720 after a
+crash resumed from epoch 8080). A is `nav_hall_racks` unchanged. Evaluation: cuVSLAM stereo pose, random starts
+(+-0.5 m, +-0.5 rad), 3000 steps, evaluation seeds 2 and 3 (16 runs each). Three cells have 8 runs instead of 16 because
+the 16-env evaluation was killed by the kernel (out of memory, 15 GB laptop): the 8-run cells use different starts.
+Raw logs: `output/full_{A,B,C}/` (git-ignored).
+
+| Policy | Map | Success (runs) | Collisions (mean) | Runs with SLAM error above 1.5 m | Median of per-run mean error (m) |
+| --- | --- | --- | --- | --- | --- |
+| A: GT pose in training | A | 31/32 (97 %) | 17 | 0/32 | 0.33 |
+| B: cuVSLAM pose | A | 32/32 (100 %) | 0 | 0/32 | 0.29 |
+| C: cuVSLAM pose + quality inputs | A | 29/32 (91 %) | 45 | 1/32 | 0.30 |
+| A | B | 11/24 (46 %) | 28 | 10/24 | 0.60 |
+| B | B | 9/32 (28 %) | 71 | 16/32 | 2.8 |
+| C | B | 12/24 (50 %) | 41 | 9/24 | 0.30 |
+
+Fisher exact test on the Map B success counts (runs of one policy share the starts, so p is only a rough guide):
+B vs C p = 0.11, A vs B p = 0.26, A vs C p = 1.0. None is below 0.05.
+
+Reading:
+
+- **Map A is solved by all three** (91-100 %), with SLAM errors of about 0.3 m. The 91 % of C is 3 failures out of 32
+  and not a difference worth a claim (p = 0.24 against B).
+- **Map B: training with SLAM and no quality signal (B) is the worst, 28 %**, and half of its runs drift above 1.5 m.
+  C is at the level of A (50 % vs 46 %) and has a median error of 0.30 m against 2.8 m for B. So the quality inputs
+  remove the loss that SLAM-in-the-loop training caused, but **do not beat the GT-trained policy**.
+- The 300-epoch reading (C had clearly fewer drifting runs than A: 3/16 against 7/16) did not hold with more
+  training and more runs (C 9/24, A 10/24). Do not use the early numbers.
+- What the data can say: B vs C is suggestive (p = 0.11), one training seed each. What it cannot say: that C
+  beats A. Needed before a claim: 2-3 training seeds per condition, and the same number of runs in every cell.
+- Map B is limited by the rack for every policy (collisions 28-71), so Map B success mostly measures the rack, not SLAM.
+
 ## Configuration summary
 
 ### Low level (`Spot-Paper-WallsSoftMirrorTurn-v0`, `policies/walls_soft_mirror_turn/`)

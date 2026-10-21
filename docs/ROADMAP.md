@@ -148,7 +148,7 @@ Question: can the robot learn to change how it moves when localization becomes u
 - [ ] Many envs with SLAM in the loop need one tracker per env (easier with in-process cuVSLAM).
 - [ ] Train three high-level policies with the same low level, task, reward and budget:
   - [ ] A: GT pose, no quality inputs (section 1's retrained high level).
-  - [ ] B: SLAM pose, no quality inputs (`pose_source="slam"`, with cuVSLAM). Task `Spot-Nav-HallRacks-cuVSLAM-v0`
+  - [x] B (done 2026-10-21, results in `docs/PAPER_OUTLINE.md` "A / B / C, final"): SLAM pose, no quality inputs (`pose_source="slam"`, with cuVSLAM). Task `Spot-Nav-HallRacks-cuVSLAM-v0`
         (2026-10-20): HallRacks worlds, one cuVSLAM stereo tracker per env (16), fine-tuned from `policies/nav_hall_racks`
         (epoch 7500). Smoke test: 5 epochs run, 62 fps (about 18 s per epoch, 2.4x slower than without SLAM), reward
         -2 -> 29 (GT run: 32-35). First test: 300 epochs (`--max_iterations 7800`, about 1.5 h), then Table 9 with
@@ -157,12 +157,12 @@ Question: can the robot learn to change how it moves when localization becomes u
         with cuVSLAM: 16/16, 7/16), and the policy also failed with GT pose. Cause: cuVSLAM could not track the plain
         grey, dark walls (median error 8.8 m, 83 % of the steps above 1.5 m), so B trained on a wrong pose. Fix: textured
         terrain and light in the B / C training tasks (median 0.23 m, 5 % above 1.5 m); GT tasks are unchanged.
-  - [ ] C: SLAM pose + quality inputs. Task `Spot-Nav-HallRacks-cuVSLAM-Quality-v0` (12-dim: B's 9 + features, averaged
+  - [x] C (done 2026-10-21): SLAM pose + quality inputs. Task `Spot-Nav-HallRacks-cuVSLAM-Quality-v0` (12-dim: B's 9 + features, averaged
         features, odometry vs loop-closure gap; chosen from the measurement in `docs/PAPER_OUTLINE.md`, "Quality
         signals"). Start from the A checkpoint widened with zeros: `scripts/tools/extend_checkpoint_obs.py
         policies/nav_hall_racks/model.pth output/checkpoints/nav_hall_racks_12in.pth --extra 3`, so it behaves as A at
         epoch 7500 and B and C get the same budget.
-- [ ] Evaluate A, B, C with the same SLAM system and scenarios. A vs. B = training with SLAM; B vs. C = quality inputs.
+- [x] Evaluate A, B, C with the same SLAM system and scenarios (cuVSLAM, 2 evaluation seeds; 1 training seed each, see PAPER_OUTLINE). A vs. B = training with SLAM; B vs. C = quality inputs.
 - [ ] Also evaluate B and C (trained with cuVSLAM) with ORB-SLAM3 poses (`-Play` / `-Stereo-Play`) and with GT poses, no
       retraining: does a policy trained on one SLAM carry over to another? ORB-SLAM3 is not used for training: it
       runs as one ROS 2 process for one robot, so it cannot give each of the parallel envs its own tracker.
