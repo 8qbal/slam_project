@@ -74,8 +74,9 @@ uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-HallRacks-cuVS
 uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-HallRacks-cuVSLAM-Quality-v0 --cameras --num_envs 16 \
   --checkpoint <C ep 7800 .pth> --max_iterations 8800
 
-# Play a high level in a window (GT pose, no ROS 2)
-uv run --no-sync python scripts/rl_games/play.py --task Spot-Nav-MapA-GT-Play-v0 --cameras --checkpoint <high-level .pth> --viz kit
+# Play a high level in a window (GT pose, no ROS 2). The warehouse has a 9 m roof: --hide_roof removes it from the view
+# (render only; do not use it for evaluation)
+uv run --no-sync python scripts/rl_games/play.py --task Spot-Nav-MapA-GT-Play-v0 --cameras --checkpoint <high-level .pth> --viz kit --hide_roof
 
 
 3. EVALUATION (paper Table 9 protocol: 3000 steps, collisions counted, success = goal radius reached)

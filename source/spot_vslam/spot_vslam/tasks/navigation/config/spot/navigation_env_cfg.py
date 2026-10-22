@@ -154,9 +154,9 @@ class SpotNavigationEnvCfg_PLAY(SpotNavigationEnvCfg):
         self.ros2 = Ros2ManagerCfg(camera_name="tilted_camera", topic_prefix="/spot")
         self.scene.num_envs = 1
         self.episode_length_s = 3000 * HL_DT  # one run of the navigation test
-        # overview from inside the south end, under the 9 m roof of the warehouse (an eye above the roof sees only
-        # the roof; the low level's default eye sits at 0.3 m height in a corner)
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(0.0, -16.5, 8.0), lookat=(0.0, 3.0, 0.0))
+        # overview of the whole map from the south; the warehouse has a 9 m roof, so watch with play.py --hide_roof
+        # (the low level's default eye sits at 0.3 m height in a corner)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(0.0, -30.0, 32.0), lookat=(0.0, 1.0, 0.0))
         self.observations.policy.enable_corruption = False
         self.observations.policy.use_pose_source("slam")
         self.terminations.body_contact = None
