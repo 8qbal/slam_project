@@ -22,6 +22,7 @@ from isaaclab.terrains import FlatPatchSamplingCfg, TerrainImporterCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import GaussianNoiseCfg as Gnoise
+from isaaclab.visualizers import VisualizerCfg
 
 from spot_vslam.assets import PAPER_MAPS
 from spot_vslam.slam import CuVslamManagerCfg, Ros2ManagerCfg
@@ -153,6 +154,8 @@ class SpotNavigationEnvCfg_PLAY(SpotNavigationEnvCfg):
         self.ros2 = Ros2ManagerCfg(camera_name="tilted_camera", topic_prefix="/spot")
         self.scene.num_envs = 1
         self.episode_length_s = 3000 * HL_DT  # one run of the navigation test
+        # overview of the whole map from the south, above the walls (the low level's default eye sits at 0.3 m height)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(0.0, -34.0, 38.0), lookat=(0.0, 1.0, 0.0))
         self.observations.policy.enable_corruption = False
         self.observations.policy.use_pose_source("slam")
         self.terminations.body_contact = None
