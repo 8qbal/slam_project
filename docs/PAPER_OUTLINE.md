@@ -251,6 +251,36 @@ Reading:
   beats A. Needed before a claim: 2-3 training seeds per condition, and the same number of runs in every cell.
 - Map B is limited by the rack for every policy (collisions 28-71), so Map B success mostly measures the rack, not SLAM.
 
+### A / B / C, second training seed (seed 2, epoch 8800, 2026-10-22)
+
+B and C were trained again from `nav_hall_racks` with `--seed 2` (epoch 7500 -> 8800, same settings; C had one native
+Isaac Sim crash at epoch 8460 and resumed from the last checkpoint). Evaluation: cuVSLAM pose, 8 envs, random starts,
+evaluation seeds 2, 3, 4 (24 runs per cell). **The GT control A was not retrained with seed 2**, so A has one training seed.
+Raw logs: `output/seed2_{B,C}/` (git-ignored).
+
+| Policy | Map | Training seed 1 | Training seed 2 | Both seeds |
+| --- | --- | --- | --- | --- |
+| B: cuVSLAM pose | A | 32/32 | 22/24 (92 %) | 54/56 (96 %) |
+| C: + quality inputs | A | 29/32 | 24/24 (100 %) | 53/56 (95 %) |
+| A: GT pose (one seed) | A | 31/32 | - | 31/32 (97 %) |
+| B | B | 9/32 (28 %) | **0/24 (0 %)** | 9/56 (16 %) |
+| C | B | 12/24 (50 %) | 13/24 (54 %) | 25/48 (52 %) |
+| A (one seed) | B | 11/24 (46 %) | - | 11/24 (46 %) |
+
+Runs with SLAM error above 1.5 m on Map B: B 16/32 and 17/24 (59 % in all), C 9/24 and 4/24 (27 % in all).
+Median over runs of the per-run mean error on Map B (seed 2 only): B 4.6 m, C 0.28 m.
+
+Reading:
+
+- **The seed-1 pattern repeated.** On Map B, C stays at about 50 % (50 and 54 %) and B is far below (28 and 0 %). Map A
+  is solved by every policy.
+- B's Map B result depends strongly on the training seed (28 % vs 0 %); C's does not (50 vs 54 %). With two seeds per
+  condition this is a pattern, not yet a proof.
+- Fisher exact test on pooled Map B runs, B vs C: p = 0.0001. **Do not report this p.** Runs of one policy share the
+  policy and the map, so they are not independent; the independent unit is the training seed (2 per condition).
+- Still missing: the GT control A with seed 2 (same 1300 extra epochs), so "C is as good as GT" rests on one A seed
+  and an A that got no extra epochs; and a third seed.
+
 ## Configuration summary
 
 ### Low level (`Spot-Paper-WallsSoftMirrorTurn-v0`, `policies/walls_soft_mirror_turn/`)
