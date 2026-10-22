@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+exclude: ^scripts/legacy/  # old scripts nothing calls, kept unchanged
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.10
@@ -26,3 +27,4 @@ repos:
     rev: v2.4.1
     hooks:
       - id: codespell
+        additional_dependencies: [tomli]

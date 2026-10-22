@@ -71,6 +71,6 @@ python scripts/tools/play_hl_gif.py --low_level_checkpoint <.pth> --high_level_c
 | --- | --- |
 | `rl_games/` | train / play any task with rl_games (low level, navigation) |
 | `high_level/` | SB3 high level on a frozen low level (rl_vslam_v0 and the current paper checkpoint) |
-| `slam/` | ORB-SLAM3 / Nav2 test loops (`Spot-test180-v0`) |
+| `slam/` | ORB-SLAM3 / Nav2 test loops on `Spot-test180-v0` (`test_rotate_180.py`: ORB-SLAM3 stress test, 2 full spins then a straight line, SLAM vs GT), cuVSLAM checks |
 | `tools/` | tables and plots |
 | `legacy/` | old scripts, not part of the pipeline (see its README) |

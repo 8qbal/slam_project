@@ -26,6 +26,8 @@ members = ["source/spot_vslam"]
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+# old scripts nothing calls, kept as they were (scripts/legacy/README or docs/ROADMAP)
+extend-exclude = ["scripts/legacy"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "W"]
@@ -60,3 +62,8 @@ docstring-code-format = true
 [[tool.uv.index]]
 url = "https://pypi.nvidia.com"
 explicit = false
+
+[tool.codespell]
+# Indonesian words in the Indonesian docs pages; ORB-SLAM3 path names
+ignore-words-list = "sistem,tabel,lama,samping,thirdparty"
+skip = "*.pth,*.pdf,*.png,*.zip,uv.lock,*/legacy/*"

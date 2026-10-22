@@ -118,14 +118,16 @@ for step in range(args_cli.steps):
         for nm in ["chase_cam", "tilted_camera"]:
             t = u.scene.sensors[nm].data.output["rgb"].torch
             print(
-                f"[DIAG] {nm} rgb dtype={t.dtype} shape={tuple(t.shape)} min={t.min().item()} max={t.max().item()} mean={t.float().mean().item():.3f}",
+                f"[DIAG] {nm} rgb dtype={t.dtype} shape={tuple(t.shape)} min={t.min().item()} max={t.max().item()} "
+                f"mean={t.float().mean().item():.3f}",
                 flush=True,
             )
     rgb = cam.data.output["rgb"].torch[0, ..., :3].cpu().numpy().astype(np.uint8)
     img = Image.fromarray(rgb)
     ImageDraw.Draw(img).text(
         (8, 8),
-        f"t={step * 0.08:5.1f}s  vx={info[0]['cmd_vx']:.2f}  wz={info[0]['cmd_wz']:+.2f}  x={pos[0]:+.1f} y={pos[1]:+.1f}",
+        f"t={step * 0.08:5.1f}s  vx={info[0]['cmd_vx']:.2f}  wz={info[0]['cmd_wz']:+.2f}  "
+        f"x={pos[0]:+.1f} y={pos[1]:+.1f}",
         fill=(255, 255, 0),
     )
     frames.append(np.asarray(img))

@@ -105,7 +105,7 @@ import spot_vslam.tasks  # noqa: F401
 
 
 class VerboseIsaacAlgoObserver(IsaacAlgoObserver):
-    """IsaacAlgoObserver that also prints the training rewards to the console (they otherwise only go to TensorBoard)."""
+    """IsaacAlgoObserver that also prints the training rewards to the console (otherwise only in TensorBoard)."""
 
     def __init__(self, terms_every: int):
         super().__init__()
