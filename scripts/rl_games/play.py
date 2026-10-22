@@ -33,13 +33,6 @@ parser.add_argument(
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 parser.add_argument(
-    "--hide_roof",
-    action="store_true",
-    default=False,
-    help="Hide the ceiling tiles and beams of the warehouse maps (render only), to watch from above. "
-    "Changes what the cameras see, so do not use it for evaluation.",
-)
-parser.add_argument(
     "--cameras",
     action="store_true",
     default=False,
@@ -127,17 +120,6 @@ def main():
 
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg)
-
-    if args_cli.hide_roof:
-        import omni.usd
-        from pxr import Usd, UsdGeom
-
-        hidden = 0
-        for prim in Usd.PrimRange(omni.usd.get_context().get_stage().GetPseudoRoot(), Usd.TraverseInstanceProxies()):
-            if prim.GetName().startswith(("SM_CeilingA", "SM_BeamA")) and prim.IsA(UsdGeom.Imageable):
-                UsdGeom.Imageable(prim).MakeInvisible()
-                hidden += 1
-        print(f"[play] hid {hidden} roof prims", flush=True)
 
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv):
