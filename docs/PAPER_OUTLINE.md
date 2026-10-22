@@ -28,7 +28,7 @@ degrades.
 | C3 | Turning in place is rarely commanded in the standard command ranges; 20 % turn-in-place commands fix it (wz 0.60 / -0.30 at +-0.4 in place) | same, `MirrorTurn` table | done, small turns still weak |
 | C4 | A high level trained on one fixed map memorizes its route (Map A model: 100 % on Map A, 0 % on Map B). Random mazes train a policy that transfers: 100 % (fixed start) / 69-81 % (random start) on Map A, but only 20 % / 31-50 % on Map B | `Spot-Nav-Maze-v0`, E5 table below | measured; Map B not good enough yet |
 | C5 | cuVSLAM stereo drifts less than ORB-SLAM3 on the same drive (APE 0.57 m vs 3.4-5.0 m, one drive on Map A) | `docs/cuvslam.md` | one drive only |
-| C6 | Tracking-quality inputs let the high level adapt when SLAM degrades (A / B / C comparison) | `docs/ROADMAP.md` section 5 | **not started** (main experiment) |
+| C6 | Tracking-quality inputs let the high level adapt when SLAM degrades (A / B / C comparison) | section "A / B / C, control A with the same budget" below | partly: C beats B in both seeds (50, 54 % vs 28, 0 % on Map B) but stays below the budget-matched GT control (79 %); 2 seeds, A has 1 |
 
 C1-C3 are low-level engineering results and can stand as one section or a short paper of their own. C6 is the main
 contribution and depends on C4 (a high level that reaches the goal with ground-truth pose) and on cuVSLAM running
@@ -255,7 +255,7 @@ Reading:
 
 B and C were trained again from `nav_hall_racks` with `--seed 2` (epoch 7500 -> 8800, same settings; C had one native
 Isaac Sim crash at epoch 8460 and resumed from the last checkpoint). Evaluation: cuVSLAM pose, 8 envs, random starts,
-evaluation seeds 2, 3, 4 (24 runs per cell). **The GT control A was not retrained with seed 2**, so A has one training seed.
+evaluation seeds 2, 3, 4 (24 runs per cell). The GT control A with the same budget was trained afterwards (next section).
 Raw logs: `output/seed2_{B,C}/` (git-ignored).
 
 | Policy | Map | Training seed 1 | Training seed 2 | Both seeds |
@@ -278,8 +278,36 @@ Reading:
   condition this is a pattern, not yet a proof.
 - Fisher exact test on pooled Map B runs, B vs C: p = 0.0001. **Do not report this p.** Runs of one policy share the
   policy and the map, so they are not independent; the independent unit is the training seed (2 per condition).
-- Still missing: the GT control A with seed 2 (same 1300 extra epochs), so "C is as good as GT" rests on one A seed
-  and an A that got no extra epochs; and a third seed.
+- A third seed for all three conditions is still missing.
+
+### A / B / C, control A with the same budget (seed 2, 2026-10-23)
+
+The table above compared B and C (1300 extra epochs) with A at epoch 7500 (no extra epochs). The fair control is A
+fine-tuned for the same 1300 epochs with the ground-truth pose (`Spot-Nav-HallRacks-v0`, `--seed 2`, epoch 7500 -> 8800,
+reward 30.3). Evaluation: cuVSLAM pose, 8 envs, random starts, evaluation seeds 2, 3, 4 (24 runs per cell).
+Raw logs: `output/ctrl_A/` (git-ignored).
+
+| Policy (Map B) | Success | Runs with SLAM error above 1.5 m | Median of per-run mean error |
+| --- | --- | --- | --- |
+| A, epoch 7500 (no extra epochs) | 11/24 (46 %) | 10/24 | 0.77 m |
+| **A, +1300 epochs (control, seed 2)** | **19/24 (79 %)** | 2/24 | 0.28 m |
+| B, +1300 epochs (2 seeds) | 9/56 (16 %) | 33/56 | 4.6 m (seed 2) |
+| C, +1300 epochs (2 seeds) | 25/48 (52 %) | 13/48 | 0.28 m (seed 2) |
+
+Map A (+1300 epochs, GT): 20/24 (83 %); B 54/56 (96 %), C 53/56 (95 %).
+
+Reading (this replaces the earlier "C is at the level of A"):
+
+- **A had fewer epochs than B and C, so the first comparison was not fair.** With the same budget the GT-trained
+  policy rises from 46 % to 79 % on Map B. Part of what C gained over A in the earlier table was training time.
+- **What holds in both seeds:** B is the worst (28 % and 0 %); C is far above B (50 % and 54 %). Quality inputs recover a
+  large part of the loss from training with SLAM in the loop.
+- **What does not hold:** C does not reach the GT control (52 % vs 79 %; Fisher on pooled runs p = 0.12, rough, runs are
+  not independent). The honest statement is "C lies between B and the GT-trained policy".
+- Unit of evidence is the training seed: B and C have two, A with extra epochs has one. A third seed for each, with all
+  three trained with the same epochs, is the minimum before a claim.
+- The GT-trained policy has few drifting runs on Map B (2/24) because its runs mostly succeed early; SLAM error is
+  measured on the run, so a policy that finishes fast has less time to drift. Compare drift with this in mind.
 
 ## Configuration summary
 

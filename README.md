@@ -97,19 +97,19 @@ Task ids of trained policies never change. Config files are under `source/spot_v
 
 ## Results so far
 
-Success rate on the paper maps, random start (+-0.5 m, +-0.5 rad), cuVSLAM pose, 3000 steps. A is trained with the
-ground-truth pose; B and C are trained with the cuVSLAM pose, C also sees tracking-quality inputs.
-Two training seeds for B and C, one for A.
+Success rate on the paper maps, random start (+-0.5 m, +-0.5 rad), cuVSLAM pose, 3000 steps. All are trained 1300
+epochs from the same checkpoint (`nav_hall_racks`, epoch 7500). A uses the ground-truth pose; B uses the cuVSLAM
+pose; C uses the cuVSLAM pose plus tracking-quality inputs. B and C have two training seeds, A has one.
 
 | Policy | Map A | Map B |
 | --- | --- | --- |
-| A: GT pose in training | 31/32 | 11/24 |
+| A: GT pose in training (control, seed 2) | 20/24 | 19/24 (79 %) |
 | B: cuVSLAM pose | 54/56 | 9/56 (28 % and 0 % per seed) |
 | C: + quality inputs | 53/56 | 25/48 (50 % and 54 % per seed) |
 
-Map B is limited by an open rack that every policy bumps into, so it measures the rack as much as SLAM. Runs of one
-policy are not independent; the unit for a claim is the training seed. Full tables, caveats and the control still
-missing: [`docs/PAPER_OUTLINE.md`](docs/PAPER_OUTLINE.md).
+C recovers much of what B loses, but stays below the GT-trained policy. Map B is limited by an open rack that every
+policy bumps into. Runs of one policy are not independent; the unit for a claim is the training seed. Full tables and
+caveats: [`docs/PAPER_OUTLINE.md`](docs/PAPER_OUTLINE.md).
 
 ![Map B trajectories](docs/img/mapB_racks_policy_trajectories.png)
 
