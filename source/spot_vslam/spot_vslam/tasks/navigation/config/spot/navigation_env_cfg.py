@@ -154,9 +154,11 @@ class SpotNavigationEnvCfg_PLAY(SpotNavigationEnvCfg):
         self.ros2 = Ros2ManagerCfg(camera_name="tilted_camera", topic_prefix="/spot")
         self.scene.num_envs = 1
         self.episode_length_s = 3000 * HL_DT  # one run of the navigation test
-        # inside the room, high in its south-east corner, looking at its middle. The room spans x -9..9, y -12..18 with
-        # 9 m walls and a roof; the low level's default eye (10.5, 10.5, 0.3) is outside the east wall
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(7.5, -10.5, 7.0), lookat=(-1.0, 4.0, 0.0))
+        # inside the room (9 m walls and a roof, x -9..9, y -12..18), high in its south-east corner, so that the
+        # start and the goal are both in view. The low level's default eye (10.5, 10.5, 0.3) is outside the east wall
+        views = {"A": ((8.5, -11.0, 6.0), (-4.0, -3.0, 0.0)), "B": ((8.5, 17.0, 6.0), (-3.0, 10.0, 0.0))}
+        eye, lookat = views[self.paper_map]
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=eye, lookat=lookat)
         self.observations.policy.enable_corruption = False
         self.observations.policy.use_pose_source("slam")
         self.terminations.body_contact = None
