@@ -49,13 +49,13 @@ parser.add_argument(
     "--quiet_rewards",
     action="store_true",
     default=False,
-    help="Don't print the mean reward / episode length each epoch.",
+    help="Print only rl_games' one-line speed summary each epoch instead of the Isaac Lab-style block.",
 )
 parser.add_argument(
     "--reward_terms_every",
     type=int,
-    default=50,
-    help="Print the per-term reward and termination breakdown every N epochs (0 = never).",
+    default=1,
+    help="Print the per-term episode rewards and terminations every N epochs (0 = never).",
 )
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -105,31 +105,121 @@ import spot_vslam.tasks  # noqa: F401
 
 
 class VerboseIsaacAlgoObserver(IsaacAlgoObserver):
-    """IsaacAlgoObserver that also prints the training rewards to the console (otherwise only in TensorBoard)."""
+    """IsaacAlgoObserver that prints one block per epoch, laid out like Isaac Lab's RSL-RL runner: speed, mean reward
+    and episode length, PPO losses, the per-term episode rewards and terminations, and the time left.
+
+    rl_games' own one-line ``fps step ...`` print is turned off (``print_stats: False``) when this observer is used."""
+
+    WIDTH = 80
+    PAD = 35
 
     def __init__(self, terms_every: int):
         super().__init__()
         self.terms_every = terms_every
 
-    def after_print_stats(self, frame, epoch_num, total_time):
-        algo = self.algo
-        if algo.game_rewards.current_size > 0:
-            print(
-                f"[epoch {epoch_num}/{algo.max_epochs}] reward {float(algo.game_rewards.get_mean().mean()):.2f}"
-                f" | episode length {float(algo.game_lengths.get_mean()):.1f} steps"
-                f" | frames {frame} | {total_time / 60:.1f} min"
+    def after_init(self, algo):
+        super().after_init(algo)
+        write_stats = algo.write_stats
+
+        # write_stats gets the losses and timings of the epoch; print before it hands over to the observer,
+        # which clears the episode infos
+        def write_stats_and_print(
+            total_time,
+            epoch_num,
+            step_time,
+            play_time,
+            update_time,
+            a_losses,
+            c_losses,
+            entropies,
+            kls,
+            last_lr,
+            lr_mul,
+            frame,
+            *args,
+            **kwargs,
+        ):
+            self._print_epoch(
+                total_time,
+                epoch_num,
+                play_time,
+                update_time,
+                a_losses,
+                c_losses,
+                entropies,
+                kls,
+                last_lr * lr_mul,
+                frame,
+                args[2] if len(args) > 2 else kwargs.get("curr_frames"),
             )
+            write_stats(
+                total_time,
+                epoch_num,
+                step_time,
+                play_time,
+                update_time,
+                a_losses,
+                c_losses,
+                entropies,
+                kls,
+                last_lr,
+                lr_mul,
+                frame,
+                *args,
+                **kwargs,
+            )
+
+        algo.write_stats = write_stats_and_print
+
+    @staticmethod
+    def _mean(xs):
+        return torch.stack([torch.as_tensor(x, dtype=torch.float32) for x in xs]).mean().item()
+
+    def _row(self, key, value):
+        return f"{key + ':':>{self.PAD}} {value}"
+
+    def _print_epoch(
+        self, total_time, epoch_num, play_time, update_time, a_losses, c_losses, entropies, kls, lr, frame, curr_frames
+    ):
+        algo = self.algo
+        epoch_time = play_time + update_time
+        lines = ["#" * self.WIDTH, f"Learning iteration {epoch_num}/{algo.max_epochs}".center(self.WIDTH), ""]
+        if curr_frames:
+            lines.append(
+                self._row(
+                    "Computation",
+                    f"{curr_frames / epoch_time:.0f} steps/s "
+                    f"(collection: {play_time:.2f}s, learning {update_time:.2f}s)",
+                )
+            )
+        if algo.game_rewards.current_size > 0:
+            lines.append(self._row("Mean reward", f"{float(algo.game_rewards.get_mean().mean()):.2f}"))
+            lines.append(self._row("Mean episode length", f"{float(algo.game_lengths.get_mean()):.2f}"))
+        lines += [
+            self._row("Surrogate loss", f"{self._mean(a_losses):.4f}"),
+            self._row("Value function loss", f"{self._mean(c_losses):.4f}"),
+            self._row("Entropy", f"{self._mean(entropies):.4f}"),
+            self._row("Mean KL", f"{self._mean(kls):.4f}"),
+            self._row("Learning rate", f"{lr:.2e}"),
+        ]
+        for name, values in getattr(algo, "aux_loss_dict", {}).items():
+            if values:
+                lines.append(self._row(name.replace("_", " ").capitalize(), f"{self._mean(values):.4f}"))
         if self.terms_every > 0 and epoch_num % self.terms_every == 0 and self.ep_infos:
-            # mean over the episodes that ended since the last print; the super() call below clears ep_infos
-            means = {}
+            # mean over the episodes that ended during this epoch
+            lines.append("-" * self.WIDTH)
             for key in self.ep_infos[0]:
                 vals = [torch.as_tensor(ep[key], dtype=torch.float32).flatten().mean() for ep in self.ep_infos]
-                means[key] = torch.stack(vals).mean().item()
-            for group in ("Episode_Reward/", "Episode_Termination/"):
-                terms = {k[len(group) :]: v for k, v in means.items() if k.startswith(group)}
-                if terms:
-                    print(f"    {group[:-1]}: " + ", ".join(f"{k} {v:.3f}" for k, v in terms.items()))
-        super().after_print_stats(frame, epoch_num, total_time)
+                lines.append(self._row(key, f"{torch.stack(vals).mean().item():.4f}"))
+        left = algo.max_epochs - epoch_num if algo.max_epochs > 0 else 0
+        lines += [
+            "-" * self.WIDTH,
+            self._row("Total timesteps", f"{frame}"),
+            self._row("Iteration time", f"{epoch_time:.2f}s"),
+            self._row("Total time", f"{total_time:.2f}s"),
+            self._row("ETA", f"{left * epoch_time:.1f}s"),
+        ]
+        print("\n".join(lines), flush=True)
 
 
 @hydra_task_config(args_cli.task, "rl_games_cfg_entry_point")
@@ -224,7 +314,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # set number of actors into agent config
     agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
     # create runner from rl-games
-    observer = IsaacAlgoObserver() if args_cli.quiet_rewards else VerboseIsaacAlgoObserver(args_cli.reward_terms_every)
+    if args_cli.quiet_rewards:
+        observer = IsaacAlgoObserver()
+    else:
+        observer = VerboseIsaacAlgoObserver(args_cli.reward_terms_every)
+        agent_cfg["params"]["config"]["print_stats"] = False  # the observer prints its own block
     runner = Runner(observer)
     if agent_cfg["params"]["config"].get("mirror_loss_coef"):
         # PPO + left-right mirror loss (spot_vslam/rl_games_mirror.py)
