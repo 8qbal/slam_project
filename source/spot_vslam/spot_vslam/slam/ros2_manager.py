@@ -38,6 +38,8 @@ def numpy_to_imgmsg(array: np.ndarray, encoding: str) -> Image:
     return msg
 
 
+_NORMAL, _STALE, _SEND, _WAIT = range(4)  # Ros2Manager._reset_state
+
 # The ROS 2 contract with ``source/spot_vslam/ros2`` (C++ nodes, launch files) and Nav2: topics are
 # ``<topic_prefix><env index>/<name>``. Every Python user takes the names from here; the C++ node and the launch
 # files cannot import them, so they must match by hand (``prefix`` parameter, ``orbslam/*`` names).
@@ -123,6 +125,14 @@ class Ros2Manager:
         self._orb_pose7_cpu[:, 6] = 1.0
         self._orb_state_raw_cpu = np.zeros((self.num_envs,), dtype=np.int32)
         self._orb_pc_count_cpu = np.zeros((self.num_envs,), dtype=np.int32)
+
+        # Per-env ORB-SLAM3 reset after an env reset (``reset()``), so the SLAM map restarts at the robot's new pose:
+        #   NORMAL; STALE = the camera still shows the view before the teleport: publish nothing this step;
+        #   SEND = send ``orbslam/reset`` together with the next (fresh) frame; WAIT = reset sent. In all three, poses
+        #   of the old map (any pose before the reset message, or stamped before it) and "tracking" states are dropped
+        #   until the first new pose arrives.
+        self._reset_state = np.zeros((self.num_envs,), dtype=np.int8)
+        self._reset_stamp = np.zeros((self.num_envs,), dtype=np.float64)
 
         # TF frame prefixes, e.g. spot_0, spot_1
         clean_prefix_base = self.cfg.topic_prefix.strip("/")
@@ -257,7 +267,14 @@ class Ros2Manager:
 
         yaw = yaw_from_quat_xyzw((qx, qy, qz, qw))
 
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         with self._orb_lock:
+            if self._reset_state[env_id] != _NORMAL:
+                # no frame went out since the env reset until the reset message: such a pose, or one stamped before
+                # it, belongs to the map from before the reset
+                if self._reset_state[env_id] != _WAIT or stamp < self._reset_stamp[env_id] - 1e-6:
+                    return
+                self._reset_state[env_id] = _NORMAL
             self._orb_pose7_cpu[env_id] = (px, py, msg.pose.position.z, qx, qy, qz, qw)
             self._orb_pose_xyyaw_cpu[env_id, 0] = px
             self._orb_pose_xyyaw_cpu[env_id, 1] = py
@@ -268,6 +285,8 @@ class Ros2Manager:
         status = 1.0 if int(msg.data) == 1 else 0.0
 
         with self._orb_lock:
+            if self._reset_state[env_id] != _NORMAL and int(msg.data) == 1:
+                return  # "tracking" of the map from before the reset
             self._orb_state_raw_cpu[env_id] = int(msg.data)
             self._orb_status_cpu[env_id, 0] = status
 
@@ -302,6 +321,12 @@ class Ros2Manager:
                 self.node.get_logger().warn(f"Published ORB reset for env {i}")
 
     def update(self, dt: float):
+        self._publish_and_sync()
+        # the step of an env reset is over: from the next frame on the camera shows the new place
+        with self._orb_lock:
+            self._reset_state[self._reset_state == _STALE] = _SEND
+
+    def _publish_and_sync(self):
         if not self.orb_initialized:
             self.publish_orb_reset()
             self.orb_initialized = True
@@ -390,7 +415,17 @@ class Ros2Manager:
         if self.intrinsic_matrices is None:
             self._compute_intrinsics()
 
+        stamp_s = stamp.sec + stamp.nanosec * 1e-9
         for i in range(self.num_envs):
+            if self._reset_state[i] == _STALE:
+                continue
+            if self._reset_state[i] == _SEND:
+                # the reset goes out right before the first fresh frame, so no older frame can become the new origin
+                with self._orb_lock:
+                    self._reset_stamp[i] = stamp_s
+                    self._reset_state[i] = _WAIT
+                self.publish_orb_reset([i])
+
             # RGB
             rgb_np = rgb_tensors[i].cpu().numpy()
             if rgb_np.shape[-1] == 4:
@@ -453,9 +488,9 @@ class Ros2Manager:
             self.intrinsic_matrices = raw_intrinsics.numpy()
 
     def reset(self, env_ids: Sequence[int]):
-        """Clear the cached SLAM pose/status of the reset envs.
+        """Clear the cached SLAM pose/status of the reset envs and schedule an ORB-SLAM3 reset for them.
 
-        The ORB-SLAM3 reset message is not sent here (known limitation, docs/ROADMAP.md fixes).
+        The reset message goes out with the first fresh frame (see ``_reset_state``), not here.
         """
         if env_ids is None:
             env_ids = torch.arange(self.num_envs, device=self.device)
@@ -476,6 +511,7 @@ class Ros2Manager:
                 self._orb_pose7_cpu[i, 6] = 1.0
                 self._orb_state_raw_cpu[i] = 0
                 self._orb_pc_count_cpu[i] = 0
+                self._reset_state[i] = _STALE
 
         self._sync_orb_results_to_env()
         return {}
