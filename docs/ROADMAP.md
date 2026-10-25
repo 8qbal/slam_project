@@ -86,12 +86,20 @@ with our reward: flat-floor training already failed near Map A's walls.
 - [x] Train `Spot-Paper-v0` and check it with `gait_check.py`. If it still hops or tracks poorly, change one reward
       term at a time (Unitree / legged_gym rewards as reference).
 - [ ] Comparison 1, old vs. new reward: old results come from the original paper; new from `gait_check.py` at the
-      same commanded speeds (gait pattern, speed error, falls).
-- [ ] Comparison 2, training terrain: train `Spot-Paper-Rough-v0` (Isaac Lab's Spot terrain) and
-      `Spot-Paper-Obstacles-v0` (paper terrain + 1-2 m pillars the depth camera sees). Evaluate every policy on every
-      terrain (`gait_check.py --task <terrain task>`).
-- [ ] Comparison 3, depth noise: add realistic errors to the policy's depth image during training (missing pixels,
-      edge noise, range-dependent noise), as a variant of the best terrain. Evaluate with and without noise.
+      same commanded speeds (gait pattern, speed error, falls). Rows for the new reward exist (`docs/low_level_reward.md`);
+      still to do: put the paper's numbers next to them at the same commands.
+- [x] Comparison 2, training: `Spot-Paper-Rough-v0` (`policies/rough`) and `Spot-Paper-Obstacles-v0` (`2026-10-10_07-00-46`
+      ep 8000, only in `logs/`) are trained. Not a pure terrain study: the policies come from different reward revisions
+      (paper reproduce: before the speed and turn fixes; Obstacles: turn fix; Rough: both), see `docs/low_level_reward.md`.
+- [ ] Comparison 2, evaluation: the cross table in `docs/low_level_reward.md` ("Training-terrain study") is mostly empty.
+      Run `bash scripts/tools/run_terrain_eval.sh` (policies paper / rough / obstacles / WallsSoft on the paper, rough,
+      obstacles and walls terrain, 16 runs, `gait_check.py`) and fill it in.
+- [x] Comparison 3, training: `Spot-Paper-WallsSoftNoise-v0` (`policies/walls_soft_noise`): Isaac Lab's Spot joint / IMU
+      noise, depth range noise, missing pixels, edge dropout. A variant of WallsSoft (the chosen terrain), not of the best
+      of comparison 2.
+- [ ] Comparison 3, evaluation with and without noise: WallsSoft vs. WallsSoftNoise on `Spot-Paper-WallsSoftNoise-v0`,
+      `gait_check.py` with and without `--noise` (last 4 runs of `run_terrain_eval.sh`). Today only the note "tracks
+      well with noise, drifts without" in the table above, no numbers.
 - [ ] Pick the low level for everything below. Keep the 353-dim observation so the high-level code still fits, and
       retrain the high level (condition A) on it.
 
