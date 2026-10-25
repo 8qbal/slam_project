@@ -7,9 +7,10 @@ from isaaclab.app import AppLauncher
 
 # --- 1. Parameters ---
 parser = argparse.ArgumentParser(description="VSLAM stress test")
-parser.add_argument("--task", type=str, default="Spot-test180-v0")
+parser.add_argument("--task", type=str, default="Spot-test180-v0", help="unused: the script builds SlamTestEnvCfg")
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
+args_cli.enable_cameras = True  # the SLAM camera needs cameras enabled at app launch
 
 # --- 2. Launch the simulator ---
 app_launcher = AppLauncher(args_cli)
@@ -24,7 +25,6 @@ import torch
 
 from spot_vslam.assets.spot import SPOT_CFG
 from spot_vslam.envs.rl_env import ManagerBasedRLEnv
-from spot_vslam.slam.orb_slam_subscriber import OrbSlamSubscriberManager
 from spot_vslam.slam.ros2_manager import Ros2Manager
 from spot_vslam.tasks.slam_test.slam_test_env_cfg import SlamTestEnvCfg as SpotSlamTestEnvCfg
 from spot_vslam.utils import step_obs_info
@@ -60,9 +60,8 @@ def main():
         print("[INFO] The env has no Ros2Manager; creating one.")
         ros2_mgr = Ros2Manager(env_cfg.ros2, base_env)
 
-    # The SLAM subscriber still has to be created and attached here
-    slam_sub_mgr = OrbSlamSubscriberManager(env_cfg.slam_subscriber, base_env)
-    base_env.slam_subscriber_manager = slam_sub_mgr
+    # the env already built its subscriber from cfg.slam_subscriber: a second one would subscribe twice
+    slam_sub_mgr = base_env.slam_subscriber_manager
 
     robot = base_env.scene["robot"]
     stand_joint_pos = robot.data.default_joint_pos.torch.clone()
