@@ -137,7 +137,7 @@ class SlamTestEnvCfg(ManagerBasedRLEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     curriculum = None
 
-    ros2: Ros2ManagerCfg = Ros2ManagerCfg(camera_name="camera", topic_prefix="/spot")
+    ros2: Ros2ManagerCfg = Ros2ManagerCfg(camera_name="camera")
     slam_subscriber: OrbSlamSubscriberCfg = OrbSlamSubscriberCfg()
 
     def __post_init__(self):

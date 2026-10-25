@@ -1,3 +1,5 @@
+// Topic names (prefix, camera/*, orbslam/*) must match spot_vslam/slam/ros2_manager.py (TOPIC_PREFIX, ORB_*_TOPIC).
+//
 // ORB-SLAM3 wrapper for spot_vslam, built twice (CMakeLists.txt):
 //   orbslam3_rgbd_node    RGB-D:  left image + depth
 //   orbslam3_stereo_node  stereo: left + right image of a rectified pair (SPOT_ORBSLAM3_STEREO defined)

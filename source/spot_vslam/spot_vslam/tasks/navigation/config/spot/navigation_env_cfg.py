@@ -151,7 +151,7 @@ class SpotNavigationEnvCfg_PLAY(SpotNavigationEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.ros2 = Ros2ManagerCfg(camera_name="tilted_camera", topic_prefix="/spot")
+        self.ros2 = Ros2ManagerCfg(camera_name="tilted_camera")
         self.scene.num_envs = 1
         self.episode_length_s = 3000 * HL_DT  # one run of the navigation test
         # inside the room (9 m walls and a roof, x -9..9, y -12..18), high in its south-east corner, so that the
@@ -201,7 +201,7 @@ class SpotNavigationEnvCfg_STEREO_PLAY(SpotNavigationEnvCfg_PLAY):
     def __post_init__(self):
         super().__post_init__()
         self.scene.right_camera = SLAM_RIGHT_CAMERA_CFG.replace(update_period=self.scene.tilted_camera.update_period)
-        self.ros2 = Ros2ManagerCfg(camera_name="tilted_camera", right_camera_name="right_camera", topic_prefix="/spot")
+        self.ros2 = Ros2ManagerCfg(camera_name="tilted_camera", right_camera_name="right_camera")
 
 
 @configclass

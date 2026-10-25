@@ -61,7 +61,7 @@ class SpotV0EnvCfg_PLAY(LocomotionEnvCfg_PLAY):
 class SpotV0HighLevelEnvCfg(SpotV0EnvCfg):
     """Low-level env under the v0 SB3 high-level training (``Spot-Vslam-high-level-v0``)."""
 
-    ros2: Ros2ManagerCfg | None = Ros2ManagerCfg(camera_name="tilted_camera", topic_prefix="/spot")
+    ros2: Ros2ManagerCfg | None = Ros2ManagerCfg(camera_name="tilted_camera")
 
     def __post_init__(self):
         super().__post_init__()

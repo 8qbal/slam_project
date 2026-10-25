@@ -10,7 +10,7 @@ import rclpy
 import torch
 from geometry_msgs.msg import PoseStamped, TransformStamped
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
-from sensor_msgs.msg import CameraInfo, Image
+from sensor_msgs.msg import CameraInfo, Image, PointCloud2
 from std_msgs.msg import Empty, Int32
 from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
 
@@ -38,13 +38,23 @@ def numpy_to_imgmsg(array: np.ndarray, encoding: str) -> Image:
     return msg
 
 
+# The ROS 2 contract with ``source/spot_vslam/ros2`` (C++ nodes, launch files) and Nav2: topics are
+# ``<topic_prefix><env index>/<name>``. Every Python user takes the names from here; the C++ node and the launch
+# files cannot import them, so they must match by hand (``prefix`` parameter, ``orbslam/*`` names).
+TOPIC_PREFIX = "/spot"
+ORB_POSE_TOPIC = "orbslam/robot_pose"
+ORB_STATE_TOPIC = "orbslam/tracking_state"
+ORB_LOCAL_PC_TOPIC = "orbslam/local_pc"
+ORB_RESET_TOPIC = "orbslam/reset"
+
+
 @dataclass
 class Ros2ManagerCfg:
     camera_name: str
     right_camera_name: str | None = None
     """Right camera of a stereo pair: also published on ``camera/right/image_raw`` with the left image's stamp (for
     ``orbslam3_stereo_node``)."""
-    topic_prefix: str = "/spot"
+    topic_prefix: str = TOPIC_PREFIX
     frame_id: str = "camera_link"
     base_frame_id: str = "base_link"
     odom_frame_id: str = "odom"
@@ -97,6 +107,7 @@ class Ros2Manager:
         # ORB-SLAM3 subscribers / reset publishers
         self.pose_subs = {}
         self.state_subs = {}
+        self.local_pc_subs = {}
         self.orb_reset_pubs = {}
         self._orb_lock = threading.Lock()
 
@@ -107,6 +118,11 @@ class Ros2Manager:
         # CPU cache written by the ROS callbacks
         self._orb_pose_xyyaw_cpu = np.zeros((self.num_envs, 3), dtype=np.float32)
         self._orb_status_cpu = np.zeros((self.num_envs, 1), dtype=np.float32)
+        # the same messages for ``OrbSlamSubscriberManager``: full pose [x, y, z, qx, qy, qz, qw], raw state, cloud size
+        self._orb_pose7_cpu = np.zeros((self.num_envs, 7), dtype=np.float32)
+        self._orb_pose7_cpu[:, 6] = 1.0
+        self._orb_state_raw_cpu = np.zeros((self.num_envs,), dtype=np.int32)
+        self._orb_pc_count_cpu = np.zeros((self.num_envs,), dtype=np.int32)
 
         # TF frame prefixes, e.g. spot_0, spot_1
         clean_prefix_base = self.cfg.topic_prefix.strip("/")
@@ -140,7 +156,7 @@ class Ros2Manager:
 
             self.orb_reset_pubs[i] = self.node.create_publisher(
                 Empty,
-                f"{prefix}/orbslam/reset",
+                f"{prefix}/{ORB_RESET_TOPIC}",
                 reset_qos_profile,
             )
 
@@ -182,11 +198,11 @@ class Ros2Manager:
         self.tf_static_broadcaster.sendTransform(static_transforms)
 
     def _create_orb_subscribers(self, qos_profile: QoSProfile):
-        """Subscribe to /spot{i}/orbslam/robot_pose and /spot{i}/orbslam/tracking_state for every env."""
+        """Subscribe to ``<prefix><i>/orbslam/robot_pose`` and ``.../tracking_state`` for every env."""
         for i in range(self.num_envs):
             prefix = f"{self.cfg.topic_prefix}{i}"
-            pose_topic = f"{prefix}/orbslam/robot_pose"
-            state_topic = f"{prefix}/orbslam/tracking_state"
+            pose_topic = f"{prefix}/{ORB_POSE_TOPIC}"
+            state_topic = f"{prefix}/{ORB_STATE_TOPIC}"
 
             self.pose_subs[i] = self.node.create_subscription(
                 PoseStamped,
@@ -204,8 +220,33 @@ class Ros2Manager:
 
             self.node.get_logger().info(f"Subscribed ORB topics for env {i}: {pose_topic}, {state_topic}")
 
+    def enable_local_pc(self, qos_profile: QoSProfile | None = None):
+        """Also read ``orbslam/local_pc`` (only its point count). Off by default: the clouds are large and the paper
+        load tables (Tables 7-8) were measured without reading them."""
+        if self.local_pc_subs:
+            return
+        qos_profile = qos_profile or QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE, history=HistoryPolicy.KEEP_LAST, depth=1
+        )
+        for i in range(self.num_envs):
+            self.local_pc_subs[i] = self.node.create_subscription(
+                PointCloud2,
+                f"{self.cfg.topic_prefix}{i}/{ORB_LOCAL_PC_TOPIC}",
+                lambda msg, env_id=i: self._local_pc_callback(msg, env_id),
+                qos_profile,
+            )
+
+    def _local_pc_callback(self, msg: PointCloud2, env_id: int):
+        with self._orb_lock:
+            self._orb_pc_count_cpu[env_id] = len(msg.data) // msg.point_step if msg.point_step > 0 else 0
+
+    def orb_snapshot(self):
+        """Copies of the callback caches: (pose7 (N, 7), raw state (N,), local point count (N,))."""
+        with self._orb_lock:
+            return self._orb_pose7_cpu.copy(), self._orb_state_raw_cpu.copy(), self._orb_pc_count_cpu.copy()
+
     def _pose_callback(self, msg: PoseStamped, env_id: int):
-        """Store /spot{i}/orbslam/robot_pose as [x, y, yaw]."""
+        """Store ``orbslam/robot_pose`` as [x, y, yaw] (and the full pose)."""
         px = float(msg.pose.position.x)
         py = float(msg.pose.position.y)
 
@@ -217,6 +258,7 @@ class Ros2Manager:
         yaw = yaw_from_quat_xyzw((qx, qy, qz, qw))
 
         with self._orb_lock:
+            self._orb_pose7_cpu[env_id] = (px, py, msg.pose.position.z, qx, qy, qz, qw)
             self._orb_pose_xyyaw_cpu[env_id, 0] = px
             self._orb_pose_xyyaw_cpu[env_id, 1] = py
             self._orb_pose_xyyaw_cpu[env_id, 2] = yaw
@@ -226,6 +268,7 @@ class Ros2Manager:
         status = 1.0 if int(msg.data) == 1 else 0.0
 
         with self._orb_lock:
+            self._orb_state_raw_cpu[env_id] = int(msg.data)
             self._orb_status_cpu[env_id, 0] = status
 
     def _sync_orb_results_to_env(self):
@@ -243,7 +286,7 @@ class Ros2Manager:
         }
 
     def publish_orb_reset(self, env_ids=None):
-        """Publish /spot{i}/orbslam/reset to orbslam3_rgbd_node."""
+        """Publish ``orbslam/reset`` to the ORB-SLAM3 nodes."""
         msg = Empty()
 
         if env_ids is None:
@@ -429,6 +472,10 @@ class Ros2Manager:
             for i in env_ids_cpu:
                 self._orb_pose_xyyaw_cpu[i, :] = 0.0
                 self._orb_status_cpu[i, 0] = 0.0
+                self._orb_pose7_cpu[i] = 0.0
+                self._orb_pose7_cpu[i, 6] = 1.0
+                self._orb_state_raw_cpu[i] = 0
+                self._orb_pc_count_cpu[i] = 0
 
         self._sync_orb_results_to_env()
         return {}

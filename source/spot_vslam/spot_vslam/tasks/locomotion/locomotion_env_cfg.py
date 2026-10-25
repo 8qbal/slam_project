@@ -429,7 +429,7 @@ class LocomotionEnvCfg(ManagerBasedRLEnvCfg):
 class LocomotionEnvCfg_PLAY(LocomotionEnvCfg):
     """Few envs, no observation noise, endless episodes, SLAM camera published to ROS 2."""
 
-    ros2: Ros2ManagerCfg | None = Ros2ManagerCfg(camera_name="tilted_camera", topic_prefix="/spot")
+    ros2: Ros2ManagerCfg | None = Ros2ManagerCfg(camera_name="tilted_camera")
 
     def __post_init__(self):
         super().__post_init__()

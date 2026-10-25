@@ -21,6 +21,7 @@ def generate_launch_description():
                 output="screen",
                 parameters=[
                     {
+                        # must match spot_vslam.slam.ros2_manager.TOPIC_PREFIX
                         "prefix": PythonExpression(["'/spot' + '", LaunchConfiguration("robot_index"), "'"]),
                         "use_viewer": LaunchConfiguration("use_viewer"),
                         "settings_out": PythonExpression(
