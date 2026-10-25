@@ -5,6 +5,10 @@ description = "Development environment for the spot_vslam Isaac Lab project."
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "spot_vslam",
+    # open3d 0.20 breaks ScalableTSDFVolume.integrate (fills nothing): keep 0.19.0
+    "open3d==0.19.0",
+    "pandas",
+    "psutil",
     # PyCuVSLAM needs CUDA Toolkit 13 installed. (change depending on the cuda used)
     "cuvslam @ https://github.com/nvidia-isaac/cuVSLAM/releases/download/v17.0.0/cuvslam-17.0.0%2Bcu13-cp312-abi3-manylinux_2_39_x86_64.whl ; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
