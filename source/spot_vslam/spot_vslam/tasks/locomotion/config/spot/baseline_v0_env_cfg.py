@@ -8,6 +8,7 @@ Don't change these: the baseline policies must keep loading.
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
 from isaaclab.assets import AssetBaseCfg
+from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 
@@ -25,6 +26,15 @@ from ...locomotion_env_cfg import (
 
 V0_DEPTH_CAMERA_CFG = DEPTH_CAMERA_CFG.replace(height=48, width=64)
 V0_DEPTH_CAMERA_WITH_RGB_CFG = V0_DEPTH_CAMERA_CFG.replace(data_types=["rgb", "distance_to_image_plane"])
+V0_HEIGHT_SCANNER_CFG = RayCasterCfg(  # unused by the observation; kept so the frozen v0 configs resolve as before
+    prim_path="{ENV_REGEX_NS}/Robot/body",
+    offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+    ray_alignment="yaw",
+    pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
+    debug_vis=False,
+    mesh_prim_paths=["/World/ground"],
+    update_period=0.02,
+)
 V0_SLAM_CAMERA_CFG = SLAM_CAMERA_CFG.replace(spawn=CAMERA_PINHOLE_CFG)  # 10 m far clip, as the v0 tables were measured
 
 
@@ -34,6 +44,7 @@ class SpotV0EnvCfg(LocomotionEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        self.scene.height_scanner = V0_HEIGHT_SCANNER_CFG
         self.scene.train_camera = V0_DEPTH_CAMERA_CFG
         self.scene.tilted_camera = V0_SLAM_CAMERA_CFG
 
@@ -42,6 +53,7 @@ class SpotV0EnvCfg(LocomotionEnvCfg):
 class SpotV0EnvCfg_PLAY(LocomotionEnvCfg_PLAY):
     def __post_init__(self):
         super().__post_init__()
+        self.scene.height_scanner = V0_HEIGHT_SCANNER_CFG
         self.scene.train_camera = V0_DEPTH_CAMERA_WITH_RGB_CFG
 
 

@@ -18,7 +18,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg, ContactSensorCfg, RayCasterCfg, patterns
+from isaaclab.sensors import CameraCfg, ContactSensorCfg, RayCasterCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
@@ -133,14 +133,8 @@ class SpotSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = SPOT_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot", init_state=SPOT_CFG.init_state.replace(pos=(0.0, 2.0, 0.63))
     )
-    height_scanner = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/body",
-        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
-        ray_alignment="yaw",
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
-        debug_vis=False,
-        mesh_prim_paths=["/World/ground"],
-    )
+    height_scanner: RayCasterCfg | None = None
+    """Nothing reads it (the observation has no height scan); only the frozen ``rl_vslam_v0`` configs still set it."""
     contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
@@ -428,7 +422,6 @@ class LocomotionEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.default_visualizer_cfg = VisualizerCfg(eye=(10.5, 10.5, 0.3), lookat=(0.0, 0.0, 0.0))
         # The trained policies were trained with these sensor periods (set from an earlier dt = 0.005 s, decimation 4),
         # not with one step: keep them.
-        self.scene.height_scanner.update_period = 0.02
         self.scene.contact_forces.update_period = 0.005
 
 
