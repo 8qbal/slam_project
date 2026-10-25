@@ -18,9 +18,12 @@ from spot_vslam.slam.ros2_manager import Ros2Manager
 def build_low_level(task: str, checkpoint: str, num_envs: int, seed: int | None = None, ros2: bool = True):
     """Make ``task``'s env wrapped for rl_games and a player restored from ``checkpoint``; returns (env, agent).
 
-    With ``ros2`` (default), a task cfg that sets ``ros2`` gets its ``Ros2Manager`` attached to the env.
+    With ``ros2`` (default), a task cfg that sets ``ros2`` gets its ``Ros2Manager`` attached to the env. Without it
+    (the "RL only" setup) ``cfg.ros2`` is cleared, so the env creates no ``Ros2Manager`` and publishes no images.
     """
     env_cfg = parse_env_cfg(task, device="cuda:0", num_envs=num_envs)
+    if not ros2:
+        env_cfg.ros2 = None
     if seed is not None:
         env_cfg.seed = seed
     agent_cfg = load_cfg_from_registry(task, "rl_games_cfg_entry_point")
