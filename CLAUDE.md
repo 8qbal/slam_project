@@ -182,9 +182,9 @@ changes to be aware of when touching env/asset/manager code:
   raise `AttributeError: 'NoneType' object has no attribute '__dict__'` from
   `ManagerBase._resolve_terms_callback`, even though the docstring says `None` is allowed. Leave `events` at
   its default and give `rewards` an empty `@configclass` instead. `curriculum = None` still works fine.
-- **Known bug (open, docs/ROADMAP.md fixes):** in terrain-generator envs (5×5 tiles × 8 m), robots spawn at tile
-  origins up to ±16 m from center, but the warehouse only spans x∈[-12,12], y∈[-18,20.8] — some envs spawn
-  outside it. The paper map tasks avoid this (one map copy per env); fix it if a terrain-grid task gets an arena.
+- **Terrain grid + arena (no task affected now):** in terrain-generator envs (5×5 tiles × 8 m), robots spawn at tile
+  origins up to ±16 m from center, but the warehouse only spans x∈[-12,12], y∈[-18,20.8]. Map tasks (one map copy per
+  env) and the single-env warehouse tasks (one flat tile) avoid this; shrink the spawn area if a grid task gets an arena.
 
 Verified 2026-10-07 (after the restructure): all task configs load; `Spot-Paper-v0` (353), `Spot-Vslam-Depth-v0`
 (245), `Spot-Paper-high-level-MapB-v0`, `Spot-test180-v0`, `Spot-Nav-MapA-v0` / `-GT-Play-v0` step headless;

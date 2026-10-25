@@ -129,9 +129,13 @@ Goal: shorter perception delay and less CPU than ORB-SLAM3.
 
 Same low level, same high level (condition A), same maps (A, B) and start/goal.
 
-- [ ] SLAM must reset cleanly between episodes. Today `orbslam3_rgbd_node` keeps `have_origin_`/`origin_` after
-      `slam_->Reset()` or a new map, and `Ros2Manager.reset()` has `publish_orb_reset` commented out, so poses jump
-      after a reset. Fix it (or use cuVSLAM) and test in a small setup first.
+- [x] SLAM resets cleanly between episodes (2026-10-25). The C++ node already restarted its map frame on `orbslam/reset`
+      (`have_origin_`); the Python side never sent it (`Ros2Manager.reset()` had it commented out since the first upload), so
+      after an env reset the pose jumped. Now `Ros2Manager.reset()` marks the env: no frame goes out in the reset step (the camera
+      still shows the old view), the reset message goes out with the next fresh frame, and poses / "tracking" states of the old
+      map (before the message, or stamped before it) are dropped. `Spot-Nav-MapA-Play-v0`, 1 env, 3 episodes of 120 steps:
+      SLAM-vs-GT error in the first 15 tracked steps of episodes 2 and 3: 4.2 / 4.6 m before, 0.34 / 0.36 m after. Table 9
+      (`run_navigation_test.sh`) still restarts ORB-SLAM3 for every run; that stays the protocol.
 - [ ] Pose source in `Spot-Nav-*-Play`: GT / ORB-SLAM3 / cuVSLAM / cuVSLAM + IMU (+ Kalman filter if section 3 adds
       one). During GT runs keep SLAM running in the background so the compute load matches.
 - [ ] Measure per pose source: success %, collisions, steps, time (Table 9), pose error (evo), tracking failures,
@@ -175,21 +179,32 @@ Question: can the robot learn to change how it moves when localization becomes u
 - [x] `Spot-test180-v0` uses a generated flat floor (was a missing `default_ground_plane.usda`).
 - [x] The manager-based `Spot-Nav-*` has no zero-command bug (the SB3 wrapper left Isaac Lab's velocity command
       generator running, ~5 % zero commands).
-- [ ] Spawn outside the warehouse in terrain-generator envs (5×5 tiles × 8 m vs. warehouse x −12..12, y −18..20.8).
-      Shrink the spawn area; don't scale the warehouse. Map tasks are not affected.
-- [ ] "RL only" runs still attach `Ros2Manager` and publish images (`rl_vslam_v0`, known limitation 4).
-- [ ] Declare open3d 0.19.0, pandas and psutil in `pyproject.toml` (open3d 0.20 breaks TSDF).
-- [ ] Arena as a parameter (`warehouse` / `none` / USD path) instead of hard-coded `/World/Maze`.
-- [ ] Lighting: dome light 3000 + warehouse lights over-expose the camera; may hurt SLAM features.
+- [x] Spawn outside the warehouse in terrain-generator envs: no task mixes a terrain grid with the warehouse any more
+      (map tasks: one map copy per env; `Spot-Vslam-high-level-Warehouse-Play-v0` and `Spot-test180-v0`: one flat
+      tile, robot at (0, 0)). If a grid task gets an arena, shrink the spawn area; don't scale the warehouse.
+- [x] "RL only" runs (`--no_ros2`) attached `Ros2Manager` anyway, because the task cfg still had `ros2` set: `build_low_level`
+      now clears `cfg.ros2` (2026-10-25). The Tables 7-8 "RL only" rows were measured before this fix.
+- [x] open3d==0.19.0, pandas and psutil declared in `pyproject.toml`, `uv.lock` updated (open3d 0.20 breaks TSDF).
+- [x] Arena as a parameter: already is one for the map tasks (`PAPER_MAPS[...].usd_path` under `{ENV_REGEX_NS}/Maze`; `scene.maze = None`
+      drops it). Only the frozen `rl_vslam_v0` Warehouse task (`/World/Maze`) and `Spot-test180-v0` (`/World/EnvWalls`) name the
+      warehouse directly; left as they are (baseline must resolve unchanged).
+- [x] Lighting measured 2026-10-25 (one SLAM frame after 30 steps): `Spot-test180-v0` (dome 3000) mean grey 162, Map A Play
+      (sky light 750 + warehouse lights) mean 112; 0.0 % pixels at 250 or above in both, 0.0-0.1 % at 10 or below. No clipping, so no
+      change (B / C were trained and evaluated under this light).
 - [x] Map A shows sky in the SLAM camera: not a missing roof (`warehouse.usd` has a roof and 9 m walls facing in);
   the SLAM camera's far clip was 10 m, so the far walls and the roof were cut. SLAM cameras now clip at 100 m
   (`SLAM_PINHOLE_CFG`; rl_vslam_v0 keeps 10 m). Earlier frame checks and replays used the 10 m clip.
-- [ ] Physics presets (PhysX / Newton) via Isaac Lab 3.0 `PresetCfg`. Verify RTX camera, ray casters, contact
-      sensors and ROS 2 under Newton before claiming support.
-- [ ] ROS 2 topic prefixes and frame names are hard-coded in 13 places; keep them only in `Ros2ManagerCfg`.
-- [ ] Two ORB-SLAM3 pose subscribers: `Ros2Manager` (`env.orb_slam_res`) and `OrbSlamSubscriberManager` (slam_test
-      scripts) both subscribe to `orbslam/robot_pose`. Merge into one; the rl_vslam_v0 tables were measured through
-      `Ros2Manager`, so re-check them after.
-- [ ] `scripts/slam/test_nav2_loop.py` defaults to the unregistered task `Spot-test-hybrid`.
-- [ ] Low-level scenes keep a height scanner nothing reads; remove it with the next low-level retrain (it doesn't
-      change the observation).
+- [ ] Physics presets (PhysX / Newton) via Isaac Lab 3.0 `PresetCfg`. Checked 2026-10-25 only: Isaac Lab 3.0 has `isaaclab_newton`
+      (contact sensor, IMU, ray caster `NewtonRaycastSensorCfg`, `NewtonWarpRendererCfg`) and Hydra presets
+      (`physics=newton_mjwarp renderer=newton_renderer`). Not done: every policy was trained on PhysX, so a Newton run needs
+      retraining or a gait check, the RTX SLAM cameras under Newton are unverified, and each env cfg needs its `sim.physics` as a
+      preset. A feature, not a fix: start it with a design note.
+- [x] ROS 2 topic prefixes and names: Python takes them from `slam/ros2_manager.py` (`TOPIC_PREFIX`, `ORB_*_TOPIC`); the explicit
+      `topic_prefix="/spot"` in 5 configs is gone. The C++ node and the launch files cannot import them: comments say they must match.
+- [x] One ORB-SLAM3 pose subscriber (2026-10-25): `Ros2Manager` subscribes (pose, state, optional `local_pc` via
+      `enable_local_pc()`), `OrbSlamSubscriberManager` only copies its caches to the GPU (same buffers). `env.orb_slam_res` is
+      unchanged and `local_pc` is off unless the slam_test subscriber asks, so the rl_vslam_v0 tables need no re-measurement.
+      The `slam/test_*.py` scripts also built a second subscriber and never enabled cameras (Isaac Lab 3.0): both fixed.
+- [x] `scripts/slam/test_nav2_loop.py` / `test_vslam.py`: `--task` is unused (they build `SlamTestEnvCfg`), default now `Spot-test180-v0`.
+- [x] Height scanner removed from the base scene (default `None`); only the frozen `rl_vslam_v0` configs set it. Config diff over all 38
+      tasks: only the scanner block, baseline tasks unchanged.
