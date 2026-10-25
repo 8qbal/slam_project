@@ -91,15 +91,14 @@ with our reward: flat-floor training already failed near Map A's walls.
 - [x] Comparison 2, training: `Spot-Paper-Rough-v0` (`policies/rough`) and `Spot-Paper-Obstacles-v0` (`2026-10-10_07-00-46`
       ep 8000, only in `logs/`) are trained. Not a pure terrain study: the policies come from different reward revisions
       (paper reproduce: before the speed and turn fixes; Obstacles: turn fix; Rough: both), see `docs/low_level_reward.md`.
-- [ ] Comparison 2, evaluation: the cross table in `docs/low_level_reward.md` ("Training-terrain study") is mostly empty.
-      Run `bash scripts/tools/run_terrain_eval.sh` (policies paper / rough / obstacles / WallsSoft on the paper, rough,
-      obstacles and walls terrain, 16 runs, `gait_check.py`) and fill it in.
+- [x] Comparison 2, evaluation (2026-10-26): policies paper / rough / obstacles / WallsSoft on the paper, rough, obstacles
+      and walls terrain, `gait_check.py`: `docs/EVAL_2026-10-26.md` section 1. WallsSoft has 0 resets everywhere; obstacles has 48
+      on its own terrain.
 - [x] Comparison 3, training: `Spot-Paper-WallsSoftNoise-v0` (`policies/walls_soft_noise`): Isaac Lab's Spot joint / IMU
       noise, depth range noise, missing pixels, edge dropout. A variant of WallsSoft (the chosen terrain), not of the best
       of comparison 2.
-- [ ] Comparison 3, evaluation with and without noise: WallsSoft vs. WallsSoftNoise on `Spot-Paper-WallsSoftNoise-v0`,
-      `gait_check.py` with and without `--noise` (last 4 runs of `run_terrain_eval.sh`). Today only the note "tracks
-      well with noise, drifts without" in the table above, no numbers.
+- [x] Comparison 3, evaluation with and without noise (2026-10-26): `docs/EVAL_2026-10-26.md` section 2. Noise did not hurt
+      WallsSoft, and WallsSoftNoise was not better with noise on (one episode per command, a small check).
 - [ ] Pick the low level for everything below. Keep the 353-dim observation so the high-level code still fits, and
       retrain the high level (condition A) on it.
 
@@ -175,7 +174,7 @@ Question: can the robot learn to change how it moves when localization becomes u
         policies/nav_hall_racks/model.pth output/checkpoints/nav_hall_racks_12in.pth --extra 3`, so it behaves as A at
         epoch 7500 and B and C get the same budget.
 - [x] Evaluate A, B, C with the same SLAM system and scenarios (cuVSLAM, 2 evaluation seeds; 1 training seed each, see PAPER_OUTLINE). A vs. B = training with SLAM; B vs. C = quality inputs.
-- [ ] Also evaluate B and C (trained with cuVSLAM) with ORB-SLAM3 poses (`-Play` / `-Stereo-Play`) and with GT poses, no
+- [x] (2026-10-26, B only; C has no quality inputs without cuVSLAM: `docs/EVAL_2026-10-26.md` sections 4-5) Also evaluate B and C (trained with cuVSLAM) with ORB-SLAM3 poses (`-Play` / `-Stereo-Play`) and with GT poses, no
       retraining: does a policy trained on one SLAM carry over to another? ORB-SLAM3 is not used for training: it
       runs as one ROS 2 process for one robot, so it cannot give each of the parallel envs its own tracker.
 

@@ -191,7 +191,7 @@ checkpoints runs on any of the terrains (`gait_check.py --task <task> --checkpoi
 On the paper terrain the depth terms (wall, open space) barely change, because the camera only sees floor. The
 obstacle terrain gives them something to react to.
 
-Results (fill after training; one row per trained policy, one column group per evaluation terrain):
+Results: full cross table in `docs/EVAL_2026-10-26.md` (section 1). Earlier numbers for the obstacles policy:
 
 | Trained on | Eval: paper terrain (speed error, falls) | Eval: rough | Eval: obstacles |
 | --- | --- | --- | --- |
