@@ -31,6 +31,12 @@ parser.add_argument(
     action="store_true",
     help="When no checkpoint provided, use the last saved model. Otherwise use the best saved model.",
 )
+parser.add_argument(
+    "--physics",
+    choices=["physx", "newton"],
+    default="physx",
+    help="Physics engine. 'newton' swaps in Isaac Lab's Spot Newton (MJWarp) settings; policies were trained on PhysX.",
+)
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 parser.add_argument(
     "--cameras",
@@ -53,6 +59,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
+import copy
 import math
 import os
 import time
@@ -84,6 +91,12 @@ def main():
         args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
     agent_cfg = load_cfg_from_registry(args_cli.task, "rl_games_cfg_entry_point")
+    if args_cli.physics == "newton":
+        # Same Newton settings as Isaac Lab's velocity (Spot) tasks; dt and decimation stay as in our task cfg.
+        from isaaclab_tasks.core.velocity.velocity_env_cfg import RoughPhysicsCfg
+
+        env_cfg.sim.physics = copy.deepcopy(RoughPhysicsCfg().newton_mjwarp)
+        print("[INFO] Physics: Newton (MJWarp)")
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rl_games", agent_cfg["params"]["config"]["name"])
