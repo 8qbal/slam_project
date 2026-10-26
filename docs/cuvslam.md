@@ -204,3 +204,19 @@ The sky is gone and ORB-SLAM3 no longer loses tracking on the short drive (0.74 
 keeps one map but drifts sideways by up to 6-8 m between x = 7 and 15 m (start frame), then comes back near the goal;
 cuVSLAM stays within 1.1 m. The drive is a P-controller on GT (`--to_goal`), not the high-level policy (none is trained
 on the new low level yet), so both systems see the same path.
+
+## Dataset (2026-10-26)
+
+`scripts/slam/record_dataset.sh` drives the robot to the goal with a fixed policy and records a rosbag (output in
+`output/datasets/<name>/`, git-ignored). Two bags exist: `mapA_stereo` (536 frames) and `mapB_stereo` (1524 frames,
+245 s, 885 MiB).
+
+- Topics: `/spot0/camera/{image_raw,right/image_raw,depth,camera_info}`, `/tf` (GT pose in the world frame), `/tf_static`.
+  No IMU yet.
+- Storage: mcap with zstd file compression. Read it with `SequentialCompressionReader` (the plain `SequentialReader`
+  fails with "invalid magic bytes").
+- `gt.tum` / `gt.txt` next to the bag: GT pose per frame. `bag_info.txt`: `ros2 bag info`.
+- Header stamps are 33.3 ms apart per published frame, not sim time (one policy step is 80 ms). Fix this before using
+  the bag for IMU work.
+- Replay check: the Map A bag played into `orbslam3_stereo_node` gave 424 poses and 100 % tracking.
+

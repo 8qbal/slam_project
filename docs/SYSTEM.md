@@ -15,10 +15,16 @@ flowchart LR
     R2[Ros2Manager]
     ORB[orbslam3_rgbd_node<br/>ORB-SLAM3 RGB-D]
     TSDF[DenseMapManager<br/>TSDF, open3d]
+    CV[CuVslamManager<br/>cuVSLAM stereo, in process]
+    ORBS[orbslam3_stereo_node<br/>ORB-SLAM3 stereo]
 
     RC --> R2 -- "/spot0/camera/image_raw, depth, camera_info" --> ORB
     ORB -- "/spot0/orbslam/robot_pose, tracking_state" --> R2
     R2 -- "env.orb_slam_res (SLAM pose)" --> HL
+    RC -. "stereo pair (Stereo / cuVSLAM tasks)" .-> CV
+    CV -- "env.slam_res (pose + quality signals)" --> HL
+    R2 -. "/spot0/camera/right/image_raw" .-> ORBS
+    ORBS -. "robot_pose, tracking_state, orbslam/reset" .- R2
     GT -. "training: GT + noise" .-> HL
     HL -- "vx, wz command (EMA)" --> LL
     DC --> LL

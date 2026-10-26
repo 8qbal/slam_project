@@ -107,7 +107,7 @@ with our reward: flat-floor training already failed near Map A's walls.
 
 Goal: shorter perception delay and less CPU than ORB-SLAM3.
 
-- [ ] Record one sensor dataset (rosbag: RGB, depth, stereo pair if used, IMU, GT pose) from a fixed policy run.
+- [x] Sensor dataset recorded (2026-10-26, `scripts/slam/record_dataset.sh`, Map A and B, see `docs/cuvslam.md` "Dataset"): RGB, right image, depth, GT pose. No IMU yet (next item), stamps are not sim time.
 - [x] cuVSLAM wrapper written (`slam/cuvslam_manager.py`, design in `docs/cuvslam.md`): in-process, RGB-D like
       ORB-SLAM3, loop closure on, one tracker per env, pose + tracking state + feature count + track time.
       Tasks `Spot-Nav-Map{A,B}-cuVSLAM-Play-v0`.
