@@ -99,8 +99,9 @@ with our reward: flat-floor training already failed near Map A's walls.
       of comparison 2.
 - [x] Comparison 3, evaluation with and without noise (2026-10-26): `docs/EVAL_2026-10-26.md` section 2. Noise did not hurt
       WallsSoft, and WallsSoftNoise was not better with noise on (one episode per command, a small check).
-- [ ] Pick the low level for everything below. Keep the 353-dim observation so the high-level code still fits, and
-      retrain the high level (condition A) on it.
+- [x] Pick the low level for everything below (checked 2026-10-26): `walls_soft_mirror_turn` (`LOW_LEVEL_TASK`), 353-dim
+      observation kept; high level `nav_hall_racks` (condition A) trained on it. The training run does not record the low-level
+      checkpoint (env var), so "trained on it" rests on the README and the dates.
 
 ## 2. cuVSLAM and the SLAM benchmark (proposal items 1, 2; paper comparison 4)
 
@@ -152,13 +153,13 @@ Same low level, same high level (condition A), same maps (A, B) and start/goal.
 
 Question: can the robot learn to change how it moves when localization becomes unreliable?
 
-- [ ] Define each quality signal carefully: tracking state (cuVSLAM `track()` valid/lost), number of tracked
+- [x] Define each quality signal carefully: tracking state (cuVSLAM `track()` valid/lost), number of tracked
       features, and what each one does and doesn't tell us (a returned pose is not always healthy tracking; feature
       count alone is not a confidence measure).
-- [ ] Tracking-quality observation terms in `tasks/navigation/mdp/observations.py`.
-- [ ] Many envs with SLAM in the loop need one tracker per env (easier with in-process cuVSLAM).
-- [ ] Train three high-level policies with the same low level, task, reward and budget:
-  - [ ] A: GT pose, no quality inputs (section 1's retrained high level).
+- [x] Tracking-quality observation terms in `tasks/navigation/mdp/observations.py`.
+- [x] Many envs with SLAM in the loop need one tracker per env (easier with in-process cuVSLAM).
+- [x] Train three high-level policies with the same low level, task, reward and budget:
+  - [x] A: GT pose, no quality inputs (section 1's retrained high level): `policies/nav_hall_racks`, control `ctrl_A` with B/C's budget (`docs/PAPER_OUTLINE.md`).
   - [x] B (done 2026-10-21, results in `docs/PAPER_OUTLINE.md` "A / B / C, final"): SLAM pose, no quality inputs (`pose_source="slam"`, with cuVSLAM). Task `Spot-Nav-HallRacks-cuVSLAM-v0`
         (2026-10-20): HallRacks worlds, one cuVSLAM stereo tracker per env (16), fine-tuned from `policies/nav_hall_racks`
         (epoch 7500). Smoke test: 5 epochs run, 62 fps (about 18 s per epoch, 2.4x slower than without SLAM), reward
