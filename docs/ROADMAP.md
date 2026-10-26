@@ -207,6 +207,13 @@ Question: can the robot learn to change how it moves when localization becomes u
       (`physics=newton_mjwarp renderer=newton_renderer`). Not done: every policy was trained on PhysX, so a Newton run needs
       retraining or a gait check, the RTX SLAM cameras under Newton are unverified, and each env cfg needs its `sim.physics` as a
       preset. A feature, not a fix: start it with a design note.
+      Gait check 2026-10-26 (`play.py --physics newton`, `Spot-Paper-Play-v0`, `walls_soft_mirror_turn`, 4 envs, 250 steps):
+      PhysX 0 body / 0 leg-contact terminations; Newton (Isaac Lab's Spot-velocity MJWarp settings) about 120 / 125, the robot
+      collapses in the first steps. Newton `num_substeps=4`, stiffer contacts (`ke=1e6`, `kd=1e4`), elliptic cone and
+      MuJoCo contacts did not help (105-143). Zero actions (hold default pose) are similar on both (Newton 6 / 27, PhysX 8 / 45),
+      so the model, actuators and joints are fine: the PhysX-trained gait does not transfer. The depth camera and ROS 2 run under
+      Newton (image quality not checked). Next: fine-tune from this policy on Newton, which needs `sim.physics` as a preset in
+      the training cfg (`locomotion_env_cfg.py:419`).
 - [x] ROS 2 topic prefixes and names: Python takes them from `slam/ros2_manager.py` (`TOPIC_PREFIX`, `ORB_*_TOPIC`); the explicit
       `topic_prefix="/spot"` in 5 configs is gone. The C++ node and the launch files cannot import them: comments say they must match.
 - [x] One ORB-SLAM3 pose subscriber (2026-10-25): `Ros2Manager` subscribes (pose, state, optional `local_pc` via
