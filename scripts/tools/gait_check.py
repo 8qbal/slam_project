@@ -2,8 +2,6 @@
 rate, foot lift, body motion and the per-term reward (docs/low_level_reward.md). No training, no ROS 2.
 
     python scripts/tools/gait_check.py --task Spot-Paper-v0 --checkpoint <low-level .pth>
-    python scripts/tools/gait_check.py --task Spot-Vslam-Depth-v0 \
-        --checkpoint baselines/rl_vslam_v0/policies/low_level/spot_rough_ppo.pth
 
 Envs 0-7 get fixed commands (CMDS / WZ; --turns: a left / right turn sweep on 24 envs); the first 50 steps (2 s)
 are skipped. "trot" = diagonal pairs in contact together and opposite to the other pair, "4-down" = all feet on the

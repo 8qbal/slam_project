@@ -115,7 +115,7 @@ uv run --no-sync python scripts/slam/test_vslam.py                          # OR
 ros2 launch source/spot_vslam/launch/start_nav2_slam.launch.py              # Nav2
 
 
-5. OLD SB3 HIGH LEVEL (the paper-version checkpoint and the rl_vslam_v0 baseline)
+5. OLD SB3 HIGH LEVEL (the paper-version checkpoint)
 ------------------------------------------------------------------------------
 uv run --no-sync python scripts/high_level/train_high_level_ppo.py --paper --task Spot-Paper-high-level-MapA-v0 \
   --low_level_task Spot-Paper-high-level-MapA-v0 --checkpoint <low-level .pth>

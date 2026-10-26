@@ -18,7 +18,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg, ContactSensorCfg, RayCasterCfg
+from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
@@ -133,8 +133,6 @@ class SpotSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = SPOT_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot", init_state=SPOT_CFG.init_state.replace(pos=(0.0, 2.0, 0.63))
     )
-    height_scanner: RayCasterCfg | None = None
-    """Nothing reads it (the observation has no height scan); only the frozen ``rl_vslam_v0`` configs still set it."""
     contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
@@ -270,7 +268,7 @@ class EventCfg:
 
 @configclass
 class RewardsCfg:
-    """Isaac Lab's Spot locomotion rewards plus two depth terms (the rl_vslam_v0 reward)."""
+    """Isaac Lab's Spot locomotion rewards plus two depth terms (``visual_wall_penalty``, ``open_space_seeker``)."""
 
     # -- task
     air_time = RewTerm(

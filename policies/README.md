@@ -2,7 +2,7 @@
 
 Final checkpoints of the paper-version policies, copied from the git-ignored `logs/rl_games/spot_paper_ppo/<run>/`
 (and `output/checkpoints/`) so a fresh clone can play and evaluate them. Intermediate checkpoints stay in `logs/`.
-The `rl_vslam_v0` policies are in `baselines/rl_vslam_v0/policies/`. Policy roles: `docs/ROADMAP.md` section 1.
+The `rl_vslam_v0` policies were removed on 2026-10-26 (commit `ea31fd0`, tag `baseline/rl-vslam-v0`). Policy roles: `docs/ROADMAP.md` section 1.
 
 | Folder | Policy | Task | Source run, epoch |
 | --- | --- | --- | --- |

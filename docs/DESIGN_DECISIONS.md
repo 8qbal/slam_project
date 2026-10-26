@@ -51,7 +51,7 @@ guess are listed again at the end. Outline of the paper: `docs/PAPER_OUTLINE.md`
 | Decision | Why |
 | --- | --- |
 | Task ids of trained policies never change | A checkpoint must keep loading under its task id |
-| `rl_vslam_v0` frozen (tag `baseline/rl-vslam-v0`) | The old results (245-dim low level, 11-dim high level) stay reproducible; new work never breaks them |
+| `rl_vslam_v0` removed (2026-10-26; commit `ea31fd0`, tag `baseline/rl-vslam-v0`) | It was frozen to keep the old results reproducible; the paper compares against the numbers of the original paper, and the frozen code held back the shared base config |
 | New variants are new classes and task ids, not edits | Same reason; every kept task's resolved config was compared before and after refactors |
 | Final checkpoints copied into `policies/` with SHA-256 | A fresh clone can evaluate without the git-ignored `logs/` |
 | Paths from `$ISAACSIM_ASSET_ROOT` and `$SPOT_VSLAM_LOW_LEVEL_CKPT`, never hardcoded | The repo is used on more than one machine |

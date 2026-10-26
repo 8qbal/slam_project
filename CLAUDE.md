@@ -20,12 +20,11 @@ The project reproduces `references/main.pdf` (Li & Jeong, IJCAS 2026); `referenc
 code. The original author repo (github.com/BernieMHao/slam_project) has no USD files, and its code is an earlier
 version than the paper (no goal in the high level, 245-dim low-level obs).
 
-Two policy sets exist side by side. Never change one in a way that breaks the other:
+The earlier `rl_vslam_v0` policy set (245-dim low level, 11-dim high level without a goal, tasks `Spot-Vslam-*`) was
+removed on 2026-10-26. Its code is in commit `ea31fd0` (git tag `baseline/rl-vslam-v0`, a local tag; the commit is in
+origin/main); its measured results are archived outside the repo (`~/archive/rl_vslam_v0`).
 
-- **`rl_vslam_v0`** (baseline, git tag `baseline/rl-vslam-v0`, files in `baselines/rl_vslam_v0/`): the old tasks
-  (`Spot-Vslam-Depth-v0`, `Spot-Vslam-high-level-*`, config `locomotion/config/spot/baseline_v0_env_cfg.py`),
-  245-dim low-level obs, 11-dim SB3 high level with no goal (`legacy/high_level/high_level_vec_env.py`).
-- **Paper version**: low level `Spot-Paper-*` (`locomotion/config/spot/paper_env_cfg.py`): 353-dim obs (80x60
+The paper version is what the repo holds: low level `Spot-Paper-*` (`locomotion/config/spot/paper_env_cfg.py`): 353-dim obs (80x60
   depth), Table 3 reward weights on Isaac Lab's Spot reward functions plus the Eq. 5 wall term, PPO settings of
   Isaac Lab's Spot (no action clipping; the literal Eqs. 2-6 made the policy trot in place, see
   `docs/low_level_reward.md`). High level: 9-dim obs with goal (Table 5), [256, 128] ELU, Table 6
@@ -66,7 +65,7 @@ python scripts/rl_games/play.py  --task Spot-Paper-Play-v0 --cameras --checkpoin
 SPOT_VSLAM_LOW_LEVEL_CKPT=policies/walls_soft_mirror_turn/model.pth python scripts/rl_games/train.py --task Spot-Nav-MapA-v0 --cameras
 python scripts/rl_games/play.py --task Spot-Nav-MapA-GT-Play-v0 --cameras --checkpoint <high-level .pth> --viz kit
 
-# SB3 high level (rl_vslam_v0 and the current paper high-level checkpoint)
+# SB3 high level (the paper high-level checkpoint)
 python scripts/high_level/train_high_level_ppo.py --paper --task Spot-Paper-high-level-MapA-v0 \
   --low_level_task Spot-Paper-high-level-MapA-v0 --checkpoint logs/rl_games/spot_paper_ppo/<run>/nn/spot_paper_ppo.pth
 python scripts/slam/test_vslam.py
@@ -108,7 +107,6 @@ scripts/           README.md = run commands
   tools/           paper tables (run_navigation_test.sh, run_system_load_test.sh, summarize_system_load.py), GIF
   legacy/          old scripts nothing calls
 output/            git-ignored run outputs: checkpoints/high_level{,_paper}, tensorboard/, dense_map/, test results
-baselines/         frozen policy snapshots + results (rl_vslam_v0)
 policies/          final paper-version checkpoints (low levels, SB3 high level) + their yaml; README has sources
 references/        the paper (main.pdf), its bibliography, and paper-vs-code notes
 source/spot_vslam/
@@ -121,10 +119,10 @@ source/spot_vslam/
     slam/          Ros2Manager, OrbSlamSubscriberManager, DenseMapManager (TSDF)
     tasks/         Isaac Lab layout: <task>/<task>_env_cfg.py (shared MDP), <task>/mdp/ (own terms, re-exports
                    isaaclab.envs.mdp), <task>/config/spot/ (variants, gym.register, agents/*.yaml)
-      locomotion/  low level. config/spot/paper_env_cfg.py (353-dim), baseline_v0_env_cfg.py (245-dim, frozen)
+      locomotion/  low level. config/spot/paper_env_cfg.py (353-dim)
       navigation/  high level, manager-based. mdp/actions.py runs the frozen low level (rl_games .pth)
       slam_test/   SLAM test env
-    legacy/        high_level/: SB3 wrappers (high_level_vec_env.py, paper_vec_env.py) for existing checkpoints,
+    legacy/        high_level/: SB3 wrappers (high_level_vec_env.py = base class, paper_vec_env.py) for existing checkpoints,
                    low_level_runner.py (frozen rl_games low level for the SB3 scripts)
     utils.py       shared helpers (yaw_from_quat_xyzw, step_obs_info)
 ```
@@ -140,7 +138,7 @@ right after the command manager and before interval events/observations:
 
 Task configs that don't set `ros2`/`slam_subscriber` run as plain locomotion envs; the ROS 2 machinery only
 activates when a task config opts in (the `_PLAY` / `-Play-v0` configs set `ros2`). Scripts must not create a second
-`Ros2Manager`; `scripts/high_level/load_high_level.py` still does (the rl_vslam_v0 tables were measured that way).
+`Ros2Manager`; `scripts/high_level/load_high_level.py` still does.
 
 `Ros2Manager` builds ROS 2 image messages itself via `numpy_to_imgmsg()` (in `slam/ros2_manager.py`) instead
 of `cv_bridge`: the ROS 2 Jazzy `cv_bridge` binary is built against NumPy 1.x and segfaults under the NumPy 2.x
@@ -160,8 +158,6 @@ via `import_packages`). Task ids of trained policies never change.
 | `Spot-Paper-high-level-Map{A,B}-v0` / `-Play-v0` | same; low-level env under the SB3 high level |
 | `Spot-Nav-Map{A,B}-v0` / `-Play-v0` / `-Stereo-Play-v0` / `-cuVSLAM-Play-v0` / `-GT-Play-v0` | `navigation/config/spot/navigation_env_cfg.py` (train: GT pose; Play: ORB-SLAM3 RGB-D; Stereo-Play: ORB-SLAM3 stereo; cuVSLAM-Play: cuVSLAM stereo; GT-Play: GT pose, no ROS 2). Play tasks start at the map start facing the goal |
 | `Spot-Nav-Maze-v0` | same file, `SpotNavigationMazeEnvCfg`: training on 64 random 21 m mazes (`navigation/mdp/maze.py`), random start and goal (6-14 m) at every reset, so Map A / B are unseen at evaluation. Map A / B training only measures memorisation |
-| `Spot-Vslam-Depth-v0` / `-Play-v0` | `locomotion/config/spot/baseline_v0_env_cfg.py` (rl_vslam_v0 low level) |
-| `Spot-Vslam-high-level-v0` / `-Play-v0` / `-Warehouse-Play-v0` | same (rl_vslam_v0 SB3 high level; Warehouse = Map A, spawn (0, 0)) |
 | `Spot-test180-v0` | `slam_test/slam_test_env_cfg.py` |
 
 ### Isaac Lab 3.0 migration notes
@@ -186,6 +182,6 @@ changes to be aware of when touching env/asset/manager code:
   origins up to ±16 m from center, but the warehouse only spans x∈[-12,12], y∈[-18,20.8]. Map tasks (one map copy per
   env) and the single-env warehouse tasks (one flat tile) avoid this; shrink the spawn area if a grid task gets an arena.
 
-Verified 2026-10-07 (after the restructure): all task configs load; `Spot-Paper-v0` (353), `Spot-Vslam-Depth-v0`
-(245), `Spot-Paper-high-level-MapB-v0`, `Spot-test180-v0`, `Spot-Nav-MapA-v0` / `-GT-Play-v0` step headless;
+Verified 2026-10-07 (after the restructure): all task configs load; `Spot-Paper-v0` (353),
+`Spot-Paper-high-level-MapB-v0`, `Spot-test180-v0`, `Spot-Nav-MapA-v0` / `-GT-Play-v0` step headless;
 `Spot-Nav-MapA-v0` trains (~100 FPS, 16 envs) and plays; the SB3 `load_high_level.py --paper` path runs.

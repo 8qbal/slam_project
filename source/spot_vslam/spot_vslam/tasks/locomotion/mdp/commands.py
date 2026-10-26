@@ -5,7 +5,7 @@ from collections.abc import Sequence
 import torch
 
 from isaaclab.envs.mdp import UniformVelocityCommand, UniformVelocityCommandCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 __all__ = ["TurnInPlaceVelocityCommand", "TurnInPlaceVelocityCommandCfg"]
 

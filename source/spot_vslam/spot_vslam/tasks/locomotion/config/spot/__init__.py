@@ -42,16 +42,3 @@ _register("Spot-Paper-high-level-MapA-v0", "paper_env_cfg:SpotPaperHighLevelEnvC
 _register("Spot-Paper-high-level-MapA-Play-v0", "paper_env_cfg:SpotPaperHighLevelEnvCfg_PLAY", PAPER_AGENT)
 _register("Spot-Paper-high-level-MapB-v0", "paper_env_cfg:SpotPaperHighLevelEnvCfg_MAP_B", PAPER_AGENT)
 _register("Spot-Paper-high-level-MapB-Play-v0", "paper_env_cfg:SpotPaperHighLevelEnvCfg_MAP_B_PLAY", PAPER_AGENT)
-
-##
-# rl_vslam_v0 baseline: 245-dim observation
-##
-
-V0_AGENT = "rl_games_baseline_v0_ppo_cfg.yaml"
-_register("Spot-Vslam-Depth-v0", "baseline_v0_env_cfg:SpotV0EnvCfg", V0_AGENT)
-_register("Spot-Vslam-Depth-Play-v0", "baseline_v0_env_cfg:SpotV0EnvCfg_PLAY", V0_AGENT)
-_register("Spot-Vslam-high-level-v0", "baseline_v0_env_cfg:SpotV0HighLevelEnvCfg", V0_AGENT)
-_register("Spot-Vslam-high-level-Play-v0", "baseline_v0_env_cfg:SpotV0HighLevelEnvCfg_PLAY", V0_AGENT)
-_register(
-    "Spot-Vslam-high-level-Warehouse-Play-v0", "baseline_v0_env_cfg:SpotV0HighLevelEnvCfg_PLAY_WAREHOUSE", V0_AGENT
-)

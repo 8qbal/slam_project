@@ -4,8 +4,8 @@ What to build next, in rough order. Tick items off as they land. Each bigger ite
 start it. Background: our proposal (cuVSLAM, SLAM benchmark, Kalman filter, depth noise, tracking signals in the
 high-level observation, goal observation, hopping gait) and the advisor's feedback on it.
 
-**The baseline is done.** `rl_vslam_v0` is frozen (`baselines/rl_vslam_v0/`, tag `baseline/rl-vslam-v0`); keep it
-runnable, but don't build on it. All new work trains with the paper policies and rewards in this repo (see
+**The baseline is done and removed** (2026-10-26): `rl_vslam_v0` code is in commit `ea31fd0` (tag
+`baseline/rl-vslam-v0`), its results archived outside the repo. All new work trains with the paper policies and rewards in this repo (see
 `docs/SYSTEM.md`):
 
 | | Task | Policy | Reward |
@@ -33,7 +33,7 @@ Proposal items → sections: 1 cuVSLAM → 2; 2 benchmark (evo) → 2; 3 Kalman 
 
 ## 0. Baseline, up to E0 (done)
 
-- [x] Code, settings and trained policies saved: `baselines/rl_vslam_v0/`, tag `baseline/rl-vslam-v0`.
+- [x] Code, settings and trained policies saved (tag `baseline/rl-vslam-v0`, commit `ea31fd0`); removed from the repo on 2026-10-26.
 - [x] System diagram and each policy's inputs/outputs: `docs/SYSTEM.md` (keep it up to date).
 - [x] Goal information in the high level (proposal item 6): the paper high level gets goal dx, dy and heading error,
       one fixed start/goal per map (`assets/maps.py`), reward for progress toward the goal. This is a task change
@@ -77,7 +77,7 @@ comes first. Details and result tables: `docs/low_level_reward.md`.
 | WallsSoft + mirror loss | WallsSoft reward, PPO with a left-right mirror loss (Mittal et al. 2024) | `Spot-Paper-WallsSoftMirror-v0`, WallsSoft ep 14000 → `2026-10-16_15-41-52` ep 18000 → `2026-10-16_19-10-05` ep 21000 → `policies/walls_soft_mirror/` | done: limp gone (feet 48-53 % down), reward ~195; turning in place weak (rarely commanded in training) |
 | Mirror + turn in place | WallsSoftMirror with 20 % turn-in-place commands (vx = 0, \|wz\| 0.1-0.4; `mdp.TurnInPlaceVelocityCommandCfg`) | `Spot-Paper-WallsSoftMirrorTurn-v0`, fine-tuned from `policies/walls_soft_mirror` ep 21000 → `2026-10-16_23-38-11` ep 24000 → `policies/walls_soft_mirror_turn/` | done: turns in place (0.4 → 0.3-0.6), no limp; 0.2 turns weak, some envs stuck on obstacles. Now the navigation low level (`LOW_LEVEL_TASK`); high level to retrain |
 
-`rl_vslam_v0` stays in the repo but is not used in our paper: the baseline is the numbers reported in the original
+`rl_vslam_v0` was removed from the repo (2026-10-26) and is not used in our paper: the baseline is the numbers reported in the original
 paper (a rerun here would differ anyway), and the high level is retrained on the chosen low level.
 
 Main comparison: `paper-isaaclab-reward-reproduce` vs. WallsSoft (reward and terrain changes as one package). The paper terrain is not retrained
@@ -188,14 +188,14 @@ Question: can the robot learn to change how it moves when localization becomes u
 - [x] The manager-based `Spot-Nav-*` has no zero-command bug (the SB3 wrapper left Isaac Lab's velocity command
       generator running, ~5 % zero commands).
 - [x] Spawn outside the warehouse in terrain-generator envs: no task mixes a terrain grid with the warehouse any more
-      (map tasks: one map copy per env; `Spot-Vslam-high-level-Warehouse-Play-v0` and `Spot-test180-v0`: one flat
+      (map tasks: one map copy per env; `Spot-test180-v0`: one flat
       tile, robot at (0, 0)). If a grid task gets an arena, shrink the spawn area; don't scale the warehouse.
 - [x] "RL only" runs (`--no_ros2`) attached `Ros2Manager` anyway, because the task cfg still had `ros2` set: `build_low_level`
       now clears `cfg.ros2` (2026-10-25). The Tables 7-8 "RL only" rows were measured before this fix.
 - [x] open3d==0.19.0, pandas and psutil declared in `pyproject.toml`, `uv.lock` updated (open3d 0.20 breaks TSDF).
 - [x] Arena as a parameter: already is one for the map tasks (`PAPER_MAPS[...].usd_path` under `{ENV_REGEX_NS}/Maze`; `scene.maze = None`
-      drops it). Only the frozen `rl_vslam_v0` Warehouse task (`/World/Maze`) and `Spot-test180-v0` (`/World/EnvWalls`) name the
-      warehouse directly; left as they are (baseline must resolve unchanged).
+      drops it). Only `Spot-test180-v0` (`/World/EnvWalls`) names the
+      warehouse directly; left as it is.
 - [x] Lighting measured 2026-10-25 (one SLAM frame after 30 steps): `Spot-test180-v0` (dome 3000) mean grey 162, Map A Play
       (sky light 750 + warehouse lights) mean 112; 0.0 % pixels at 250 or above in both, 0.0-0.1 % at 10 or below. No clipping, so no
       change (B / C were trained and evaluated under this light).
@@ -214,5 +214,4 @@ Question: can the robot learn to change how it moves when localization becomes u
       unchanged and `local_pc` is off unless the slam_test subscriber asks, so the rl_vslam_v0 tables need no re-measurement.
       The `slam/test_*.py` scripts also built a second subscriber and never enabled cameras (Isaac Lab 3.0): both fixed.
 - [x] `scripts/slam/test_nav2_loop.py` / `test_vslam.py`: `--task` is unused (they build `SlamTestEnvCfg`), default now `Spot-test180-v0`.
-- [x] Height scanner removed from the base scene (default `None`); only the frozen `rl_vslam_v0` configs set it. Config diff over all 38
-      tasks: only the scanner block, baseline tasks unchanged.
+- [x] Height scanner removed from the base scene (default `None`); the `rl_vslam_v0` configs that set it were removed on 2026-10-26.

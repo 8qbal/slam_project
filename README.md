@@ -35,7 +35,6 @@ goal (known exactly)        depth image 80x60
   against pose error and can be fed to the policy (condition C below).
 - **Procedural training worlds.** Random mazes and halls with doorways, shelves and open racks, built from terrain
   tiles, so Maps A and B are never trained on.
-- **A frozen baseline.** The earlier `rl_vslam_v0` policy set stays reproducible (git tag `baseline/rl-vslam-v0`).
 
 ## Getting Started
 
@@ -90,7 +89,7 @@ Sim fits on a 15 GB machine at a time. All commands for training, evaluation and
 | `Spot-Nav-Map{A,B}-GT-Play-v0` / `-cuVSLAM-Play-v0` / `-Play-v0` / `-Stereo-Play-v0` | Evaluation on Map A or B with GT, cuVSLAM, ORB-SLAM3 RGB-D, ORB-SLAM3 stereo |
 | `Spot-Nav-Map{A,B}-cuVSLAM-Quality-Play-v0` | Evaluation of condition C |
 | `Spot-Nav-Maze-v0`, `Spot-Nav-Hall-v0` | Earlier high-level training worlds |
-| `Spot-Vslam-*`, `Spot-Paper-high-level-*` | `rl_vslam_v0` baseline and the SB3 high level |
+| `Spot-Paper-high-level-*` | The SB3 high level |
 | `Spot-test180-v0` | SLAM test env |
 
 Task ids of trained policies never change. Config files are under `source/spot_vslam/spot_vslam/tasks/`.
@@ -119,7 +118,6 @@ caveats: [`docs/PAPER_OUTLINE.md`](docs/PAPER_OUTLINE.md).
 docs/              system, roadmap, design decisions, paper outline, measurements
 scripts/           rl_games/ (train, play), tools/ (evaluation, analysis), slam/ (SLAM tests), high_level/ (SB3), legacy/
 policies/          final checkpoints with their yaml and SHA-256
-baselines/         frozen rl_vslam_v0 policies and results
 references/        the paper, its bibliography, paper-vs-code notes
 output/ logs/      git-ignored run outputs and training logs
 source/spot_vslam/

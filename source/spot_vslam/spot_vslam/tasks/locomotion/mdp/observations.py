@@ -22,7 +22,7 @@ def _get_clean_depth(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torc
 def camera_depth_obs(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """Depth image average-pooled 4x4 and flattened, normalized to [-1, 1].
 
-    60x80 -> 15x20 = 300 dims (paper); 48x64 -> 12x16 = 192 dims (rl_vslam_v0).
+    60x80 -> 15x20 = 300 dims (paper).
     """
     return _pooled_depth(_get_clean_depth(env, sensor_cfg))
 
@@ -36,7 +36,7 @@ def _pooled_depth(depth: torch.Tensor) -> torch.Tensor:
 def camera_depth_stats(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """5 depth summaries: left / center / right mean, front minimum, left-right balance.
 
-    The regions are written for a 60x80 image (on 48x64 they are silently cropped, as in rl_vslam_v0).
+    The regions are written for a 60x80 image.
     """
     return _depth_stats(_get_clean_depth(env, sensor_cfg))
 

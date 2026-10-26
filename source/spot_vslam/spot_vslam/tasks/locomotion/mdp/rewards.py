@@ -1,6 +1,6 @@
 """Reward terms of the low-level policy.
 
-``visual_wall_penalty`` and ``open_space_seeker_reward`` are the depth terms of the rl_vslam_v0 policy; the other
+``visual_wall_penalty`` and ``open_space_seeker_reward`` are the depth terms of the low-level policy; the other
 locomotion terms of both policies are Isaac Lab's Spot rewards. ``wall_min_depth`` is the paper's wall term
 (references/main.pdf Sec. 5.1, Eq. 5).
 
@@ -26,7 +26,7 @@ __all__ = [
 ]
 
 
-# -- rl_vslam_v0 depth terms
+# -- depth terms
 
 
 def visual_wall_penalty(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, safe_distance: float) -> torch.Tensor:

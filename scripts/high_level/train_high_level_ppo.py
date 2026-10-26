@@ -33,10 +33,6 @@ from isaaclab_tasks.utils import get_checkpoint_path, load_cfg_from_registry
 
 import spot_vslam.tasks  # noqa: F401
 from spot_vslam.assets import PAPER_MAPS
-from spot_vslam.legacy.high_level.high_level_vec_env import (
-    HighLevelEnvCfg,
-    HighLevelIsaacVecEnv,
-)
 from spot_vslam.legacy.high_level.low_level_runner import build_low_level as build_low_level_policy
 from spot_vslam.legacy.high_level.paper_vec_env import PaperHighLevelEnvCfg, PaperHighLevelIsaacVecEnv
 
@@ -97,29 +93,19 @@ def build_low_level():
 
 
 def main():
+    if not args_cli.paper:
+        raise SystemExit(
+            "rl_vslam_v0 (the non-paper high level) was removed: add --paper (old code: git tag baseline/rl-vslam-v0)"
+        )
     low_env, low_agent = build_low_level()
 
-    if args_cli.paper:
-        paper_map = PAPER_MAPS[low_env.unwrapped.cfg.paper_map]
-        hl_cfg = PaperHighLevelEnvCfg(goal_w=paper_map.goal, goal_radius=paper_map.goal_radius, use_orb_pose=False)
-        print(f"[INFO] Paper map {low_env.unwrapped.cfg.paper_map}: start {paper_map.start} -> goal {paper_map.goal}")
-        vec_env = PaperHighLevelIsaacVecEnv(low_env, low_agent, hl_cfg)
-        # Sec. 5.2: same MLP type as the low-level policy (ELU, orthogonal init) with hidden layers [256, 128]
-        policy_kwargs = dict(net_arch=dict(pi=[256, 128], vf=[256, 128]), activation_fn=nn.ELU)
-        out_suffix = "_paper"
-    else:
-        hl_cfg = HighLevelEnvCfg(
-            hl_decimation=2,
-            cmd_smoothing_alpha=0.25,
-            vx_min=0.0,
-            vx_max=1.0,
-            wz_min=-0.4,
-            wz_max=0.4,
-            max_episode_hl_steps=400,
-        )
-        vec_env = HighLevelIsaacVecEnv(low_env, low_agent, hl_cfg)
-        policy_kwargs = None
-        out_suffix = ""
+    paper_map = PAPER_MAPS[low_env.unwrapped.cfg.paper_map]
+    hl_cfg = PaperHighLevelEnvCfg(goal_w=paper_map.goal, goal_radius=paper_map.goal_radius, use_orb_pose=False)
+    print(f"[INFO] Paper map {low_env.unwrapped.cfg.paper_map}: start {paper_map.start} -> goal {paper_map.goal}")
+    vec_env = PaperHighLevelIsaacVecEnv(low_env, low_agent, hl_cfg)
+    # Sec. 5.2: same MLP type as the low-level policy (ELU, orthogonal init) with hidden layers [256, 128]
+    policy_kwargs = dict(net_arch=dict(pi=[256, 128], vf=[256, 128]), activation_fn=nn.ELU)
+    out_suffix = "_paper"
     vec_env = VecMonitor(vec_env)
 
     print("Observation space:", vec_env.observation_space)

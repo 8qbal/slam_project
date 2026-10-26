@@ -29,19 +29,18 @@ flowchart LR
 
 ## Policies
 
-| | Low level | High level (paper) | High level `rl_vslam_v0` |
-| --- | --- | --- | --- |
-| Task | `Spot-Paper-v0` (v0: `Spot-Vslam-Depth-v0`) | `Spot-Nav-Map{A,B}-*` (manager-based); SB3: `Spot-Paper-high-level-*` | `Spot-Vslam-high-level-*` (SB3) |
-| Code | `tasks/locomotion/` | `tasks/navigation/`; SB3: `legacy/high_level/paper_vec_env.py` | `legacy/high_level/high_level_vec_env.py` |
-| Input | 353 dims (v0: 245): base lin/ang vel, gravity, joint pos/vel, last action, velocity command, pooled depth, 5 depth stats | 9 dims: pose x, y, yaw (start frame), goal dx, dy, goal heading error, base vx, vy, wz | 11 dims: SLAM x, y, yaw, ORB tracking state, 5 depth stats, last action (2) |
-| Output | 12 joint position targets | vx ∈ [0, 1] m/s, wz ∈ [−0.4, 0.4] rad/s | vx, wz |
-| Goal | — | fixed start and goal per map (`assets/maps.py`) | none |
-| Net | [512, 256, 128] ELU | [256, 128] ELU | SB3 default [64, 64] |
-
+| | Low level | High level (paper) |
+| --- | --- | --- |
+| Task | `Spot-Paper-v0` | `Spot-Nav-Map{A,B}-*` (manager-based); SB3: `Spot-Paper-high-level-*` |
+| Code | `tasks/locomotion/` | `tasks/navigation/`; SB3: `legacy/high_level/paper_vec_env.py` |
+| Input | 353 dims: base lin/ang vel, gravity, joint pos/vel, last action, velocity command, pooled depth, 5 depth stats | 9 dims: pose x, y, yaw (start frame), goal dx, dy, goal heading error, base vx, vy, wz |
+| Output | 12 joint position targets | vx ∈ [0, 1] m/s, wz ∈ [−0.4, 0.4] rad/s |
+| Goal | — | fixed start and goal per map (`assets/maps.py`) |
+| Net | [512, 256, 128] ELU | [256, 128] ELU 
 - **The low level reads no real sensors except depth.** Base lin/ang vel, gravity and joint pos/vel come straight
   from the simulator state (as in the original code and Isaac Lab's Spot): no `Imu` sensor, no encoder model (delay,
   resolution, bias, drift). Noise: uniform only (lin/ang vel ±0.1, gravity ±0.05, joint pos ±0.05, joint vel ±0.5;
-  in `rl_vslam_v0` and `Spot-Paper-WallsSoftNoise-v0`). Joint pos/vel are close to a real Spot's encoders; base lin
+  in `Spot-Paper-WallsSoftNoise-v0`). Joint pos/vel are close to a real Spot's encoders; base lin
   vel is the furthest from real (an IMU cannot give it; a real robot estimates it from IMU + leg odometry).
 - **The high level is trained without SLAM**: its pose is the GT pose in the start-pose frame plus small noise
   (condition A). ORB-SLAM3 is used only when evaluating (`Spot-Nav-*-Play-v0`). The pose source is one observation

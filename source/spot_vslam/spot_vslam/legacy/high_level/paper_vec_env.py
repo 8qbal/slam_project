@@ -12,7 +12,7 @@ The paper does not give the high-level reward. This one is a plain goal-reaching
 a success bonus, a small per-step time penalty and a penalty when the low-level episode terminates (fall / illegal
 contact). Distances for the reward use the ground-truth pose.
 
-``HighLevelIsaacVecEnv`` (11-dim observation, no goal) is unchanged so the rl_vslam_v0 policy still runs.
+``HighLevelIsaacVecEnv`` (11-dim observation, no goal) is the base class; this subclass adds the goal.
 """
 
 import time

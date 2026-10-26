@@ -27,7 +27,7 @@ odometry jumped metres on single frames (frame check 2).
 | `scripts/slam/benchmark_slam.py` | offline benchmark on recorded data, writes TUM trajectories for evo |
 | `output/slam_benchmark/` | benchmark results (git-ignored) |
 
-`rl_vslam_v0` and the ORB-SLAM3 path stay as they are.
+The ORB-SLAM3 path stays as it is.
 
 ## Manager
 

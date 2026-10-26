@@ -63,10 +63,6 @@ import isaaclab_tasks  # noqa: F401
 
 import spot_vslam.tasks  # noqa: F401
 from spot_vslam.assets import PAPER_MAPS
-from spot_vslam.legacy.high_level.high_level_vec_env import (
-    HighLevelEnvCfg,
-    HighLevelIsaacVecEnv,
-)
 from spot_vslam.legacy.high_level.low_level_runner import build_low_level as build_low_level_policy
 from spot_vslam.legacy.high_level.paper_vec_env import PaperHighLevelEnvCfg, PaperHighLevelIsaacVecEnv
 from spot_vslam.slam.dense_map import (
@@ -374,37 +370,26 @@ def record_navigation_run(map_name: str, success: bool, steps: int, time_s: floa
 
 
 def main():
-    if args_cli.navigation_test and not args_cli.paper:
-        raise ValueError("--navigation_test needs --paper")
+    if not args_cli.paper:
+        raise SystemExit(
+            "rl_vslam_v0 (the non-paper high level) was removed: add --paper (old code: git tag baseline/rl-vslam-v0)"
+        )
     low_env, low_agent = build_low_level()
 
-    if args_cli.paper:
-        map_name = getattr(low_env.unwrapped.cfg, "paper_map", None)
-        if map_name is None:
-            raise ValueError("--paper needs a Spot-Paper-high-level-Map*-Play-v0 task")
-        paper_map = PAPER_MAPS[map_name]
-        hl_cfg = PaperHighLevelEnvCfg(
-            goal_w=paper_map.goal,
-            goal_radius=paper_map.goal_radius,
-            max_episode_hl_steps=3000,  # Table 9 timeout
-        )
-        vec_env = PaperHighLevelIsaacVecEnv(low_env, low_agent, hl_cfg)
-        collisions = CollisionCounter(low_env.unwrapped)
-        print(
-            f"[INFO] Paper map {map_name}: start {paper_map.start} -> goal {paper_map.goal}"
-            f" (r={paper_map.goal_radius} m)"
-        )
-    else:
-        hl_cfg = HighLevelEnvCfg(
-            hl_decimation=2,
-            cmd_smoothing_alpha=0.25,
-            vx_min=0.0,
-            vx_max=0.5,
-            wz_min=-0.25,
-            wz_max=0.25,
-            max_episode_hl_steps=3000,  # paper Table 9: evaluation timeout of 3000 steps (400 is the training value)
-        )
-        vec_env = HighLevelIsaacVecEnv(low_env, low_agent, hl_cfg)
+    map_name = getattr(low_env.unwrapped.cfg, "paper_map", None)
+    if map_name is None:
+        raise ValueError("--paper needs a Spot-Paper-high-level-Map*-Play-v0 task")
+    paper_map = PAPER_MAPS[map_name]
+    hl_cfg = PaperHighLevelEnvCfg(
+        goal_w=paper_map.goal,
+        goal_radius=paper_map.goal_radius,
+        max_episode_hl_steps=3000,  # Table 9 timeout
+    )
+    vec_env = PaperHighLevelIsaacVecEnv(low_env, low_agent, hl_cfg)
+    collisions = CollisionCounter(low_env.unwrapped)
+    print(
+        f"[INFO] Paper map {map_name}: start {paper_map.start} -> goal {paper_map.goal} (r={paper_map.goal_radius} m)"
+    )
     orb_gt_comparator = OrbGtComparator()
 
     # Error logs

@@ -19,7 +19,7 @@
 | Max episode length | 400 HL steps | `tasks/navigation/config/spot/navigation_env_cfg.py` |
 | Maps A / B (start, goal) | | `assets/maps.py` (`PAPER_MAPS`) |
 
-Paths are under `source/spot_vslam/spot_vslam/`. The notes below describe the rl_vslam_v0 baseline code.
+Paths are under `source/spot_vslam/spot_vslam/`. The notes below describe the original author's code (the `rl_vslam_v0` baseline, removed on 2026-10-26; commit `ea31fd0`).
 
 The paper and the code don't fully agree:
 

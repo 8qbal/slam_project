@@ -44,16 +44,6 @@ python scripts/high_level/load_high_level.py --paper --viz kit \
   --high_level_checkpoint output/checkpoints/high_level_paper/high_level_policy.zip --deterministic_policy --steps 3000
 ```
 
-## Baseline `rl_vslam_v0`
-
-Policies and the Tables 7-8 runner are in `baselines/rl_vslam_v0/` (see its README):
-
-```bash
-python scripts/high_level/load_high_level.py --viz kit --low_level_task Spot-Vslam-high-level-Warehouse-Play-v0 \
-  --low_level_checkpoint baselines/rl_vslam_v0/policies/low_level/spot_rough_ppo.pth \
-  --high_level_checkpoint baselines/rl_vslam_v0/policies/high_level/high_level_policy.zip --deterministic_policy
-```
-
 ## Tables and plots (`tools/`)
 
 These use the SB3 high level and start ORB-SLAM3 themselves. Set `LOW_CKPT` and `HIGH_CKPT`.
@@ -62,7 +52,6 @@ These use the SB3 high level and start ORB-SLAM3 themselves. Set `LOW_CKPT` and 
 bash scripts/tools/run_navigation_test.sh    # Table 9: success %, collisions, steps, time (Map A and B)
 bash scripts/tools/run_system_load_test.sh   # Tables 7-8: FPS, CPU, RAM, disk for RL / +VSLAM / +TSDF
 python scripts/tools/summarize_system_load.py output/system_load_test   # re-print Tables 7-8
-python scripts/tools/play_hl_gif.py --low_level_checkpoint <.pth> --high_level_checkpoint <.zip> --out run.gif
 ```
 
 ## Folders
@@ -70,7 +59,7 @@ python scripts/tools/play_hl_gif.py --low_level_checkpoint <.pth> --high_level_c
 | Folder | What |
 | --- | --- |
 | `rl_games/` | train / play any task with rl_games (low level, navigation) |
-| `high_level/` | SB3 high level on a frozen low level (rl_vslam_v0 and the current paper checkpoint) |
+| `high_level/` | SB3 high level on a frozen low level (the paper checkpoint) |
 | `slam/` | ORB-SLAM3 / Nav2 test loops on `Spot-test180-v0` (`test_rotate_180.py`: ORB-SLAM3 stress test, 2 full spins then a straight line, SLAM vs GT), cuVSLAM checks |
 | `tools/` | tables and plots |
 | `legacy/` | old scripts, not part of the pipeline (see its README) |

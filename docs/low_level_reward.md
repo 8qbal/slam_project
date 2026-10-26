@@ -14,7 +14,7 @@ squared error, σ = 1) loses only ~3 points per step when standing still at 1 m/
 in place wins.
 
 All Table 3 weights are exactly Isaac Lab's Spot reward weights, so the paper's equations are best read as a short
-summary of Isaac Lab's Spot reward functions. `rl_vslam_v0` uses those functions with the same weights, and it walks.
+summary of Isaac Lab's Spot reward functions. (`rl_vslam_v0`, removed 2026-10-26, commit `ea31fd0`; its measured numbers below stay as they were.) `rl_vslam_v0` uses those functions with the same weights, and it walks.
 
 ## Change
 
