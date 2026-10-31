@@ -1,0 +1,76 @@
+TRAIN COMMANDS (all with uv). Run everything from the repo root: cd ~/slam_project
+Play and testing commands: scripts/RUN_COMMANDS.txt
+==============================================================================
+
+Rules
+- Only ONE Isaac Sim at a time (15 GB RAM). To queue runs: flock /tmp/laptop_heavy.lock <command>
+- Isaac Lab 3.0 is headless by default. Tasks have a depth camera: always pass --cameras to train.py.
+- --max_iterations is the TOTAL epoch count. Resuming from a checkpoint at epoch 7500 with --max_iterations 7800 runs
+  300 more epochs (same task, --checkpoint <last .pth>).
+- Every high-level run needs the frozen low level:
+    export SPOT_VSLAM_LOW_LEVEL_CKPT=policies/walls_soft_mirror_turn/model.pth
+- Logs: logs/rl_games/<experiment>/<run>/{nn,summaries,params}. Experiments: spot_paper_ppo (low level),
+  spot_navigation_ppo (high level), spot_rough_ppo. Checkpoints every 20 epochs: nn/last_*_ep_<epoch>_rew_<reward>.pth.
+  Final ones are in policies/ (policies/README.md).
+- Training prints the reward every epoch. Flags: --quiet_rewards (off), --reward_terms_every N (per-term table),
+  --num_envs N, --seed N, --video (+ --video_length, --video_interval), --wandb-project-name / --wandb-name.
+- Smoke test before a long run (then delete the output):
+    uv run --no-sync python scripts/rl_games/train.py --task <task> --cameras --num_envs 16 --max_iterations 2
+    rm -rf logs/rl_games/<experiment>/<new run folder>
+- Task id = what the policy was trained on; never rename it. Task list: scripts/README.md and CLAUDE.md.
+- Training curves: uv run --no-sync tensorboard --logdir logs/rl_games
+
+
+1. LOW LEVEL (locomotion, 353-dim depth observation) -- the lineage of policies/walls_soft_mirror_turn
+------------------------------------------------------------------------------
+# (a) from scratch, flat/rough terrain, paper reward (~5.5 h per 8000 epochs)
+uv run --no-sync python scripts/rl_games/train.py --task Spot-Paper-v0 --num_envs 512 --cameras --max_iterations 8000
+
+# (b) wall terrain, contacts cost reward instead of ending the episode ("WallsSoft", policies/walls_soft = epoch 14000)
+uv run --no-sync python scripts/rl_games/train.py --task Spot-Paper-WallsSoft-v0 --num_envs 512 --cameras --max_iterations 14000
+
+# (c) + left-right mirror loss (no limp): from WallsSoft epoch 14000 to 21000  (policies/walls_soft_mirror)
+uv run --no-sync python scripts/rl_games/train.py --task Spot-Paper-WallsSoftMirror-v0 --num_envs 512 --cameras \
+  --checkpoint policies/walls_soft/model.pth --max_iterations 21000
+
+# (d) + 20 % turn-in-place commands: from epoch 21000 to 24000  (policies/walls_soft_mirror_turn, the one used)
+uv run --no-sync python scripts/rl_games/train.py --task Spot-Paper-WallsSoftMirrorTurn-v0 --num_envs 512 --cameras \
+  --checkpoint policies/walls_soft_mirror/model.pth --max_iterations 24000
+
+# Other low-level variants: Spot-Paper-Rough-v0, Spot-Paper-Obstacles-v0, Spot-Paper-Walls-v0,
+#   Spot-Paper-WallsSoftNoise-v0 (sensor noise), Spot-Paper-WallsSoftSym-v0, Spot-Paper-WallsSoftTrot-v0
+
+
+2. HIGH LEVEL (navigation, 9-dim observation, rl_games PPO, 16 envs)
+------------------------------------------------------------------------------
+export SPOT_VSLAM_LOW_LEVEL_CKPT=policies/walls_soft_mirror_turn/model.pth
+
+# --- Condition A: ground-truth pose in training --------------------------------------------------------------
+# Older worlds (for history): Spot-Nav-MapA-v0 (fixed Map A), Spot-Nav-Maze-v0 (random mazes), Spot-Nav-Hall-v0
+uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-Maze-v0 --cameras --max_iterations 2000
+uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-Hall-v0 --cameras --checkpoint policies/nav_maze/model.pth --max_iterations 5300
+# The one used as condition A (halls + open racks in doorways): epoch 5300 -> 7500  (policies/nav_hall_racks)
+uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-HallRacks-v0 --cameras \
+  --checkpoint policies/nav_hall/model.pth --max_iterations 7500
+
+# --- Condition B: cuVSLAM pose in training (one tracker per env, textured worlds) -------------------------------
+# First test 300 epochs, then continued to 8800
+uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-HallRacks-cuVSLAM-v0 --cameras --num_envs 16 \
+  --checkpoint policies/nav_hall_racks/model.pth --max_iterations 7800
+uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-HallRacks-cuVSLAM-v0 --cameras --num_envs 16 \
+  --checkpoint <B ep 7800 .pth> --max_iterations 8800
+
+# --- Condition C: cuVSLAM pose + 3 quality inputs (12-dim observation) ----------------------------------------
+# The A checkpoint has 9 inputs: widen it first (new input weights = 0, same behaviour at the start)
+uv run --no-sync python scripts/tools/extend_checkpoint_obs.py policies/nav_hall_racks/model.pth \
+  output/checkpoints/nav_hall_racks_12in.pth --extra 3
+uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-HallRacks-cuVSLAM-Quality-v0 --cameras --num_envs 16 \
+  --checkpoint output/checkpoints/nav_hall_racks_12in.pth --max_iterations 7800
+uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-HallRacks-cuVSLAM-Quality-v0 --cameras --num_envs 16 \
+  --checkpoint <C ep 7800 .pth> --max_iterations 8800
+
+
+3. OLD SB3 HIGH LEVEL (the paper-version checkpoint)
+------------------------------------------------------------------------------
+uv run --no-sync python scripts/high_level/train_high_level_ppo.py --paper --task Spot-Paper-high-level-MapA-v0 \
+  --low_level_task Spot-Paper-high-level-MapA-v0 --checkpoint <low-level .pth>

@@ -62,8 +62,9 @@ uv run --no-sync python scripts/tools/eval_nav_protocol.py --task Spot-Nav-MapB-
 ```
 
 Isaac Lab 3.0 runs headless by default; add `--viz kit` for a window and pass `--cameras` to `train.py`. Only one Isaac
-Sim fits on a 15 GB machine at a time. All commands for training, evaluation and SLAM tests are in
-[`scripts/RUN_COMMANDS.txt`](scripts/RUN_COMMANDS.txt); more in [`scripts/README.md`](scripts/README.md).
+Sim fits on a 15 GB machine at a time. Commands for play, evaluation and SLAM tests are in
+[`scripts/RUN_COMMANDS.txt`](scripts/RUN_COMMANDS.txt), for training in
+[`scripts/TRAIN_COMMANDS.txt`](scripts/TRAIN_COMMANDS.txt); more in [`scripts/README.md`](scripts/README.md).
 
 ### Documentation
 

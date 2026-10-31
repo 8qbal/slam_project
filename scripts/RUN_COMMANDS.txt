@@ -1,133 +1,127 @@
-RUN COMMANDS (all with uv). Run everything from the repo root: cd ~/slam_project
+RUN COMMANDS: play + test.  Run from ~/slam_project.  Training: scripts/TRAIN_COMMANDS.txt
 ==============================================================================
+One Isaac Sim at a time (15 GB RAM). --viz kit = open a window. The same command can succeed once and fail next time.
+Every high-level command needs the walking policy, so run this first in each terminal:
 
-Rules
-- Only ONE Isaac Sim at a time (15 GB RAM). To queue runs: flock /tmp/laptop_heavy.lock <command>
-- Isaac Lab 3.0 is headless by default. Add --viz kit for a window. Tasks have a depth camera: always pass --cameras
-  to train.py.
-- --max_iterations is the TOTAL epoch count. Resuming from a checkpoint at epoch 7500 with --max_iterations 7800 runs
-  300 more epochs.
-- Checkpoints appear in logs/rl_games/<experiment>/<run>/nn/ (last_*_ep_<epoch>_rew_<reward>.pth every 20 epochs).
-- Every high-level run needs the frozen low level:
-    export SPOT_VSLAM_LOW_LEVEL_CKPT=policies/walls_soft_mirror_turn/model.pth
-
-
-0. SETUP
-------------------------------------------------------------------------------
-uv sync
-
-# Only for ORB-SLAM3 / ROS 2 (not needed for GT or cuVSLAM):
-source /opt/ros/jazzy/setup.bash
-source ~/orbslam3/ws/install/setup.bash
-export ORB_SLAM3_ROOT=~/orbslam3/ORB_SLAM3
-
-
-1. LOW LEVEL (locomotion, 353-dim depth observation)  -- the lineage of policies/walls_soft_mirror_turn
-------------------------------------------------------------------------------
-# (a) from scratch, flat/rough terrain, paper reward (~5.5 h per 8000 epochs)
-uv run --no-sync python scripts/rl_games/train.py --task Spot-Paper-v0 --num_envs 512 --cameras --max_iterations 8000
-
-# (b) wall terrain, contacts cost reward instead of ending the episode ("WallsSoft", policies/walls_soft = epoch 14000)
-uv run --no-sync python scripts/rl_games/train.py --task Spot-Paper-WallsSoft-v0 --num_envs 512 --cameras --max_iterations 14000
-
-# (c) + left-right mirror loss (no limp): from WallsSoft epoch 14000 to 21000  (policies/walls_soft_mirror)
-uv run --no-sync python scripts/rl_games/train.py --task Spot-Paper-WallsSoftMirror-v0 --num_envs 512 --cameras \
-  --checkpoint policies/walls_soft/model.pth --max_iterations 21000
-
-# (d) + 20 % turn-in-place commands: from epoch 21000 to 24000  (policies/walls_soft_mirror_turn, the one used)
-uv run --no-sync python scripts/rl_games/train.py --task Spot-Paper-WallsSoftMirrorTurn-v0 --num_envs 512 --cameras \
-  --checkpoint policies/walls_soft_mirror/model.pth --max_iterations 24000
-
-# Other low-level variants: Spot-Paper-Rough-v0, Spot-Paper-Obstacles-v0, Spot-Paper-Walls-v0,
-#   Spot-Paper-WallsSoftNoise-v0 (sensor noise), Spot-Paper-WallsSoftSym-v0, Spot-Paper-WallsSoftTrot-v0
-
-# Play / check the gait of a low level
-uv run --no-sync python scripts/rl_games/play.py --task Spot-Paper-Play-v0 --cameras --checkpoint policies/walls_soft_mirror_turn/model.pth --viz kit
-uv run --no-sync python scripts/tools/gait_check.py --task Spot-Paper-v0 --checkpoint policies/walls_soft_mirror_turn/model.pth
-
-
-2. HIGH LEVEL (navigation, 9-dim observation, rl_games PPO, 16 envs)
-------------------------------------------------------------------------------
 export SPOT_VSLAM_LOW_LEVEL_CKPT=policies/walls_soft_mirror_turn/model.pth
 
-# --- Condition A: ground-truth pose in training --------------------------------------------------------------
-# Older worlds (for history): Spot-Nav-MapA-v0 (fixed Map A), Spot-Nav-Maze-v0 (random mazes), Spot-Nav-Hall-v0
-uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-Maze-v0 --cameras --max_iterations 2000
-uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-Hall-v0 --cameras --checkpoint policies/nav_maze/model.pth --max_iterations 5300
-# The one used as condition A (halls + open racks in doorways): epoch 5300 -> 7500  (policies/nav_hall_racks)
-uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-HallRacks-v0 --cameras \
-  --checkpoint policies/nav_hall/model.pth --max_iterations 7500
+HIGH-LEVEL MODELS (the --checkpoint of every command below; paths are written out in full)
+  A  policies/nav_hall_racks/model.pth                                                                   trained with GT pose, 9 inputs
+  B  logs/rl_games/spot_navigation_ppo/2026-10-21_02-48-36/nn/last_spot_navigation_ppo_ep_8800_rew_31.86478.pth   trained with cuVSLAM pose, seed 1, 9 inputs
+  C  logs/rl_games/spot_navigation_ppo/2026-10-21_10-29-42/nn/last_spot_navigation_ppo_ep_8800_rew_33.8206.pth    cuVSLAM pose + 3 quality inputs, seed 1, 12 inputs
+  (seed 2:  B ...2026-10-21_22-32-20/nn/last_spot_navigation_ppo_ep_8800_rew_33.05179.pth
+            C ...2026-10-22_09-17-32/nn/last_spot_navigation_ppo_ep_8800_rew_26.061117.pth)
+TASK NAME = Spot-Nav-<Map>-<pose>-v0.  Map: MapA, MapB, SmallMaze.  Pose:
+  -GT-Play ground truth | -cuVSLAM-Play cuVSLAM | -Play ORB-SLAM3 RGB-D | -Stereo-Play ORB-SLAM3 stereo
+  -cuVSLAM-Quality-Play cuVSLAM + quality (only for C; A and B take 9 inputs, C takes 12)
 
-# --- Condition B: cuVSLAM pose in training (one tracker per env, textured worlds) -------------------------------
-# First test 300 epochs, then continued to 8800
-uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-HallRacks-cuVSLAM-v0 --cameras --num_envs 16 \
-  --checkpoint policies/nav_hall_racks/model.pth --max_iterations 7800
-uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-HallRacks-cuVSLAM-v0 --cameras --num_envs 16 \
-  --checkpoint <B ep 7800 .pth> --max_iterations 8800
-
-# --- Condition C: cuVSLAM pose + 3 quality inputs (12-dim observation) ----------------------------------------
-# The A checkpoint has 9 inputs: widen it first (new input weights = 0, same behaviour at the start)
-uv run --no-sync python scripts/tools/extend_checkpoint_obs.py policies/nav_hall_racks/model.pth \
-  output/checkpoints/nav_hall_racks_12in.pth --extra 3
-uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-HallRacks-cuVSLAM-Quality-v0 --cameras --num_envs 16 \
-  --checkpoint output/checkpoints/nav_hall_racks_12in.pth --max_iterations 7800
-uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-HallRacks-cuVSLAM-Quality-v0 --cameras --num_envs 16 \
-  --checkpoint <C ep 7800 .pth> --max_iterations 8800
-
-# Play a high level in a window (GT pose, no ROS 2)
-uv run --no-sync python scripts/rl_games/play.py --task Spot-Nav-MapA-GT-Play-v0 --cameras --checkpoint <high-level .pth> --viz kit
+ORB-SLAM3 tasks only: first, in a second terminal (ROS 2 + node, started BEFORE the sim):
+  source /opt/ros/jazzy/setup.bash; source ~/orbslam3/ws/install/setup.bash; export ORB_SLAM3_ROOT=~/orbslam3/ORB_SLAM3
+  ros2 launch source/spot_vslam/ros2/spot_orbslam3/launch/orbslam3_rgbd.launch.py   robot_index:=0   # for -Play
+  ros2 launch source/spot_vslam/ros2/spot_orbslam3/launch/orbslam3_stereo.launch.py robot_index:=0   # for -Stereo-Play
 
 
-3. EVALUATION (paper Table 9 protocol: 3000 steps, collisions counted, success = goal radius reached)
+1. PLAY  (model on pose)
 ------------------------------------------------------------------------------
-export SPOT_VSLAM_LOW_LEVEL_CKPT=policies/walls_soft_mirror_turn/model.pth
-CK=policies/nav_hall_racks/model.pth          # or a B / C checkpoint
-# Pose source = the task id:  -GT-Play (ground truth)   -cuVSLAM-Play (cuVSLAM stereo)
-#                             -cuVSLAM-Quality-Play (cuVSLAM, for condition C, 12-dim)
-#                             -Play (ORB-SLAM3 RGB-D, see below)   -Stereo-Play (ORB-SLAM3 stereo, see below)
-# Map A or B: Spot-Nav-MapA-... / Spot-Nav-MapB-...
+# A on GT pose
+uv run --no-sync python scripts/rl_games/play.py --cameras --viz kit --task Spot-Nav-MapA-GT-Play-v0 \
+  --checkpoint policies/nav_hall_racks/model.pth
 
-# Fixed start facing the goal (deterministic, runs nearly identical)
-uv run --no-sync python scripts/tools/eval_nav_protocol.py --task Spot-Nav-MapA-cuVSLAM-Play-v0 --checkpoint $CK --num_envs 5
+# A on cuVSLAM pose (A never saw SLAM noise)
+uv run --no-sync python scripts/rl_games/play.py --cameras --viz kit --task Spot-Nav-MapA-cuVSLAM-Play-v0 \
+  --checkpoint policies/nav_hall_racks/model.pth
 
-# Random start (position +-0.5 m, heading +-0.5 rad), 16 runs, same seed = same starts for every policy
-uv run --no-sync python scripts/tools/eval_nav_protocol.py --task Spot-Nav-MapB-cuVSLAM-Play-v0 --checkpoint $CK \
-  --num_envs 16 --jitter_xy 0.5 --jitter_yaw 0.5 --run_seed 2
+# B on cuVSLAM pose
+uv run --no-sync python scripts/rl_games/play.py --cameras --viz kit --task Spot-Nav-MapA-cuVSLAM-Play-v0 \
+  --checkpoint logs/rl_games/spot_navigation_ppo/2026-10-21_02-48-36/nn/last_spot_navigation_ppo_ep_8800_rew_31.86478.pth
 
-# Condition C needs its own play task
-uv run --no-sync python scripts/tools/eval_nav_protocol.py --task Spot-Nav-MapB-cuVSLAM-Quality-Play-v0 \
-  --checkpoint <C .pth> --num_envs 16 --jitter_xy 0.5 --jitter_yaw 0.5 --run_seed 2
+# C on cuVSLAM + quality
+uv run --no-sync python scripts/rl_games/play.py --cameras --viz kit --task Spot-Nav-MapA-cuVSLAM-Quality-Play-v0 \
+  --checkpoint logs/rl_games/spot_navigation_ppo/2026-10-21_10-29-42/nn/last_spot_navigation_ppo_ep_8800_rew_33.8206.pth
 
-# ORB-SLAM3 (one ROS 2 node per run, restarted each time). Needs the ROS 2 setup of section 0 in the same shell.
-HIGH_CKPT=$CK TRIALS=10 EVAL_ARGS="--jitter_xy 0.5 --jitter_yaw 0.5" bash scripts/tools/run_nav_protocol_orbslam.sh
-#   MAPS="A B" (default)   VARIANT=Stereo-Play for stereo   OUT=<dir>   MAX_STEPS=3000
+# A on ORB-SLAM3 RGB-D (node first)
+uv run --no-sync python scripts/rl_games/play.py --cameras --viz kit --task Spot-Nav-MapA-Play-v0 \
+  --checkpoint policies/nav_hall_racks/model.pth
 
-# Output lines to read: "PROTO RESULT" (success, collisions, steps, per run) and "PROTO SLAM" (pose error vs GT).
-# Save per-step SLAM error and quality signals: add --trace_npz output/slam_quality/trace.npz, then
-uv run --no-sync python scripts/tools/analyze_slam_quality.py output/slam_quality/trace_map*.npz
+# A on ORB-SLAM3 stereo (stereo node first)
+uv run --no-sync python scripts/rl_games/play.py --cameras --viz kit --task Spot-Nav-MapA-Stereo-Play-v0 \
+  --checkpoint policies/nav_hall_racks/model.pth
+
+# Map A: (-9,-10) -> (-4,15.5), goal radius 1 m.  Map B: (-9,17) -> (7,0), radius 2 m.  Same commands with MapB.
+# The goal is drawn as a green circle (goal radius) with a tall green pole; it is a viewport overlay, no camera sees it.
+
+# Small bright maze: 12x12 m, start SW, goal NE. A / B models only (no -Quality).
+# A on GT pose: reached the goal in 27 / 27 episodes
+uv run --no-sync python scripts/rl_games/play.py --cameras --viz kit --task Spot-Nav-SmallMaze-GT-Play-v0 \
+  --checkpoint policies/nav_hall_racks/model.pth
+
+# B on cuVSLAM pose: 3 / 3 runs reached the goal (B seed 2: 1/3, A: 1/2; failed runs: robot stalls, SLAM error only 0.1-0.2 m)
+uv run --no-sync python scripts/rl_games/play.py --cameras --viz kit --task Spot-Nav-SmallMaze-cuVSLAM-Play-v0 \
+  --checkpoint logs/rl_games/spot_navigation_ppo/2026-10-21_02-48-36/nn/last_spot_navigation_ppo_ep_8800_rew_31.86478.pth
+# put before the command: SPOT_VSLAM_MAZE_SEED=3 (other layout)  SPOT_VSLAM_MAZE_LOOPS=0.7 (fewer walls)
+
+# Walking policy, random commands (forward 0-1 m/s, turn +-0.4 rad/s, new one every 4-8 s)
+uv run --no-sync python scripts/rl_games/play.py --cameras --viz kit --task Spot-Paper-Play-v0 \
+  --checkpoint policies/walls_soft_mirror_turn/model.pth
+
+# Walking policy, fixed commands (--steps = how long it runs, default 300 = 24 s; --viz kit here is untested: drop it if no window opens)
+# env 0 stands (vx 0), env 1-5 walk 0.25-1.0 m/s, env 6-7 walk 0.5 m/s and turn +-0.4 rad/s
+uv run --no-sync python scripts/tools/gait_check.py --viz kit --steps 2000 --task Spot-Paper-v0 \
+  --checkpoint policies/walls_soft_mirror_turn/model.pth
+# turn in place: vx 0, turn +-0.2 / +-0.4 rad/s (3 robots each), and the same while walking 0.5 m/s
+uv run --no-sync python scripts/tools/gait_check.py --viz kit --steps 2000 --turns --task Spot-Paper-v0 \
+  --checkpoint policies/walls_soft_mirror_turn/model.pth
 
 
-4. SLAM TESTS (cuVSLAM / ORB-SLAM3 / Nav2, no policy)
+2. TEST  (no window; read the "PROTO RESULT" and "PROTO SLAM" lines)
 ------------------------------------------------------------------------------
-uv run --no-sync python scripts/slam/cuvslam_multi_env.py --num_envs 16     # cuVSLAM with many parallel trackers
-uv run --no-sync python scripts/slam/cuvslam_frame_check.py                 # cuVSLAM frame / pose check
-uv run --no-sync python scripts/slam/test_vslam.py                          # ORB-SLAM3 loop (start the node first)
-ros2 launch source/spot_vslam/launch/start_nav2_slam.launch.py              # Nav2
+# A on cuVSLAM, Map A, fixed start (success, collisions, steps, pose error)
+uv run --no-sync python scripts/tools/eval_nav_protocol.py --task Spot-Nav-MapA-cuVSLAM-Play-v0 --num_envs 5 \
+  --checkpoint policies/nav_hall_racks/model.pth
+
+# B on cuVSLAM, Map B, 16 random starts (+-0.5 m, +-0.5 rad); same --run_seed = same starts for every model
+uv run --no-sync python scripts/tools/eval_nav_protocol.py --task Spot-Nav-MapB-cuVSLAM-Play-v0 --num_envs 16 \
+  --jitter_xy 0.5 --jitter_yaw 0.5 --run_seed 2 \
+  --checkpoint logs/rl_games/spot_navigation_ppo/2026-10-21_02-48-36/nn/last_spot_navigation_ppo_ep_8800_rew_31.86478.pth
+
+# C on cuVSLAM + quality, Map B, 16 random starts
+uv run --no-sync python scripts/tools/eval_nav_protocol.py --task Spot-Nav-MapB-cuVSLAM-Quality-Play-v0 --num_envs 16 \
+  --jitter_xy 0.5 --jitter_yaw 0.5 --run_seed 2 \
+  --checkpoint logs/rl_games/spot_navigation_ppo/2026-10-21_10-29-42/nn/last_spot_navigation_ppo_ep_8800_rew_33.8206.pth
+
+# A on GT, small maze (the maze has one start: --num_envs 1)
+uv run --no-sync python scripts/tools/eval_nav_protocol.py --task Spot-Nav-SmallMaze-GT-Play-v0 --num_envs 1 --max_steps 900 \
+  --checkpoint policies/nav_hall_racks/model.pth
+
+# A on ORB-SLAM3, 10 runs, starts its own node (VARIANT=Stereo-Play for stereo)
+HIGH_CKPT=policies/nav_hall_racks/model.pth TRIALS=10 bash scripts/tools/run_nav_protocol_orbslam.sh
+
+# SLAM error on one drive to the goal on GT, Map A / B only (cuVSLAM vs ORB-SLAM3 table, docs/EVAL_2026-10-26.md)
+uv run --no-sync python scripts/slam/cuvslam_frame_check.py --task Spot-Nav-MapA-cuVSLAM-Play-v0 --to_goal
+uv run --no-sync python scripts/slam/cuvslam_frame_check.py --task Spot-Nav-MapA-Stereo-Play-v0 --to_goal    # stereo node first
+
+# Walking policy: tracked speed, falls, foot pattern (8 envs, 10 s)
+uv run --no-sync python scripts/tools/gait_check.py --task Spot-Paper-v0 \
+  --checkpoint policies/walls_soft_mirror_turn/model.pth
 
 
-5. OLD SB3 HIGH LEVEL (the paper-version checkpoint)
+3. OTHER
 ------------------------------------------------------------------------------
-uv run --no-sync python scripts/high_level/train_high_level_ppo.py --paper --task Spot-Paper-high-level-MapA-v0 \
-  --low_level_task Spot-Paper-high-level-MapA-v0 --checkpoint <low-level .pth>
-uv run --no-sync python scripts/high_level/load_high_level.py --paper --viz kit \
-  --low_level_task Spot-Paper-high-level-MapA-Play-v0 --low_level_checkpoint <low-level .pth> \
-  --high_level_checkpoint output/checkpoints/high_level_paper/high_level_policy.zip --deterministic_policy --steps 3000
-LOW_CKPT=<low-level .pth> HIGH_CKPT=<.zip> bash scripts/tools/run_navigation_test.sh     # Table 9 with the SB3 policy
-bash scripts/tools/run_system_load_test.sh                                                # Tables 7-8
-uv run --no-sync python scripts/tools/summarize_system_load.py output/system_load_test
+bash scripts/tools/run_overnight_eval.sh        # everything above, ~4.5 h
+bash scripts/tools/run_terrain_eval.sh          # walking policies x terrains
+uv run --no-sync python scripts/slam/cuvslam_multi_env.py --num_envs 16    # many cuVSLAM trackers
+uv run --no-sync python scripts/slam/test_vslam.py                         # ORB-SLAM3 loop (node first)
+uv run --no-sync python scripts/slam/test_rotate_180.py                    # ORB-SLAM3 stress test
+uv run --no-sync python scripts/slam/test_nav2_loop.py                     # Nav2 + SLAM spiral drive
+bash scripts/slam/record_dataset.sh A           # sensor rosbag, drive on GT
+bash scripts/tools/run_navigation_test.sh       # old SB3 policy, Table 9 (needs LOW_CKPT and HIGH_CKPT)
+bash scripts/tools/run_system_load_test.sh      # old SB3 policy, Tables 7-8
+pre-commit run --all-files                      # lint
 
+----------------------------------------------------------------------
+RECORD A VIDEO (add --video to any play command; needs the extra packages)
+----------------------------------------------------------------------
+The mp4 lands in <run folder>/videos/play/clip_0000.mp4 (for policies/..., that is policies/videos/play: move it to output/videos and delete policies/videos).
+Camera: --eye X Y Z --lookat X Y Z (Spot-Paper-Play-v0 example: --eye 10 -2 8 --lookat -8 -2 0.3).
 
-6. LINT
-------------------------------------------------------------------------------
-uvx ruff check source scripts
-uvx ruff format source scripts
+uv run --no-sync --with "moviepy<2" --with imageio-ffmpeg python scripts/rl_games/play.py --task Spot-Paper-Play-v0 --cameras --checkpoint policies/walls_soft_mirror_turn/model.pth --eye 10 -2 8 --lookat -8 -2 0.3 --video --video_length 500
