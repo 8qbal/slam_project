@@ -39,6 +39,12 @@ parser.add_argument(
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 parser.add_argument(
+    "--eye", type=float, nargs=3, default=None, help="Viewer / video camera position (x y z), world frame."
+)
+parser.add_argument(
+    "--lookat", type=float, nargs=3, default=None, help="Viewer / video camera target (x y z); with --eye."
+)
+parser.add_argument(
     "--cameras",
     action="store_true",
     default=False,
@@ -97,6 +103,26 @@ def main():
 
         env_cfg.sim.physics = copy.deepcopy(RoughPhysicsCfg().newton_mjwarp)
         print("[INFO] Physics: Newton (MJWarp)")
+
+    cam = getattr(env_cfg.scene, "train_camera", None)
+    if args_cli.video and cam is not None and "rgb" not in cam.data_types:
+        # Isaac Lab 3.0: a depth-only camera in the scene turns every RGB render black, the video too
+        env_cfg.scene.train_camera = cam.replace(data_types=["rgb", *cam.data_types])
+
+    terrain = getattr(env_cfg.scene, "terrain", None)
+    material = getattr(terrain, "visual_material", None)
+    if args_cli.video and material is not None and getattr(material, "diffuse_color", None) == (0.0, 0.0, 0.0):
+        # generated terrain without a material renders black (the depth-only policy does not care)
+        import isaaclab.sim as sim_utils
+
+        terrain.visual_material = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.8, 0.78))
+
+    if args_cli.eye is not None:  # camera of the window and of --video
+        from isaaclab.visualizers import VisualizerCfg
+
+        env_cfg.sim.default_visualizer_cfg = VisualizerCfg(
+            eye=tuple(args_cli.eye), lookat=tuple(args_cli.lookat or (0.0, 0.0, 0.0))
+        )
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rl_games", agent_cfg["params"]["config"]["name"])

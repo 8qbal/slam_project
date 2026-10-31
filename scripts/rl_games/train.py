@@ -25,6 +25,12 @@ parser.add_argument(
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
+parser.add_argument(
+    "--eye", type=float, nargs=3, default=None, help="Video camera position (x y z), world frame (with --video)."
+)
+parser.add_argument(
+    "--lookat", type=float, nargs=3, default=None, help="Video camera target (x y z); with --eye."
+)
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
@@ -287,6 +293,25 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     rl_device = agent_cfg["params"]["config"]["device"]
     clip_obs = agent_cfg["params"]["env"].get("clip_observations", math.inf)
     clip_actions = agent_cfg["params"]["env"].get("clip_actions", math.inf)
+
+    if args_cli.video:
+        cam = getattr(env_cfg.scene, "train_camera", None)
+        if cam is not None and "rgb" not in cam.data_types:
+            # Isaac Lab 3.0: a depth-only camera in the scene turns every RGB render black, the video too
+            env_cfg.scene.train_camera = cam.replace(data_types=["rgb", *cam.data_types])
+        terrain = getattr(env_cfg.scene, "terrain", None)
+        material = getattr(terrain, "visual_material", None)
+        if material is not None and getattr(material, "diffuse_color", None) == (0.0, 0.0, 0.0):
+            # generated terrain without a material renders black (the depth-only policy does not care)
+            import isaaclab.sim as sim_utils
+
+            terrain.visual_material = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.8, 0.78))
+        if args_cli.eye is not None:
+            from isaaclab.visualizers import VisualizerCfg
+
+            env_cfg.sim.default_visualizer_cfg = VisualizerCfg(
+                eye=tuple(args_cli.eye), lookat=tuple(args_cli.lookat or (0.0, 0.0, 0.0))
+            )
 
     # video recording is driven by env_cfg.video_recorders in Isaac Lab 3.0 (gym RecordVideo is no longer supported)
     apply_video_recording(env_cfg, os.path.join(log_root_path, log_dir), args_cli, subdir="train")
