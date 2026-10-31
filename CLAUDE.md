@@ -156,8 +156,9 @@ via `import_packages`). Task ids of trained policies never change.
 | `Spot-Paper-Walls{,Soft,SoftNoise,SoftSym,SoftTrot}-v0` | wall terrain; Soft: contact costs instead of ending; Noise: sensor noise; Sym: + even-diagonal penalty; Trot: + per-foot duty and minimum swing time |
 | `Spot-Paper-WallsSoftMirror-v0` | WallsSoft + left-right mirror loss in PPO (`spot_vslam/rl_games_mirror.py`, agent `rl_games_paper_mirror_ppo_cfg.yaml`): no limp; `-MirrorTurn-v0`: + 20 % turn-in-place commands |
 | `Spot-Paper-high-level-Map{A,B}-v0` / `-Play-v0` | same; low-level env under the SB3 high level |
-| `Spot-Nav-Map{A,B}-v0` / `-Play-v0` / `-Stereo-Play-v0` / `-cuVSLAM-Play-v0` / `-GT-Play-v0` | `navigation/config/spot/navigation_env_cfg.py` (train: GT pose; Play: ORB-SLAM3 RGB-D; Stereo-Play: ORB-SLAM3 stereo; cuVSLAM-Play: cuVSLAM stereo; GT-Play: GT pose, no ROS 2). Play tasks start at the map start facing the goal |
+| `Spot-Nav-Map{A,B}-v0` / `-Play-v0` / `-Stereo-Play-v0` / `-cuVSLAM-Play-v0` / `-GT-Play-v0` | `navigation/config/spot/navigation_env_cfg.py` (train: GT pose; Play: ORB-SLAM3 RGB-D; Stereo-Play: ORB-SLAM3 stereo; cuVSLAM-Play: cuVSLAM stereo; GT-Play: GT pose, no ROS 2). Play tasks start at the map start facing the goal; every Play task draws the goal (green circle + pole, `GoalCommand` debug vis = viewport overlay via debug draw, so no camera sees it) |
 | `Spot-Nav-Maze-v0` | same file, `SpotNavigationMazeEnvCfg`: training on 64 random 21 m mazes (`navigation/mdp/maze.py`), random start and goal (6-14 m) at every reset, so Map A / B are unseen at evaluation. Map A / B training only measures memorisation |
+| `Spot-Nav-SmallMaze-{GT,cuVSLAM,Stereo}-Play-v0`, `-SmallMaze-Play-v0` | same file, `SpotNavigationSmallMaze*EnvCfg` (`_SmallMazeMixin` + a Play config): one bright 12 m maze (seed `$SPOT_VSLAM_MAZE_SEED`, default 0), start SW cell facing the goal, goal NE cell; pose GT / cuVSLAM / ORB-SLAM3 stereo / ORB-SLAM3 RGB-D (SLAM ones: textured walls). To watch a policy |
 | `Spot-test180-v0` | `slam_test/slam_test_env_cfg.py` |
 
 ### Isaac Lab 3.0 migration notes

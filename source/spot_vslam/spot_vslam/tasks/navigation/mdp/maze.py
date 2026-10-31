@@ -21,19 +21,16 @@ from isaaclab.utils.math import quat_from_euler_xyz, sample_uniform
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
-__all__ = ["HallTerrainCfg", "MazeTerrainCfg", "hall_terrain", "maze_terrain", "reset_in_maze"]
+__all__ = ["HallTerrainCfg", "MazeTerrainCfg", "hall_terrain", "maze_terrain", "maze_waypoints", "reset_in_maze"]
 
 PATCHES = "init_pos"
 """Key of the flat patches (free spots at least ``patch_radius`` from any wall) used for starts and goals."""
 
 
-def maze_terrain(difficulty: float, cfg: MazeTerrainCfg) -> tuple[list[trimesh.Trimesh], np.ndarray]:
-    """Flat tile with a ``cells`` x ``cells`` maze: a random spanning tree of walls removed, then each other wall
-    removed with probability ``loop_prob`` (so there are loops and wide spaces, not only one winding corridor)."""
-    sx, sy = cfg.size
-    n = cfg.cells
-    cx, cy = sx / n, sy / n
-    rng = np.random.default_rng()
+def maze_walls(n: int, seed: int | None, loop_prob: float) -> tuple[np.ndarray, np.ndarray]:
+    """The walls of an ``n`` x ``n`` maze: ``wall_e[i, j]`` is the wall east of cell (i, j), ``wall_n[i, j]`` the wall
+    north of it (True = wall). Cell (i, j) is column i (x), row j (y)."""
+    rng = np.random.default_rng(seed)
 
     # walls between horizontally adjacent cells (east of (i, j)) and vertically adjacent ones (north of (i, j))
     wall_e = np.ones((n, n), dtype=bool)
@@ -58,8 +55,18 @@ def maze_terrain(difficulty: float, cfg: MazeTerrainCfg) -> tuple[list[trimesh.T
             wall_n[i, min(j, j + dj)] = False
         visited[i + di, j + dj] = True
         stack.append((i + di, j + dj))
-    wall_e[:-1] &= rng.random((n - 1, n)) >= cfg.loop_prob  # inner walls only, each may open
-    wall_n[:, :-1] &= rng.random((n, n - 1)) >= cfg.loop_prob
+    wall_e[:-1] &= rng.random((n - 1, n)) >= loop_prob  # inner walls only, each may open
+    wall_n[:, :-1] &= rng.random((n, n - 1)) >= loop_prob
+    return wall_e, wall_n
+
+
+def maze_terrain(difficulty: float, cfg: MazeTerrainCfg) -> tuple[list[trimesh.Trimesh], np.ndarray]:
+    """Flat tile with a ``cells`` x ``cells`` maze: a random spanning tree of walls removed, then each other wall
+    removed with probability ``loop_prob`` (so there are loops and wide spaces, not only one winding corridor)."""
+    sx, sy = cfg.size
+    n = cfg.cells
+    cx, cy = sx / n, sy / n
+    wall_e, wall_n = maze_walls(n, cfg.seed, cfg.loop_prob)
 
     t, h = cfg.wall_thickness, cfg.wall_height
 
@@ -83,6 +90,44 @@ def maze_terrain(difficulty: float, cfg: MazeTerrainCfg) -> tuple[list[trimesh.T
     return meshes, np.array([sx / 2, sy / 2, 0.0])
 
 
+def maze_waypoints(
+    n: int, cell_size: float, seed: int | None, loop_prob: float, start=(0, 0), goal=None
+) -> list[tuple[float, float]]:
+    """Waypoints of the shortest path through the maze ``maze_terrain`` builds with the same arguments, from cell
+    ``start`` to cell ``goal`` (default: the opposite corner): the centres of the cells where the path turns, then
+    the goal cell. World coordinates of a tile centred on the origin. Between two waypoints the path is a straight
+    corridor, so a policy that only steers at the next waypoint does not meet a wall on the way."""
+    goal = goal or (n - 1, n - 1)
+    wall_e, wall_n = maze_walls(n, seed, loop_prob)
+
+    def open_between(a, b):
+        (i, j), (k, m) = a, b
+        if k != i:
+            return not wall_e[min(i, k), j]
+        return not wall_n[i, min(j, m)]
+
+    prev = {start: None}
+    queue = [start]
+    for cur in queue:  # breadth-first search = a shortest path
+        for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nxt = (cur[0] + di, cur[1] + dj)
+            if 0 <= nxt[0] < n and 0 <= nxt[1] < n and nxt not in prev and open_between(cur, nxt):
+                prev[nxt] = cur
+                queue.append(nxt)
+    path = [goal]
+    while prev[path[-1]] is not None:
+        path.append(prev[path[-1]])
+    path.reverse()
+    turns = [
+        path[k]
+        for k in range(1, len(path) - 1)
+        if (path[k][0] - path[k - 1][0], path[k][1] - path[k - 1][1])
+        != (path[k + 1][0] - path[k][0], path[k + 1][1] - path[k][1])
+    ]
+    half = n * cell_size / 2
+    return [((i + 0.5) * cell_size - half, (j + 0.5) * cell_size - half) for i, j in turns + [goal]]
+
+
 @configclass
 class MazeTerrainCfg(SubTerrainBaseCfg):
     """One tile = one random maze. Give it ``flat_patch_sampling={PATCHES: ...}`` for starts and goals."""
@@ -93,6 +138,8 @@ class MazeTerrainCfg(SubTerrainBaseCfg):
     """Cells per side; corridor width is ``size / cells - wall_thickness``."""
     loop_prob: float = 0.3
     """Chance that a wall outside the spanning tree is removed too."""
+    seed: int | None = None
+    """Fixed layout when set (the same maze every time); random when ``None``."""
     wall_thickness: float = 0.3
     wall_height: float = 2.5
     """High enough to fill the depth image's upper rows, like the walls and shelves of the paper maps."""

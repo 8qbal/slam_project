@@ -7,6 +7,8 @@ The pose source is the experiment knob: training uses the ground-truth pose with
 evaluates with the ORB-SLAM3 pose, like the paper; ``_GT_PLAY`` evaluates with the ground-truth pose, without ROS 2.
 """
 
+import math
+import os
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
@@ -152,6 +154,7 @@ class SpotNavigationEnvCfg_PLAY(SpotNavigationEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.ros2 = Ros2ManagerCfg(camera_name="tilted_camera")
+        self.commands.goal.debug_vis = True  # green circle + pole at the goal (viewport overlay, cameras do not see it)
         self.scene.num_envs = 1
         self.episode_length_s = 3000 * HL_DT  # one run of the navigation test
         # inside the room (9 m walls and a roof, x -9..9, y -12..18), high in its south-east corner, so that the
@@ -383,3 +386,109 @@ class SpotNavigationHallRacksCuVslamQualityEnvCfg(SpotNavigationHallRacksCuVslam
     def __post_init__(self):
         super().__post_init__()
         self.observations.policy.slam_quality = ObsTerm(func=mdp.slam_quality)  # last term: the new input columns
+
+
+SMALL_MAZE_CELLS = 4
+SMALL_MAZE_CELL_SIZE = 3.0
+SMALL_MAZE_SIZE = SMALL_MAZE_CELLS * SMALL_MAZE_CELL_SIZE
+"""12 x 12 m: the start-to-goal diagonal (12.7 m between cell centres) is inside the 6-14 m of the maze training."""
+
+
+def _small_maze_settings() -> tuple[int, float, list[tuple[float, float]]]:
+    """Seed, loop probability and the targets (waypoints, then the goal; world xy) of the small maze, from the
+    environment: ``SPOT_VSLAM_MAZE_SEED`` (0), ``SPOT_VSLAM_MAZE_LOOPS`` (0.3, higher opens more walls),
+    ``SPOT_VSLAM_MAZE_WAYPOINTS=1`` (steer to the corners of the shortest path, default 0: straight at the goal)."""
+    seed = int(os.environ.get("SPOT_VSLAM_MAZE_SEED", "0"))
+    loops = float(os.environ.get("SPOT_VSLAM_MAZE_LOOPS", "0.3"))
+    targets = mdp.maze_waypoints(SMALL_MAZE_CELLS, SMALL_MAZE_CELL_SIZE, seed, loops)
+    if os.environ.get("SPOT_VSLAM_MAZE_WAYPOINTS", "0") != "1":
+        targets = targets[-1:]
+    return seed, loops, targets
+
+
+class _SmallMazeMixin:
+    """The small-maze world for the Play tasks below: put it before the Play config in the bases.
+
+    The policy has no map and steers at its goal with the depth camera. Optional (``SPOT_VSLAM_MAZE_WAYPOINTS=1``):
+    feed it the corners of the shortest path one by one (yellow balls; the green disc and pole mark the real goal).
+    Measured 2026-10-27 with GT pose: without waypoints 27 / 27 episodes reached the goal in ~230 steps (maze seeds
+    1-3), with waypoints about half of the runs, in 330-400 steps: goals 3-6 m away are outside the 6-22 m the
+    policies trained on. Env variables: see ``_small_maze_settings``."""
+
+    textured_walls = False
+    """SLAM trackers need texture: grey walls gave cuVSLAM a median error of 8.8 m (see HallRacks-cuVSLAM)."""
+
+    def low_level_env_cfg(self):
+        seed, loops, targets = _small_maze_settings()
+        cfg = SpotPaperHighLevelEnvCfg_PLAY(paper_map=self.paper_map)
+        cfg.scene.maze = None
+        cfg.scene.terrain = TerrainImporterCfg(
+            prim_path="/World/ground",
+            terrain_type="generator",
+            use_terrain_origins=False,
+            env_spacing=cfg.scene.env_spacing,
+            terrain_generator=terrain_gen.TerrainGeneratorCfg(
+                size=(SMALL_MAZE_SIZE, SMALL_MAZE_SIZE),
+                border_width=0.0,
+                num_rows=1,
+                num_cols=1,
+                use_cache=False,
+                sub_terrains={"maze": mdp.MazeTerrainCfg(cells=SMALL_MAZE_CELLS, seed=seed, loop_prob=loops)},
+            ),
+            max_init_terrain_level=0,
+            collision_group=-1,
+            physics_material=GROUND_MATERIAL_CFG,
+            # the default material is black
+            visual_material=(
+                sim_utils.MdlFileCfg(
+                    mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",
+                    project_uvw=True,
+                    texture_scale=(0.75, 0.9),
+                )
+                if self.textured_walls
+                else sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.8, 0.78))
+            ),
+            debug_vis=False,
+        )
+        cfg.scene.sky_light.spawn.intensity = 1500.0
+        # the maze is centred on the origin (terrain mesh bounds -6..6): the start is the centre of the south-west cell
+        near = (SMALL_MAZE_CELL_SIZE - SMALL_MAZE_SIZE) / 2
+        yaw = math.atan2(targets[0][1] - near, targets[0][0] - near)  # facing the first waypoint
+        cfg.scene.robot.init_state.pos = (near, near, 0.6)
+        cfg.scene.robot.init_state.rot = (0.0, 0.0, math.sin(yaw / 2), math.cos(yaw / 2))  # xyzw
+        return cfg
+
+    def __post_init__(self):
+        super().__post_init__()
+        *waypoints, goal = _small_maze_settings()[2]
+        self.commands.goal.goal, self.commands.goal.goal_radius = goal, 1.0
+        self.commands.goal.waypoints = tuple(waypoints)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(0.0, -10.0, 16.0), lookat=(0.0, 0.0, 0.0))
+
+
+@configclass
+class SpotNavigationSmallMazeGTPlayEnvCfg(_SmallMazeMixin, SpotNavigationEnvCfg_GT_PLAY):
+    """``Spot-Nav-SmallMaze-GT-Play-v0``: one small, bright maze with the same layout every time, to watch a
+    high-level policy. The robot starts in the south-west cell, the goal (green disc and a pole above the walls) is in
+    the north-east cell, the far end of the map; yellow balls mark the waypoints along the way. GT pose, no ROS 2."""
+
+
+@configclass
+class SpotNavigationSmallMazeCuVslamPlayEnvCfg(_SmallMazeMixin, SpotNavigationEnvCfg_CUVSLAM_PLAY):
+    """``Spot-Nav-SmallMaze-cuVSLAM-Play-v0``: the small maze with the cuVSLAM stereo pose (in-process)."""
+
+    textured_walls = True
+
+
+@configclass
+class SpotNavigationSmallMazePlayEnvCfg(_SmallMazeMixin, SpotNavigationEnvCfg_PLAY):
+    """``Spot-Nav-SmallMaze-Play-v0``: the small maze with the ORB-SLAM3 RGB-D pose (start the node first)."""
+
+    textured_walls = True
+
+
+@configclass
+class SpotNavigationSmallMazeStereoPlayEnvCfg(_SmallMazeMixin, SpotNavigationEnvCfg_STEREO_PLAY):
+    """``Spot-Nav-SmallMaze-Stereo-Play-v0``: the small maze with the ORB-SLAM3 stereo pose (start the stereo node)."""
+
+    textured_walls = True
