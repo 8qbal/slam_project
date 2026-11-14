@@ -6,4 +6,6 @@ from .actions import LowLevelPolicyAction, LowLevelPolicyActionCfg  # noqa: F401
 from .commands import GoalCommand, GoalCommandCfg  # noqa: F401
 from .maze import *  # noqa: F401, F403
 from .observations import *  # noqa: F401, F403
+from .pathfield import PathField, record_tile  # noqa: F401
 from .rewards import *  # noqa: F401, F403
+from .warehouse import *  # noqa: F401, F403

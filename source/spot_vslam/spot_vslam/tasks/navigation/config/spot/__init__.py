@@ -88,3 +88,30 @@ gym.register(
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
     },
 )
+
+for _id, _cfg in (
+    ("Spot-Nav-HallRacks-Depth-v0", "SpotNavigationHallRacksDepthEnvCfg"),  # GT pose + 5 depth sectors (14-dim)
+    ("Spot-Nav-WarehouseMaze-Depth-v0", "SpotNavigationWarehouseMazeDepthEnvCfg"),  # path reward, warehouse + maze
+    ("Spot-Nav-WarehouseMaze-cuVSLAM-Depth-v0", "SpotNavigationWarehouseMazeCuVslamDepthEnvCfg"),
+    ("Spot-Nav-WarehouseMaze-cuVSLAM-QualityDepth-v0", "SpotNavigationWarehouseMazeCuVslamQualityDepthEnvCfg"),
+    ("Spot-Nav-HallRacks-cuVSLAM-Depth-v0", "SpotNavigationHallRacksCuVslamDepthEnvCfg"),  # cuVSLAM + depth (14)
+    ("Spot-Nav-HallRacks-cuVSLAM-QualityDepth-v0", "SpotNavigationHallRacksCuVslamQualityDepthEnvCfg"),  # (17)
+    ("Spot-Nav-SmallMaze-GT-Depth-Play-v0", "SpotNavigationSmallMazeGTDepthPlayEnvCfg"),
+    ("Spot-Nav-SmallMaze-cuVSLAM-Depth-Play-v0", "SpotNavigationSmallMazeCuVslamDepthPlayEnvCfg"),
+    ("Spot-Nav-SmallMaze-cuVSLAM-QualityDepth-Play-v0", "SpotNavigationSmallMazeCuVslamQualityDepthPlayEnvCfg"),
+    # warehouse: rack rows and aisles, layout from SPOT_VSLAM_WAREHOUSE_SEED (evaluation world)
+    ("Spot-Nav-Warehouse-GT-Play-v0", "SpotNavigationWarehouseGTPlayEnvCfg"),
+    ("Spot-Nav-Warehouse-cuVSLAM-Play-v0", "SpotNavigationWarehouseCuVslamPlayEnvCfg"),
+    ("Spot-Nav-Warehouse-GT-Depth-Play-v0", "SpotNavigationWarehouseGTDepthPlayEnvCfg"),
+    ("Spot-Nav-Warehouse-cuVSLAM-Depth-Play-v0", "SpotNavigationWarehouseCuVslamDepthPlayEnvCfg"),
+    ("Spot-Nav-Warehouse-cuVSLAM-QualityDepth-Play-v0", "SpotNavigationWarehouseCuVslamQualityDepthPlayEnvCfg"),
+):
+    gym.register(
+        id=_id,
+        entry_point="spot_vslam.envs:ManagerBasedRLEnv",
+        disable_env_checker=True,
+        kwargs={
+            "env_cfg_entry_point": f"{__name__}.navigation_env_cfg:{_cfg}",
+            "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
+        },
+    )

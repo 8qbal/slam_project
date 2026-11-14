@@ -70,6 +70,25 @@ uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-HallRacks-cuVS
   --checkpoint <C ep 7800 .pth> --max_iterations 8800
 
 
+# --- The three policies, from scratch, warehouse + maze worlds, path reward (GUIDE-style) -------------------------
+# Tiles: random mazes 50 % + random warehouses 50 %, 800 steps per episode, goals 6-18 m. Rewards: path-distance
+# progress, standing-still, action-rate and soft contact costs (mdp/rewards.py, RewardsPathCfg).
+#   GT + depth            Spot-Nav-WarehouseMaze-Depth-v0                  14 inputs  ~2.5 h per 1000 epochs
+#   cuVSLAM + depth       Spot-Nav-WarehouseMaze-cuVSLAM-Depth-v0          14 inputs  ~4.6 h per 1000 epochs (16 envs)
+#   cuVSLAM+quality+depth Spot-Nav-WarehouseMaze-cuVSLAM-QualityDepth-v0   17 inputs  ~4.6 h per 1000 epochs (16 envs)
+# Run in 1000-epoch segments and check in between (one Isaac Sim at a time: the check needs the training stopped).
+# --max_iterations is the absolute epoch; a later segment resumes from the checkpoint of the segment before.
+# Segment 1 (no --checkpoint), then 2 and 3 with the .pth the previous segment wrote in its nn/ folder:
+uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-WarehouseMaze-Depth-v0 --cameras --max_iterations 1000
+uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-WarehouseMaze-Depth-v0 --cameras \
+  --checkpoint logs/rl_games/spot_navigation_ppo/<segment 1 run>/nn/spot_navigation_ppo.pth --max_iterations 2000
+# cuVSLAM ones: same, add --num_envs 16 and the task name of the row above.
+# Check after each segment (23 runs, ~40 min; POSE = GT | cuVSLAM | cuVSLAM-Quality):
+CKPT=logs/rl_games/spot_navigation_ppo/<run>/nn/spot_navigation_ppo.pth POSE=GT bash scripts/tools/run_eval_set.sh
+# Reference: the old HallRacks-Depth policy (GT) reached 10 / 23.
+# 1000 epochs is only the size of one check segment, not the training length: the old policy needed ~8400 epochs.
+# Keep adding segments (--max_iterations 4000, 5000, ...) while the check improves; or train straight to 8000 and check once.
+
 3. OLD SB3 HIGH LEVEL (the paper-version checkpoint)
 ------------------------------------------------------------------------------
 uv run --no-sync python scripts/high_level/train_high_level_ppo.py --paper --task Spot-Paper-high-level-MapA-v0 \

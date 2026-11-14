@@ -18,6 +18,8 @@ from isaaclab.terrains import SubTerrainBaseCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import quat_from_euler_xyz, sample_uniform
 
+from .pathfield import PathField, record_tile
+
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
@@ -74,12 +76,16 @@ def maze_terrain(difficulty: float, cfg: MazeTerrainCfg) -> tuple[list[trimesh.T
         return trimesh.creation.box(size, trimesh.transformations.translation_matrix(center))
 
     meshes = [box((sx, sy, 0.1), (sx / 2, sy / 2, -0.05))]
+    rects = [(0.0, 0.0, t, sy), (sx - t, 0.0, sx, sy), (0.0, 0.0, sx, t), (0.0, sy - t, sx, sy)]  # for PathField
     for i in range(n):
         for j in range(n):
             if i < n - 1 and wall_e[i, j]:  # wall on the east side of cell (i, j)
                 meshes.append(box((t, cy + t, h), ((i + 1) * cx, (j + 0.5) * cy, h / 2)))
+                rects.append(((i + 1) * cx - t / 2, (j + 0.5) * cy - (cy + t) / 2, (i + 1) * cx + t / 2, (j + 0.5) * cy + (cy + t) / 2))
             if j < n - 1 and wall_n[i, j]:  # wall on the north side
                 meshes.append(box((cx + t, t, h), ((i + 0.5) * cx, (j + 1) * cy, h / 2)))
+                rects.append(((i + 0.5) * cx - (cx + t) / 2, (j + 1) * cy - t / 2, (i + 0.5) * cx + (cx + t) / 2, (j + 1) * cy + t / 2))
+    record_tile((sx, sy), rects)
     # solid outer walls
     meshes += [
         box((t, sy, h), (t / 2, sy / 2, h / 2)),
@@ -267,11 +273,17 @@ def reset_in_maze(
     velocity_range: dict[str, tuple[float, float]],
     command_name: str = "goal",
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    path_field: bool = False,
+    wall_start_prob: float = 0.0,
 ):
     """Move each env to a random maze tile, put the robot on a random free spot there (any heading) and the goal on
     another free spot ``goal_distance`` (min, max) metres away in a straight line (the farthest one if none fits).
 
     The goal goes into the goal command's ``goal_w``; the command term turns it into the start frame afterwards.
+
+    ``path_field``: also build the path-distance field of the goal on the tile (``env.path_field``, used by the
+    ``path_progress`` reward); needs tiles built by ``maze_terrain`` / ``warehouse_terrain``. ``wall_start_prob``: this
+    share of the starts faces a wall 0.5-2.5 m ahead (the case where the policy stalled), needs ``path_field``.
     """
     asset = env.scene[asset_cfg.name]
     terrain = env.scene.terrain
@@ -295,11 +307,22 @@ def reset_in_maze(
     ok = torch.where(ok.any(dim=1, keepdim=True), ok, dist == dist.max(dim=1, keepdim=True).values)
     goal_id = torch.multinomial(ok.float(), 1).squeeze(1)
     goal = tile[torch.arange(n, device=dev), goal_id]
-    env.command_manager.get_term(command_name).goal_w[env_ids] = goal[:, :2]
+    term = env.command_manager.get_term(command_name)
+    term.goal_w[env_ids] = goal[:, :2]
+    term.final_goal_w[env_ids] = goal[:, :2]  # distance(), the progress reward and the success all read this one
+
+    yaw = sample_uniform(-3.14, 3.14, (n,), dev)
+    if path_field:
+        if getattr(env, "path_field", None) is None:
+            env.path_field = PathField(env, rows, cols)
+        env.path_field.reset(env_ids, row, col, goal[:, :2], start[:, :2])
+        if wall_start_prob > 0.0:
+            wall_yaw, ok = env.path_field.facing_wall_yaw(row, col, start[:, :2])
+            use = ok & (torch.rand(n, device=dev) < wall_start_prob)
+            yaw = torch.where(use, wall_yaw, yaw)
 
     pos = start.clone()
     pos[:, 2] += asset.data.default_root_pose.torch[env_ids, 2]  # spawn height; x / y come from the patch
-    yaw = sample_uniform(-3.14, 3.14, (n,), dev)
     zeros = torch.zeros_like(yaw)
     quat = quat_from_euler_xyz(zeros, zeros, yaw)
     keys = ["x", "y", "z", "roll", "pitch", "yaw"]

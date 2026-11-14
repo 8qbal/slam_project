@@ -87,6 +87,32 @@ class RewardsCfg:
 
 
 @configclass
+class RewardsPathCfg:
+    """Rewards of the warehouse + maze training (``Spot-Nav-WarehouseMaze-*``), after GUIDE (Wang et al. 2026, Table I).
+    Per high-level step: +5 per metre of new best path distance, +10 on success, -0.01 per step, -0.1 while standing
+    still away from the goal, -0.05 * |change of the action|^2, -0.3 while the body or a leg touches something (a soft
+    cost: the episode ends only on a real fall, -5)."""
+
+    progress = RewTerm(func=mdp.path_progress, weight=5.0 / HL_DT)
+    success = RewTerm(func=mdp.goal_reached, weight=10.0 / HL_DT)
+    time = RewTerm(func=mdp.is_alive, weight=-0.01 / HL_DT)
+    fall = RewTerm(func=mdp.terminated_by, weight=-5.0 / HL_DT, params={"term_names": ["bad_orientation", "base_too_low"]})
+    static = RewTerm(func=mdp.not_moving, weight=-0.1 / HL_DT)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.05 / HL_DT)
+    contact = RewTerm(func=mdp.body_contact, weight=-0.3 / HL_DT)
+
+
+@configclass
+class TerminationsFallCfg:
+    """Ends on the goal, the time limit or a fall; touching a wall does not end the episode."""
+
+    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    goal_reached = DoneTerm(func=mdp.goal_reached)
+    bad_orientation = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 1.0})
+    base_too_low = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.2})
+
+
+@configclass
 class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     goal_reached = DoneTerm(func=mdp.goal_reached)
@@ -251,7 +277,9 @@ MAZE_TILES = 8
 """Maze tiles per side: 64 different mazes, each 21 x 21 m (7 x 7 cells of 3 m)."""
 
 
-def random_world_low_level(paper_map: str, sub_terrains: dict, tile_size: tuple[float, float], goal_distance):
+def random_world_low_level(
+    paper_map: str, sub_terrains: dict, tile_size: tuple[float, float], goal_distance, **reset_params
+):
     """The low-level env of a navigation task on random terrain tiles: ``reset_in_maze`` picks a random tile, start
     (any heading) and goal ``goal_distance`` (min, max) metres away at every reset. 8 x 8 tiles."""
     cfg = SpotPaperHighLevelEnvCfg(paper_map=paper_map)
@@ -277,7 +305,11 @@ def random_world_low_level(paper_map: str, sub_terrains: dict, tile_size: tuple[
     cfg.events.reset_base = EventTerm(
         func=mdp.reset_in_maze,
         mode="reset",
-        params={"goal_distance": goal_distance, "velocity_range": reset_base.params["velocity_range"]},
+        params={
+            "goal_distance": goal_distance,
+            "velocity_range": reset_base.params["velocity_range"],
+            **reset_params,
+        },
     )
     return cfg
 
@@ -348,6 +380,25 @@ class SpotNavigationHallRacksEnvCfg(SpotNavigationEnvCfg):
         )
 
 
+def _apply_cuvslam(cfg):
+    """Condition B setup (HallRacks-cuVSLAM and WarehouseMaze-cuVSLAM): pose from one cuVSLAM stereo tracker per env."""
+    # same cameras as the cuVSLAM Play tasks; an RGB-D camera in the scene needs the policy camera to render RGB too
+    cfg.scene.train_camera = DEPTH_CAMERA_WITH_RGB_CFG
+    cfg.scene.tilted_camera = SLAM_CAMERA_CFG.replace(update_period=0.01)
+    cfg.scene.right_camera = SLAM_RIGHT_CAMERA_CFG.replace(update_period=0.01)
+    cfg.cuvslam = CuVslamManagerCfg(camera_name="tilted_camera", right_camera_name="right_camera")
+    cfg.observations.policy.enable_corruption = False
+    cfg.observations.policy.use_pose_source("slam")
+    # The plain grey terrain gives cuVSLAM nothing to track (median error 8.8 m, 83 % of the steps above 1.5 m on
+    # 2026-10-20; Map A: 0.3 m). Textured walls and floor; the policy sees depth only, so GT tasks keep the old
+    # look.
+    cfg.scene.terrain.visual_material = sim_utils.MdlFileCfg(
+        mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",
+        project_uvw=True,
+        texture_scale=(0.75, 0.9),
+    )
+
+
 @configclass
 class SpotNavigationHallRacksCuVslamEnvCfg(SpotNavigationHallRacksEnvCfg):
     """``Spot-Nav-HallRacks-cuVSLAM-v0``: condition B of the A / B / C experiment.
@@ -360,21 +411,7 @@ class SpotNavigationHallRacksCuVslamEnvCfg(SpotNavigationHallRacksEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        # same cameras as the cuVSLAM Play tasks; an RGB-D camera in the scene needs the policy camera to render RGB too
-        self.scene.train_camera = DEPTH_CAMERA_WITH_RGB_CFG
-        self.scene.tilted_camera = SLAM_CAMERA_CFG.replace(update_period=0.01)
-        self.scene.right_camera = SLAM_RIGHT_CAMERA_CFG.replace(update_period=0.01)
-        self.cuvslam = CuVslamManagerCfg(camera_name="tilted_camera", right_camera_name="right_camera")
-        self.observations.policy.enable_corruption = False
-        self.observations.policy.use_pose_source("slam")
-        # The plain grey terrain gives cuVSLAM nothing to track (median error 8.8 m, 83 % of the steps above 1.5 m on
-        # 2026-10-20; Map A: 0.3 m). Textured walls and floor; the policy sees depth only, so GT tasks keep the old
-        # look.
-        self.scene.terrain.visual_material = sim_utils.MdlFileCfg(
-            mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",
-            project_uvw=True,
-            texture_scale=(0.75, 0.9),
-        )
+        _apply_cuvslam(self)
 
 
 @configclass
@@ -386,6 +423,97 @@ class SpotNavigationHallRacksCuVslamQualityEnvCfg(SpotNavigationHallRacksCuVslam
     def __post_init__(self):
         super().__post_init__()
         self.observations.policy.slam_quality = ObsTerm(func=mdp.slam_quality)  # last term: the new input columns
+
+
+class _DepthSectorsMixin:
+    """Put before the task config in the bases: appends ``mdp.depth_sectors`` (5 inputs, the last columns) to the
+    policy observation. Widen an existing checkpoint with ``scripts/tools/extend_checkpoint_obs.py --extra 5``."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.observations.policy.depth_sectors = ObsTerm(func=mdp.depth_sectors)
+
+
+class _CuVslamQualityMixin:
+    """Appends ``mdp.slam_quality`` (3 inputs) to the policy observation; listed after ``_DepthSectorsMixin`` so that
+    the quality columns come before the depth columns."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.observations.policy.slam_quality = ObsTerm(func=mdp.slam_quality)
+
+
+@configclass
+class SpotNavigationHallRacksDepthEnvCfg(_DepthSectorsMixin, SpotNavigationHallRacksEnvCfg):
+    """``Spot-Nav-HallRacks-Depth-v0``: ``Spot-Nav-HallRacks-v0`` (ground-truth pose) plus 5 depth-sector inputs
+    (14 in all): the high level sees how far the walls are."""
+
+
+WAREHOUSE_MAZE_TILE = (22.0, 24.0)
+
+
+@configclass
+class SpotNavigationWarehouseMazeEnvCfg(SpotNavigationEnvCfg):
+    """Worlds, rewards and terminations of the three ``Spot-Nav-WarehouseMaze-*`` training tasks (GT pose, 9 inputs; the
+    tasks add depth sectors, cuVSLAM and quality inputs). Random mazes (50 %, 7 x 7 cells) and random warehouses (50 %: solid rack rows, 2.2-2.8 m aisles) as
+    the tiles, goals 6-18 m away in a straight line, 800 high-level steps per episode. Differences from
+    ``Spot-Nav-HallRacks-Depth-v0``: path-distance progress (``RewardsPathCfg``), standing-still and contact costs
+    instead of ending on a touch, and 30 % of the starts face a wall 0.5-2.5 m ahead."""
+
+    rewards: RewardsPathCfg = RewardsPathCfg()
+    terminations: TerminationsFallCfg = TerminationsFallCfg()
+
+    def low_level_env_cfg(self):
+        return random_world_low_level(
+            self.paper_map,
+            {
+                "maze": mdp.MazeTerrainCfg(proportion=0.5, flat_patch_sampling=_patches(0.6, 96)),
+                "warehouse": mdp.WarehouseTerrainCfg(proportion=0.5, flat_patch_sampling=_patches(0.6, 96)),
+            },
+            WAREHOUSE_MAZE_TILE,
+            (6.0, 18.0),
+            path_field=True,
+            wall_start_prob=0.3,
+        )
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.episode_length_s = 800 * HL_DT
+
+
+@configclass
+class SpotNavigationWarehouseMazeDepthEnvCfg(_DepthSectorsMixin, SpotNavigationWarehouseMazeEnvCfg):
+    """``Spot-Nav-WarehouseMaze-Depth-v0``: GT pose + 5 depth sectors (14 inputs)."""
+
+
+@configclass
+class SpotNavigationWarehouseMazeCuVslamEnvCfg(SpotNavigationWarehouseMazeEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        _apply_cuvslam(self)
+
+
+@configclass
+class SpotNavigationWarehouseMazeCuVslamDepthEnvCfg(_DepthSectorsMixin, SpotNavigationWarehouseMazeCuVslamEnvCfg):
+    """``Spot-Nav-WarehouseMaze-cuVSLAM-Depth-v0``: cuVSLAM pose + 5 depth sectors (14 inputs)."""
+
+
+@configclass
+class SpotNavigationWarehouseMazeCuVslamQualityDepthEnvCfg(
+    _DepthSectorsMixin, _CuVslamQualityMixin, SpotNavigationWarehouseMazeCuVslamEnvCfg
+):
+    """``Spot-Nav-WarehouseMaze-cuVSLAM-QualityDepth-v0``: cuVSLAM pose, 3 quality inputs, 5 depth sectors (17)."""
+
+
+@configclass
+class SpotNavigationHallRacksCuVslamDepthEnvCfg(_DepthSectorsMixin, SpotNavigationHallRacksCuVslamEnvCfg):
+    """``Spot-Nav-HallRacks-cuVSLAM-Depth-v0``: cuVSLAM pose plus 5 depth-sector inputs (14 in all)."""
+
+
+@configclass
+class SpotNavigationHallRacksCuVslamQualityDepthEnvCfg(_DepthSectorsMixin, SpotNavigationHallRacksCuVslamQualityEnvCfg):
+    """``Spot-Nav-HallRacks-cuVSLAM-QualityDepth-v0``: cuVSLAM pose, 3 quality inputs, then 5 depth-sector inputs
+    (17 in all, the depth columns last)."""
 
 
 SMALL_MAZE_CELLS = 4
@@ -433,6 +561,7 @@ class _SmallMazeMixin:
                 num_rows=1,
                 num_cols=1,
                 use_cache=False,
+                seed=seed,  # Isaac Lab copies this seed into every sub-terrain; a seed on the sub-terrain alone is overwritten
                 sub_terrains={"maze": mdp.MazeTerrainCfg(cells=SMALL_MAZE_CELLS, seed=seed, loop_prob=loops)},
             ),
             max_init_terrain_level=0,
@@ -492,3 +621,118 @@ class SpotNavigationSmallMazeStereoPlayEnvCfg(_SmallMazeMixin, SpotNavigationEnv
     """``Spot-Nav-SmallMaze-Stereo-Play-v0``: the small maze with the ORB-SLAM3 stereo pose (start the stereo node)."""
 
     textured_walls = True
+
+
+@configclass
+class SpotNavigationSmallMazeGTDepthPlayEnvCfg(_DepthSectorsMixin, SpotNavigationSmallMazeGTPlayEnvCfg):
+    """``Spot-Nav-SmallMaze-GT-Depth-Play-v0``: the small maze, ground-truth pose, 14 inputs."""
+
+
+@configclass
+class SpotNavigationSmallMazeCuVslamDepthPlayEnvCfg(_DepthSectorsMixin, SpotNavigationSmallMazeCuVslamPlayEnvCfg):
+    """``Spot-Nav-SmallMaze-cuVSLAM-Depth-Play-v0``: the small maze, cuVSLAM pose, 14 inputs."""
+
+
+@configclass
+class SpotNavigationSmallMazeCuVslamQualityDepthPlayEnvCfg(
+    _DepthSectorsMixin, _CuVslamQualityMixin, SpotNavigationSmallMazeCuVslamPlayEnvCfg
+):
+    """``Spot-Nav-SmallMaze-cuVSLAM-QualityDepth-Play-v0``: the small maze, cuVSLAM pose, 3 quality + 5 depth inputs
+    (17), the same layout as ``Spot-Nav-HallRacks-cuVSLAM-QualityDepth-v0``."""
+
+
+WAREHOUSE_SIZE = (20.0, 24.0)
+"""Like the paper maps (20 x 30 m), a little shorter: start to goal is about 18 m, inside the 6-22 m of the training."""
+
+
+def _warehouse_settings() -> tuple[int, tuple[float, float, float], tuple[float, float]]:
+    """Layout seed, start (x, y, yaw) and goal (x, y) of the warehouse, from the environment:
+    ``SPOT_VSLAM_WAREHOUSE_SEED`` (0) and ``SPOT_VSLAM_WAREHOUSE_LATERAL`` (1: the start is one aisle to the side of the
+    goal aisle, so the robot has to move along the cross aisle first; 0: straight in front of the goal aisle)."""
+    seed = int(os.environ.get("SPOT_VSLAM_WAREHOUSE_SEED", "0"))
+    lateral = int(os.environ.get("SPOT_VSLAM_WAREHOUSE_LATERAL", "1"))
+    start, goal = mdp.warehouse_task(seed, lateral, WAREHOUSE_SIZE)
+    return seed, start, goal
+
+
+class _WarehouseMixin:
+    """The warehouse world for the Play tasks below (put it before the Play config in the bases): one 20 x 24 m tile
+    with solid rack rows and aisles (``mdp.warehouse``), the layout fixed by ``SPOT_VSLAM_WAREHOUSE_SEED``. The robot
+    starts in the front cross aisle facing the goal, which is deep inside one aisle (green disc). Like the small maze,
+    no map: the same seed gives the same layout, start and goal to every policy and pose source."""
+
+    textured_walls = False
+    """SLAM trackers need texture: grey walls gave cuVSLAM a median error of 8.8 m (see HallRacks-cuVSLAM)."""
+
+    def low_level_env_cfg(self):
+        seed, start, _ = _warehouse_settings()
+        cfg = SpotPaperHighLevelEnvCfg_PLAY(paper_map=self.paper_map)
+        cfg.scene.maze = None
+        cfg.scene.terrain = TerrainImporterCfg(
+            prim_path="/World/ground",
+            terrain_type="generator",
+            use_terrain_origins=False,
+            env_spacing=cfg.scene.env_spacing,
+            terrain_generator=terrain_gen.TerrainGeneratorCfg(
+                size=WAREHOUSE_SIZE,
+                border_width=0.0,
+                num_rows=1,
+                num_cols=1,
+                use_cache=False,
+                seed=seed,  # Isaac Lab copies this seed into every sub-terrain; a seed on the sub-terrain alone is overwritten
+                sub_terrains={"warehouse": mdp.WarehouseTerrainCfg(seed=seed)},
+            ),
+            max_init_terrain_level=0,
+            collision_group=-1,
+            physics_material=GROUND_MATERIAL_CFG,
+            visual_material=(
+                sim_utils.MdlFileCfg(
+                    mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",
+                    project_uvw=True,
+                    texture_scale=(0.75, 0.9),
+                )
+                if self.textured_walls
+                else sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.8, 0.78))
+            ),
+            debug_vis=False,
+        )
+        cfg.scene.sky_light.spawn.intensity = 1500.0
+        # the tile is centred on the origin (terrain mesh bounds -10..10, -12..12)
+        cfg.scene.robot.init_state.pos = (start[0], start[1], 0.6)
+        cfg.scene.robot.init_state.rot = (0.0, 0.0, math.sin(start[2] / 2), math.cos(start[2] / 2))  # xyzw
+        return cfg
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.commands.goal.goal, self.commands.goal.goal_radius = _warehouse_settings()[2], 1.0
+        self.commands.goal.waypoints = ()
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(0.0, -16.0, 24.0), lookat=(0.0, 0.0, 0.0))
+
+
+@configclass
+class SpotNavigationWarehouseGTPlayEnvCfg(_WarehouseMixin, SpotNavigationEnvCfg_GT_PLAY):
+    """``Spot-Nav-Warehouse-GT-Play-v0``: one warehouse layout (``SPOT_VSLAM_WAREHOUSE_SEED``), ground-truth pose."""
+
+
+@configclass
+class SpotNavigationWarehouseCuVslamPlayEnvCfg(_WarehouseMixin, SpotNavigationEnvCfg_CUVSLAM_PLAY):
+    """``Spot-Nav-Warehouse-cuVSLAM-Play-v0``: the warehouse with the cuVSLAM stereo pose (in-process)."""
+
+    textured_walls = True
+
+
+@configclass
+class SpotNavigationWarehouseGTDepthPlayEnvCfg(_DepthSectorsMixin, SpotNavigationWarehouseGTPlayEnvCfg):
+    """``Spot-Nav-Warehouse-GT-Depth-Play-v0``: ground-truth pose, 14 inputs (9 + 5 depth sectors)."""
+
+
+@configclass
+class SpotNavigationWarehouseCuVslamDepthPlayEnvCfg(_DepthSectorsMixin, SpotNavigationWarehouseCuVslamPlayEnvCfg):
+    """``Spot-Nav-Warehouse-cuVSLAM-Depth-Play-v0``: cuVSLAM pose, 14 inputs."""
+
+
+@configclass
+class SpotNavigationWarehouseCuVslamQualityDepthPlayEnvCfg(
+    _DepthSectorsMixin, _CuVslamQualityMixin, SpotNavigationWarehouseCuVslamPlayEnvCfg
+):
+    """``Spot-Nav-Warehouse-cuVSLAM-QualityDepth-Play-v0``: cuVSLAM pose, 3 quality + 5 depth inputs (17)."""

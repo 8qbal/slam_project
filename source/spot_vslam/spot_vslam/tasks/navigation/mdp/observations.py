@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 __all__ = [
     "base_lin_vel_xy",
     "base_yaw_rate",
+    "depth_sectors",
     "goal_heading_error",
     "goal_position",
     "robot_pose",
@@ -88,3 +89,24 @@ def slam_quality(env: ManagerBasedRLEnv) -> torch.Tensor:
     env._slam_features_ema = ema
     gap = torch.nan_to_num((res["odom_xyyaw"][:, :2] - res["slam_xyyaw"][:, :2]).norm(dim=1), nan=0.0)
     return torch.stack([features, ema, (gap / GAP_SCALE).clamp(0.0, 1.0)], dim=1)
+
+
+DEPTH_SECTORS = 5
+"""Columns of the policy depth image (80 px wide: 16 px, about 19 degrees each) that the high level sees."""
+DEPTH_MAX_M = 5.0
+"""Same clamp as the low level's depth observation; 1 = free for 5 m or more."""
+
+
+def depth_sectors(env: ManagerBasedRLEnv, sensor_name: str = "train_camera") -> torch.Tensor:
+    """Distance to the nearest obstacle in 5 sectors (left to right), shape (N, 5), in [0, 1] (metres / 5, clamped).
+
+    Only the rows above the horizon: the camera looks level, so the lower half sees the floor from 0.6 m on (the
+    floor would hide every wall), while the upper half sees walls and racks only. The low level stops walking 1-2 m
+    in front of a wall (docs/ROADMAP.md, measured 2026-11-10): without this the high level cannot know why.
+    Ground-truth depth of the simulator, the same image the low level reads."""
+    depth = env.scene.sensors[sensor_name].data.output["distance_to_image_plane"].torch
+    depth = torch.nan_to_num(depth, nan=DEPTH_MAX_M, posinf=DEPTH_MAX_M, neginf=DEPTH_MAX_M)
+    depth = depth.clamp(0.0, DEPTH_MAX_M).squeeze(-1)  # (N, H, W)
+    n, h, w = depth.shape
+    upper = depth[:, : h // 2].reshape(n, h // 2, DEPTH_SECTORS, w // DEPTH_SECTORS)
+    return upper.amin(dim=(1, 3)) / DEPTH_MAX_M
