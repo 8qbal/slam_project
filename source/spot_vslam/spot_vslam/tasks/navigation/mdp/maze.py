@@ -18,6 +18,7 @@ from isaaclab.terrains import SubTerrainBaseCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import quat_from_euler_xyz, sample_uniform
 
+from .curriculums import goal_range
 from .pathfield import PathField, record_tile
 
 if TYPE_CHECKING:
@@ -275,15 +276,20 @@ def reset_in_maze(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     path_field: bool = False,
     wall_start_prob: float = 0.0,
+    aisle_prob: float = 0.0,
 ):
     """Move each env to a random maze tile, put the robot on a random free spot there (any heading) and the goal on
     another free spot ``goal_distance`` (min, max) metres away in a straight line (the farthest one if none fits).
+    With a goal-distance curriculum (``env._goal_curriculum``, mdp/curriculums.py) the range comes from it instead.
 
     The goal goes into the goal command's ``goal_w``; the command term turns it into the start frame afterwards.
 
     ``path_field``: also build the path-distance field of the goal on the tile (``env.path_field``, used by the
     ``path_progress`` reward); needs tiles built by ``maze_terrain`` / ``warehouse_terrain``. ``wall_start_prob``: this
     share of the starts faces a wall 0.5-2.5 m ahead (the case where the policy stalled), needs ``path_field``.
+    ``aisle_prob``: this share of the episodes on warehouse tiles is the evaluation task instead of a random start and
+    goal (``PathField.aisle_task``: start in the front cross aisle, goal deep inside an aisle, 12-20 m by path); they are
+    flagged in ``env._aisle_ep`` and left out of the goal-distance curriculum. Needs ``path_field``.
     """
     asset = env.scene[asset_cfg.name]
     terrain = env.scene.terrain
@@ -302,24 +308,46 @@ def reset_in_maze(
     start_id = torch.randint(0, num, (n,), device=dev)
     start = tile[torch.arange(n, device=dev), start_id]
     dist = torch.linalg.norm(tile[..., :2] - start[:, None, :2], dim=-1)  # (n, P)
+    curriculum = getattr(env, "_goal_curriculum", None)  # set by the goal_distance_curriculum term, if the task has one
+    if curriculum is not None:
+        goal_distance = goal_range(curriculum["max"])
+    pf = None
+    if path_field:
+        if getattr(env, "path_field", None) is None:
+            env.path_field = PathField(env, rows, cols)
+        pf = env.path_field
     ok = (dist >= goal_distance[0]) & (dist <= goal_distance[1])
     ok[torch.arange(n, device=dev), start_id] = False
     ok = torch.where(ok.any(dim=1, keepdim=True), ok, dist == dist.max(dim=1, keepdim=True).values)
     goal_id = torch.multinomial(ok.float(), 1).squeeze(1)
     goal = tile[torch.arange(n, device=dev), goal_id]
+    aisle = torch.zeros(n, dtype=torch.bool, device=dev)
+    aisle_yaw = torch.zeros(n, device=dev)
+    if aisle_prob > 0.0 and pf is not None:
+        aisle = pf.is_warehouse[row, col] & (torch.rand(n, device=dev) < aisle_prob)
+        if aisle.any():
+            a_start, a_goal, a_yaw = pf.aisle_task(row[aisle], col[aisle])
+            start, goal = start.clone(), goal.clone()
+            start[aisle, :2], goal[aisle, :2] = a_start, a_goal
+            aisle_yaw[aisle] = a_yaw
+    if getattr(env, "_aisle_ep", None) is None:
+        env._aisle_ep = torch.zeros(env.num_envs, dtype=torch.bool, device=dev)
+    env._aisle_ep[env_ids] = aisle
     term = env.command_manager.get_term(command_name)
     term.goal_w[env_ids] = goal[:, :2]
     term.final_goal_w[env_ids] = goal[:, :2]  # distance(), the progress reward and the success all read this one
 
     yaw = sample_uniform(-3.14, 3.14, (n,), dev)
     if path_field:
-        if getattr(env, "path_field", None) is None:
-            env.path_field = PathField(env, rows, cols)
-        env.path_field.reset(env_ids, row, col, goal[:, :2], start[:, :2])
+        pf.reset(env_ids, row, col, goal[:, :2], start[:, :2])
         if wall_start_prob > 0.0:
-            wall_yaw, ok = env.path_field.facing_wall_yaw(row, col, start[:, :2])
-            use = ok & (torch.rand(n, device=dev) < wall_start_prob)
+            wall_yaw, ok = pf.facing_wall_yaw(row, col, start[:, :2])
+            use = ok & (torch.rand(n, device=dev) < wall_start_prob) & ~aisle
             yaw = torch.where(use, wall_yaw, yaw)
+            if getattr(env, "_wall_start", None) is None:
+                env._wall_start = torch.zeros(env.num_envs, dtype=torch.bool, device=dev)
+            env._wall_start[env_ids] = use  # which episodes started facing a wall (for diagnosis scripts)
+    yaw = torch.where(aisle, aisle_yaw, yaw)
 
     pos = start.clone()
     pos[:, 2] += asset.data.default_root_pose.torch[env_ids, 2]  # spawn height; x / y come from the patch

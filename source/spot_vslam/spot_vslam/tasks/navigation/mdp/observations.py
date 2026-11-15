@@ -23,6 +23,7 @@ __all__ = [
     "depth_sectors",
     "goal_heading_error",
     "goal_position",
+    "progress_memory",
     "robot_pose",
     "slam_quality",
 ]
@@ -110,3 +111,33 @@ def depth_sectors(env: ManagerBasedRLEnv, sensor_name: str = "train_camera") -> 
     n, h, w = depth.shape
     upper = depth[:, : h // 2].reshape(n, h // 2, DEPTH_SECTORS, w // DEPTH_SECTORS)
     return upper.amin(dim=(1, 3)) / DEPTH_MAX_M
+
+
+MEMORY_GAP_SCALE = 5.0
+"""Metres farther from the goal than the best of this episode that count as the largest value."""
+MEMORY_STEPS = 100.0
+"""High-level steps (8 s) without a new best distance that count as the largest value."""
+MEMORY_TOL = 0.05
+"""A new best distance must beat the old one by this much (m)."""
+
+
+def progress_memory(env: ManagerBasedRLEnv, command_name: str = "goal", pose_source: str = "gt") -> torch.Tensor:
+    """What the policy cannot see in one frame, shape (N, 2), both in [0, 1]: how much farther from the goal it is than
+    at its best this episode, and for how long it has not got a new best. d = straight-line distance to the goal from
+    the policy's own pose (GT or SLAM), so it also works at deployment. A large gap that stays means a dead end or a
+    loop: it must go back out (a wall-hugging detour raises the gap too: the policy has to learn which is which).
+
+    obs = [clip((d - d_best) / 5 m, 0, 1), clip((t - t_best) / 100 steps, 0, 1)]"""
+    d = goal_position(env, command_name, pose_source).norm(dim=-1)
+    now = env.episode_length_buf.to(d.dtype)
+    best = getattr(env, "_pm_best", None)
+    if best is None or best.shape != d.shape:
+        best, env._pm_t = d.clone(), now.clone()
+    fresh = env.episode_length_buf <= 1  # first step of an episode: start from the new distance
+    new_best = fresh | (d < best - MEMORY_TOL)
+    env._pm_t = torch.where(new_best, now, env._pm_t)
+    best = torch.where(fresh, d, torch.minimum(best, d))
+    env._pm_best = best
+    return torch.stack(
+        [((d - best) / MEMORY_GAP_SCALE).clamp(0.0, 1.0), ((now - env._pm_t) / MEMORY_STEPS).clamp(0.0, 1.0)], dim=1
+    )

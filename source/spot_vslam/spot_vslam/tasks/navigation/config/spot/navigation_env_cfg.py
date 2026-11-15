@@ -14,6 +14,7 @@ from dataclasses import MISSING
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -124,6 +125,14 @@ class TerminationsCfg:
         func=mdp.illegal_contact,
         params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=[".*leg"]), "threshold": 1.0},
     )
+
+
+@configclass
+class CurriculumGoalCfg:
+    """Goal distance grows with the success rate (mdp/curriculums.py); its value is logged as Curriculum/goal_range."""
+
+    goal_range = CurrTerm(func=mdp.goal_distance_curriculum)
+    aisle_rate = CurrTerm(func=mdp.aisle_success_rate)
 
 
 @configclass
@@ -427,11 +436,18 @@ class SpotNavigationHallRacksCuVslamQualityEnvCfg(SpotNavigationHallRacksCuVslam
 
 class _DepthSectorsMixin:
     """Put before the task config in the bases: appends ``mdp.depth_sectors`` (5 inputs, the last columns) to the
-    policy observation. Widen an existing checkpoint with ``scripts/tools/extend_checkpoint_obs.py --extra 5``."""
+    policy observation. Widen an existing checkpoint with ``scripts/tools/extend_checkpoint_obs.py --extra 5``.
+    With ``SPOT_VSLAM_HL_MEMORY=1`` it also appends ``mdp.progress_memory`` (2 more inputs, after the depth ones); the
+    variable must be the same when a checkpoint is trained and when it is played."""
 
     def __post_init__(self):
         super().__post_init__()
         self.observations.policy.depth_sectors = ObsTerm(func=mdp.depth_sectors)
+        if os.environ.get("SPOT_VSLAM_HL_MEMORY") == "1":  # +2 last columns; set it for training AND evaluation
+            pose_source = self.observations.policy.pose.params["pose_source"]
+            self.observations.policy.progress_memory = ObsTerm(
+                func=mdp.progress_memory, params={"pose_source": pose_source}
+            )
 
 
 class _CuVslamQualityMixin:
@@ -456,12 +472,14 @@ WAREHOUSE_MAZE_TILE = (22.0, 24.0)
 class SpotNavigationWarehouseMazeEnvCfg(SpotNavigationEnvCfg):
     """Worlds, rewards and terminations of the three ``Spot-Nav-WarehouseMaze-*`` training tasks (GT pose, 9 inputs; the
     tasks add depth sectors, cuVSLAM and quality inputs). Random mazes (50 %, 7 x 7 cells) and random warehouses (50 %: solid rack rows, 2.2-2.8 m aisles) as
-    the tiles, goals 6-18 m away in a straight line, 800 high-level steps per episode. Differences from
+    the tiles, goals 2-6 m growing to 6-18 m away in a straight line (``CurriculumGoalCfg``), 800 high-level steps per episode. Differences from
     ``Spot-Nav-HallRacks-Depth-v0``: path-distance progress (``RewardsPathCfg``), standing-still and contact costs
-    instead of ending on a touch, and 30 % of the starts face a wall 0.5-2.5 m ahead."""
+    instead of ending on a touch, 30 % of the starts face a wall 0.5-2.5 m ahead, and half of the warehouse episodes are
+    the evaluation task (start in the front cross aisle, goal deep inside an aisle, ``aisle_prob``)."""
 
     rewards: RewardsPathCfg = RewardsPathCfg()
     terminations: TerminationsFallCfg = TerminationsFallCfg()
+    curriculum: CurriculumGoalCfg = CurriculumGoalCfg()
 
     def low_level_env_cfg(self):
         return random_world_low_level(
@@ -474,6 +492,7 @@ class SpotNavigationWarehouseMazeEnvCfg(SpotNavigationEnvCfg):
             (6.0, 18.0),
             path_field=True,
             wall_start_prob=0.3,
+            aisle_prob=0.5,
         )
 
     def __post_init__(self):

@@ -112,6 +112,8 @@ for _id, _cfg in (
         disable_env_checker=True,
         kwargs={
             "env_cfg_entry_point": f"{__name__}.navigation_env_cfg:{_cfg}",
-            "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
+            # the training tasks use the PPO file with the smaller initial std and bounded mean action
+            "rl_games_cfg_entry_point": f"{agents.__name__}:"
+            + ("rl_games_ppo_pathreward_cfg.yaml" if "WarehouseMaze" in _id else "rl_games_ppo_cfg.yaml"),
         },
     )

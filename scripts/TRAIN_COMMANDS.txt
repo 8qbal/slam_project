@@ -76,15 +76,27 @@ uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-HallRacks-cuVS
 #   GT + depth            Spot-Nav-WarehouseMaze-Depth-v0                  14 inputs  ~2.5 h per 1000 epochs
 #   cuVSLAM + depth       Spot-Nav-WarehouseMaze-cuVSLAM-Depth-v0          14 inputs  ~4.6 h per 1000 epochs (16 envs)
 #   cuVSLAM+quality+depth Spot-Nav-WarehouseMaze-cuVSLAM-QualityDepth-v0   17 inputs  ~4.6 h per 1000 epochs (16 envs)
+# These three tasks use agents/rl_games_ppo_pathreward_cfg.yaml (initial action std 0.37, entropy_coef 0, bounds loss 0.05):
+# with the paper yaml (std 1, entropy 0.01) the first run drifted to saturated actions by epoch ~500 and got worse.
+# Healthy at epoch 300-500: losses/bounds_loss near 0, losses/entropy flat or falling, Metrics/goal/distance below its
+# first value, goal_reached rising. If entropy collapses fast while progress is flat: entropy_coef 0.002.
+# Goals start at 2-6 m and grow to 6-18 m with the success rate (CurriculumGoalCfg, log: Curriculum/goal_range, 6 = start,
+# 18 = the full range). goal_reached / goal_distance in the log are only comparable at the same goal_range.
+# 2026-11-15 fixes after the first 3000-epoch run (eval 5/23 and 6/23, vx saturated, goals never inside an aisle):
+#   1. half of the warehouse episodes are the evaluation task (start in the front cross aisle, goal deep in an aisle,
+#      aisle_prob 0.5; log Curriculum/aisle_rate = success on them, they are not counted in goal_range)
+#   2. SPOT_VSLAM_HL_MEMORY=1 adds 2 inputs (gap to the best distance, steps without a new best): 16 / 19 inputs. Put it
+#      in front of train.py AND of every eval / play command, or the checkpoint does not fit. Without it: 14 / 17 as before.
+#   3. bounds_loss_coef 0.05 (was 1e-3). Healthy: losses/bounds_loss stays below ~0.5 (was 5 at epoch 3000).
 # Run in 1000-epoch segments and check in between (one Isaac Sim at a time: the check needs the training stopped).
 # --max_iterations is the absolute epoch; a later segment resumes from the checkpoint of the segment before.
 # Segment 1 (no --checkpoint), then 2 and 3 with the .pth the previous segment wrote in its nn/ folder:
-uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-WarehouseMaze-Depth-v0 --cameras --max_iterations 1000
-uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-WarehouseMaze-Depth-v0 --cameras \
+SPOT_VSLAM_HL_MEMORY=1 uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-WarehouseMaze-Depth-v0 --cameras --max_iterations 1000
+SPOT_VSLAM_HL_MEMORY=1 uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-WarehouseMaze-Depth-v0 --cameras \
   --checkpoint logs/rl_games/spot_navigation_ppo/<segment 1 run>/nn/spot_navigation_ppo.pth --max_iterations 2000
 # cuVSLAM ones: same, add --num_envs 16 and the task name of the row above.
 # Check after each segment (23 runs, ~40 min; POSE = GT | cuVSLAM | cuVSLAM-Quality):
-CKPT=logs/rl_games/spot_navigation_ppo/<run>/nn/spot_navigation_ppo.pth POSE=GT bash scripts/tools/run_eval_set.sh
+SPOT_VSLAM_HL_MEMORY=1 CKPT=logs/rl_games/spot_navigation_ppo/<run>/nn/spot_navigation_ppo.pth POSE=GT bash scripts/tools/run_eval_set.sh
 # Reference: the old HallRacks-Depth policy (GT) reached 10 / 23.
 # 1000 epochs is only the size of one check segment, not the training length: the old policy needed ~8400 epochs.
 # Keep adding segments (--max_iterations 4000, 5000, ...) while the check improves; or train straight to 8000 and check once.

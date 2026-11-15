@@ -127,7 +127,12 @@ def warehouse_terrain(difficulty: float, cfg: WarehouseTerrainCfg) -> tuple[list
     t = WALL_THICKNESS
     rects = [(0.0, 0.0, t, sy), (sx - t, 0.0, sx, sy), (0.0, 0.0, sx, t), (0.0, sy - t, sx, sy)]  # for PathField
     rects += [(x0 + sx / 2 - BOX_PROTRUSION, y0 + sy / 2, x1 + sx / 2 + BOX_PROTRUSION, y1 + sy / 2) for x0, y0, x1, y1 in layout["racks"]]
-    record_tile((sx, sy), rects)
+    meta = {  # corner frame, for the training resets (``PathField.aisle_task``)
+        "aisle_x": [x + sx / 2 for x in layout["aisle_x"]],
+        "y_start": FRONT_AISLE / 2,
+        "y_goal": layout["y_rack"][1] - 2.0 + sy / 2,
+    }
+    record_tile((sx, sy), rects, meta)
     return meshes, np.array([sx / 2, sy / 2, 0.0])
 
 

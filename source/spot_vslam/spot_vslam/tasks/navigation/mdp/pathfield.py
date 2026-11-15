@@ -24,12 +24,15 @@ if TYPE_CHECKING:
 
 __all__ = ["PathField", "record_tile"]
 
-TILE_RECTS: list[tuple[tuple[float, float], list[tuple[float, float, float, float]]]] = []
-"""Per built tile: (size, obstacle rectangles (x0, y0, x1, y1) in the tile corner frame)."""
+TILE_RECTS: list[tuple[tuple[float, float], list[tuple[float, float, float, float]], dict]] = []
+"""Per built tile: (size, obstacle rectangles (x0, y0, x1, y1) in the tile corner frame, meta). ``meta`` is empty for
+mazes; a warehouse gives ``aisle_x`` (x of the aisle centres), ``y_start`` and ``y_goal`` (corner frame, metres)."""
+
+MAX_AISLES = 8
 
 
-def record_tile(size: tuple[float, float], rects) -> None:
-    TILE_RECTS.append(((float(size[0]), float(size[1])), [tuple(float(v) for v in r) for r in rects]))
+def record_tile(size: tuple[float, float], rects, meta: dict | None = None) -> None:
+    TILE_RECTS.append(((float(size[0]), float(size[1])), [tuple(float(v) for v in r) for r in rects], dict(meta or {})))
 
 
 class PathField:
@@ -45,12 +48,26 @@ class PathField:
         self.w, self.h = int(math.ceil(sx / res)), int(math.ceil(sy / res))
         xs, ys = (np.arange(self.w) + 0.5) * res, (np.arange(self.h) + 0.5) * res
         occ = np.zeros((rows * cols, self.h, self.w), dtype=bool)
-        for k, (_, rects) in enumerate(tiles):
+        self.is_warehouse = torch.zeros(rows * cols, dtype=torch.bool, device=dev)
+        self.aisle_n = torch.zeros(rows * cols, dtype=torch.long, device=dev)
+        self.aisle_x = torch.zeros(rows * cols, MAX_AISLES, device=dev)
+        self.y_start = torch.zeros(rows * cols, device=dev)
+        self.y_goal = torch.zeros(rows * cols, device=dev)
+        for k, (_, rects, meta) in enumerate(tiles):
+            if meta.get("aisle_x"):
+                xs_a = meta["aisle_x"][:MAX_AISLES]
+                self.is_warehouse[k], self.aisle_n[k] = True, len(xs_a)
+                self.aisle_x[k, : len(xs_a)] = torch.tensor(xs_a, device=dev)
+                self.y_start[k], self.y_goal[k] = meta["y_start"], meta["y_goal"]
             for x0, y0, x1, y1 in rects:
                 mx = (xs > x0 - robot_radius) & (xs < x1 + robot_radius)
                 my = (ys > y0 - robot_radius) & (ys < y1 + robot_radius)
                 occ[k][np.ix_(my, mx)] = True
         self.occ = torch.from_numpy(occ).to(dev).reshape(rows, cols, self.h, self.w)
+        self.is_warehouse = self.is_warehouse.reshape(rows, cols)
+        self.aisle_n = self.aisle_n.reshape(rows, cols)
+        self.aisle_x = self.aisle_x.reshape(rows, cols, MAX_AISLES)
+        self.y_start, self.y_goal = self.y_start.reshape(rows, cols), self.y_goal.reshape(rows, cols)
         origins = env.scene.terrain.terrain_origins[..., :2]  # tile centres (the terrain functions return the centre)
         self.corner = origins - torch.tensor([sx / 2, sy / 2], device=dev)  # (rows, cols, 2)
         n = env.num_envs
@@ -102,6 +119,24 @@ class PathField:
                 v = self.field[env_ids, (j + dj).clamp(0, self.h - 1), (i + di).clamp(0, self.w - 1)]
                 out = torch.minimum(out, v)
         return out
+
+    def aisle_task(self, row, col, jitter_xy: float = 0.5, jitter_yaw: float = 0.8):
+        """Start, goal (both (n, 2), world frame) and start heading for warehouse tiles (row, col): the same task as
+        ``warehouse_task`` (start in the front cross aisle, goal deep inside one aisle, the start 0, 1 or 2 aisles to
+        the side of the goal aisle, heading to the goal), with the start jittered like the evaluation runs."""
+        n = len(row)
+        cnt = self.aisle_n[row, col]
+        g = (torch.rand(n, device=self.dev) * cnt).long().clamp(max=cnt - 1)
+        lateral = torch.multinomial(torch.tensor([0.25, 0.5, 0.25], device=self.dev), n, replacement=True)
+        s = (g + lateral * torch.where(g + lateral < cnt, 1, -1)).clamp(min=0).minimum(cnt - 1)
+        ax = self.aisle_x[row, col]
+        gx, sx = ax.gather(1, g[:, None]).squeeze(1), ax.gather(1, s[:, None]).squeeze(1)
+        jit = (torch.rand(n, 2, device=self.dev) * 2 - 1) * jitter_xy
+        start = self.corner[row, col] + torch.stack([sx, self.y_start[row, col]], dim=-1) + jit
+        goal = self.corner[row, col] + torch.stack([gx, self.y_goal[row, col]], dim=-1)
+        yaw = torch.atan2(goal[:, 1] - start[:, 1], goal[:, 0] - start[:, 0])
+        yaw = yaw + (torch.rand(n, device=self.dev) * 2 - 1) * jitter_yaw
+        return start, goal, yaw
 
     def facing_wall_yaw(self, row, col, start_w: torch.Tensor, lo: float = 0.5, hi: float = 2.5, angles: int = 24):
         """A start heading that looks at a wall ``lo``..``hi`` m ahead (distance to the inflated wall); also returns
