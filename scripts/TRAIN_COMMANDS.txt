@@ -76,7 +76,7 @@ uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-HallRacks-cuVS
 #   GT + depth            Spot-Nav-WarehouseMaze-Depth-v0                  14 inputs  ~2.5 h per 1000 epochs
 #   cuVSLAM + depth       Spot-Nav-WarehouseMaze-cuVSLAM-Depth-v0          14 inputs  ~4.6 h per 1000 epochs (16 envs)
 #   cuVSLAM+quality+depth Spot-Nav-WarehouseMaze-cuVSLAM-QualityDepth-v0   17 inputs  ~4.6 h per 1000 epochs (16 envs)
-# These three tasks use agents/rl_games_ppo_pathreward_cfg.yaml (initial action std 0.37, entropy_coef 0, bounds loss 0.05):
+# These three tasks use agents/rl_games_ppo_pathreward_cfg.yaml (initial action std 0.37, entropy_coef 0.002, bounds loss 0.05):
 # with the paper yaml (std 1, entropy 0.01) the first run drifted to saturated actions by epoch ~500 and got worse.
 # Healthy at epoch 300-500: losses/bounds_loss near 0, losses/entropy flat or falling, Metrics/goal/distance below its
 # first value, goal_reached rising. If entropy collapses fast while progress is flat: entropy_coef 0.002.
