@@ -101,6 +101,14 @@ SPOT_VSLAM_HL_MEMORY=1 CKPT=logs/rl_games/spot_navigation_ppo/<run>/nn/spot_navi
 # 1000 epochs is only the size of one check segment, not the training length: the old policy needed ~8400 epochs.
 # Keep adding segments (--max_iterations 4000, 5000, ...) while the check improves; or train straight to 8000 and check once.
 
+# 2026-11-16 LSTM instead of the hand-built memory (HL_MEMORY run: 8/23 at epoch 4660, 0/9 random warehouse starts):
+# SPOT_VSLAM_HL_LSTM=1 picks rl_games_ppo_pathreward_lstm_cfg.yaml: obs -> [256,128] MLP -> LSTM 256 (layer norm) -> heads,
+# BPTT 32 steps, horizon 128, minibatch 512 (one epoch = 2048 samples, twice the MLP run, so 5000 epochs ~ 10000 old ones).
+# Recipe of the big labs (DD-PPO, Mirowski et al.). Do not combine with SPOT_VSLAM_HL_MEMORY. Needs training from scratch
+# (the MLP checkpoints do not fit). Same env var in front of every eval / play command.
+SPOT_VSLAM_HL_LSTM=1 uv run --no-sync python scripts/rl_games/train.py --task Spot-Nav-WarehouseMaze-Depth-v0 --cameras --max_iterations 5000
+SPOT_VSLAM_HL_LSTM=1 CKPT=logs/rl_games/spot_navigation_ppo/<run>/nn/spot_navigation_ppo.pth POSE=GT bash scripts/tools/run_eval_set.sh
+
 3. OLD SB3 HIGH LEVEL (the paper-version checkpoint)
 ------------------------------------------------------------------------------
 uv run --no-sync python scripts/high_level/train_high_level_ppo.py --paper --task Spot-Paper-high-level-MapA-v0 \

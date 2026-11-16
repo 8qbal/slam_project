@@ -79,6 +79,8 @@ n = a.num_envs
 obs = env.reset()
 obs = obs["obs"] if isinstance(obs, dict) else obs
 _ = agent.get_batch_size(obs, 1)
+if agent.is_rnn:  # recurrent policy (SPOT_VSLAM_HL_LSTM=1): zero hidden state at the start of the run
+    agent.init_rnn()
 touching = torch.zeros(n, dtype=torch.bool, device=u.device)
 collisions = torch.zeros(n, device=u.device)
 finished = torch.zeros(n, dtype=torch.bool, device=u.device)

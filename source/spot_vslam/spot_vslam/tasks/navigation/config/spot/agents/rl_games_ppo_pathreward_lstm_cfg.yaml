@@ -1,0 +1,100 @@
+# High-level PPO with an LSTM (SPOT_VSLAM_HL_LSTM=1), same settings as rl_games_ppo_pathreward_cfg.yaml except:
+# memory comes from a recurrent policy instead of the hand-built progress_memory inputs (the 4660-epoch run with those
+# got 8/23 on the eval set, 0/9 on random warehouse starts). Recipe of the big labs: DD-PPO (Wijmans et al. 2020,
+# encoder -> LSTM belief -> heads, no hand-made memory) and Mirowski et al. 2017 (stacked LSTM for navigation); OpenAI Five
+# trains the LSTM with truncated BPTT over 16 steps.
+#   rnn lstm 256, layer_norm, after the [256, 128] MLP (obs -> MLP -> LSTM -> mu / value heads)
+#   seq_length 32 (BPTT window, 2.6 s), horizon_length 128 (longer rollouts for GAE with a recurrent policy),
+#   minibatch_size 512 (16 sequences of 32), so one epoch = 16 envs x 128 = 2048 samples (twice the MLP run)
+# Do NOT set SPOT_VSLAM_HL_MEMORY=1 with this file (the LSTM replaces it). Training and evaluation need the same
+# SPOT_VSLAM_HL_LSTM value.
+# High-level PPO for the Spot-Nav-WarehouseMaze-* tasks: rl_games_ppo_cfg.yaml (paper Table 6) with three changes.
+# The first from-scratch run (path reward, 2026-11-14) drifted: log std 0 -> +0.3 (entropy bonus, weak signal), so the
+# noise (std 1.3) was larger than the [-1, 1] action range, and the mean ran far outside it (bounds_loss 1 -> 21, no
+# penalty): saturated bang-bang actions, progress fell, contacts and standing still rose.
+#   sigma_init val -1   initial action std 0.37 (was 1.0)
+#   entropy_coef 0.002  (paper 0.01; 0 let the entropy fall from 0.85 to -0.13 by epoch 1260, std 0.23, success flat ~0.5)
+#   bounds_loss_coef 0.05  keeps the mean action inside [-1, 1] (paper yaml: 0). 1e-3 was too weak: in a 3000-epoch run
+#                          the mean forward action went to ~3 (bounds_loss 5), so vx sat at its maximum and its std grew
+#                          0.37 -> 0.63 unchecked (clipped actions give no gradient to the noise)
+# High-level PPO, paper Table 6: lr 3e-4, n_steps 256 x 4 envs (= 1024 per update), batch 128, 4 epochs, gamma 0.99,
+# GAE 0.95, clip 0.2, entropy 0.01, value coef 0.5, 500k steps, [256, 128] ELU. The paper used Stable-Baselines3 PPO;
+# this is the closest rl_games setup: 16 envs x horizon 64 = 1024 per update, 490 epochs ~ 500k steps, no
+# observation/value normalization (SB3 default), constant learning rate, initial action std 1 (log std 0).
+params:
+  seed: 42
+
+  env:
+    clip_actions: 1.0
+
+  algo:
+    name: a2c_continuous
+
+  model:
+    name: continuous_a2c_logstd
+
+  network:
+    name: actor_critic
+    separate: False
+    space:
+      continuous:
+        mu_activation: None
+        sigma_activation: None
+        mu_init:
+          name: default
+        sigma_init:
+          name: const_initializer
+          val: -1
+        fixed_sigma: True
+    rnn:
+      name: lstm
+      units: 256
+      layers: 1
+      before_mlp: False
+      layer_norm: True
+    mlp:
+      units: [256, 128]
+      activation: elu
+      d2rl: False
+      initializer:
+        name: default
+      regularizer:
+        name: None
+
+  load_checkpoint: False
+  load_path: ''
+
+  config:
+    name: spot_navigation_ppo
+    env_name: rlgpu
+    device: 'cuda:0'
+    device_name: 'cuda:0'
+    multi_gpu: False
+    ppo: True
+    mixed_precision: False
+    normalize_input: False
+    normalize_value: False
+    value_bootstrap: True
+    num_actors: -1  # set from num_envs
+    reward_shaper:
+      scale_value: 1.0
+    normalize_advantage: True
+    gamma: 0.99
+    tau: 0.95
+    learning_rate: 3e-4
+    lr_schedule: None
+    score_to_win: 20000
+    max_epochs: 5000
+    save_best_after: 20
+    save_frequency: 20
+    grad_norm: 0.5
+    entropy_coef: 0.002
+    truncate_grads: True
+    e_clip: 0.2
+    horizon_length: 128
+    minibatch_size: 512
+    mini_epochs: 4
+    critic_coef: 0.5
+    clip_value: False
+    seq_length: 32
+    bounds_loss_coef: 0.05
